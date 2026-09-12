@@ -1,12 +1,18 @@
 package dev.ssscfw.venusmod.entity;
 
-import net.minecraft.core.registries.BuiltInRegistries;
+import dev.ssscfw.venusmod.compat.SlashBladeCompat;
+import dev.ssscfw.venusmod.entity.ai.VenusSlashBladeAttackGoal;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -21,18 +27,33 @@ import net.neoforged.neoforge.registries.NeoForgeRegistries;
 import java.lang.reflect.Method;
 
 public class VenusZombie extends Zombie {
+    public static final String NBT_SLASHBLADE_WIELDER = "VenusSlashBladeWielder";
+    public static final int BLADE_TECHNIQUE_NONE = 0;
+    public static final int BLADE_TECHNIQUE_COMBO = 1;
+    public static final int BLADE_TECHNIQUE_RAPID_SLASH = 2;
+
+    private static final EntityDataAccessor<Boolean> DATA_SLASHBLADE_WIELDER =
+            SynchedEntityData.defineId(VenusZombie.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Integer> DATA_BLADE_TECHNIQUE =
+            SynchedEntityData.defineId(VenusZombie.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> DATA_BLADE_TECHNIQUE_TICK =
+            SynchedEntityData.defineId(VenusZombie.class, EntityDataSerializers.INT);
+
     private static final int DASH_DAMAGE_BOOST_TICKS = 30;
-    private static final String SLASHBLADE_MOD_ID = "slashblade";
+    private static final double BLADE_INTERACTION_RANGE = 7.0D;
     private static final String SLASHBLADE_PACKAGE_PREFIX = "mods.flammpfeil.slashblade.";
     private static final String SLASHBLADE_KNOCKBACK_FACTOR_KEY = "knockback_factor";
     private static final ResourceLocation SLASHBLADE_MOB_EFFECT_ATTACHMENT_ID =
-            ResourceLocation.fromNamespaceAndPath(SLASHBLADE_MOD_ID, "mob_effect");
+            ResourceLocation.fromNamespaceAndPath(SlashBladeCompat.MOD_ID, "mob_effect");
 
     private static AttachmentType<?> slashBladeMobEffectAttachment;
     private static Method slashBladeSetStunLimitMethod;
     private static Method slashBladeSetStunTimeoutMethod;
 
     private int dashDamageBoostTicks;
+    private int bladeTechniqueCooldown;
+    private EntityType<?> bladeDamageTargetType;
+    private int bladeDamageTargetTicks;
 
     public VenusZombie(EntityType<? extends Zombie> entityType, Level level) {
         super(entityType, level);
@@ -40,20 +61,47 @@ public class VenusZombie extends Zombie {
     }
 
     @Override
+    protected void registerGoals() {
+        super.registerGoals();
+        // Priority 1 lets the blade AI take control from ZombieAttackGoal only for
+        // blade-wielding instances. Normal Venus zombies keep vanilla zombie combat.
+        goalSelector.addGoal(1, new VenusSlashBladeAttackGoal(this, 1.2D));
+    }
+
+    @Override
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(DATA_SLASHBLADE_WIELDER, false);
+        builder.define(DATA_BLADE_TECHNIQUE, BLADE_TECHNIQUE_NONE);
+        builder.define(DATA_BLADE_TECHNIQUE_TICK, 0);
+    }
+
+    @Override
     public void tick() {
         // SlashBlade's normal combo attacks apply a managed stun to PathfinderMob
-        // targets. Its StunGoal owns MOVE/JUMP/LOOK/TARGET while that stun is active,
-        // which makes the zombie appear to flinch/freeze even though knockback and
-        // hurt animation have already been suppressed. Set this entity's SlashBlade
-        // stun limit to zero before AI ticks so newly queued combo stuns are invalid.
+        // targets. Keep every Venus zombie immune to that stun, as well as knockback.
         disableSlashBladeStun();
 
         super.tick();
 
-        // Clear again after the entity tick in case another SlashBlade callback queued
-        // stun state during this tick. The zero limit also makes subsequent setStun
-        // calls resolve to an immediately expired timeout.
         disableSlashBladeStun();
+
+        if (!level().isClientSide) {
+            if (isSlashBladeWielder()) {
+                ensureSlashBladeEquipped();
+                applyBladeReach();
+                tickBladeTechnique();
+            }
+
+            if (bladeTechniqueCooldown > 0) {
+                bladeTechniqueCooldown--;
+            }
+            if (bladeDamageTargetTicks > 0) {
+                bladeDamageTargetTicks--;
+            } else {
+                bladeDamageTargetType = null;
+            }
+        }
 
         if (dashDamageBoostTicks > 0) {
             dashDamageBoostTicks--;
@@ -67,9 +115,6 @@ public class VenusZombie extends Zombie {
         boolean wasInsideInvulnerabilityFrames = this.invulnerableTime > 0;
 
         if (slashBladeHit) {
-            // SlashBlade stores a one-shot knockback mode in persistent data. Venus
-            // zombies are completely knockback immune, so never leave that value
-            // queued for a later unrelated knockback event.
             getPersistentData().remove(SLASHBLADE_KNOCKBACK_FACTOR_KEY);
             disableSlashBladeStun();
         }
@@ -95,13 +140,179 @@ public class VenusZombie extends Zombie {
     @Override
     public void handleDamageEvent(DamageSource source) {
         if (isSlashBladeDamage(source)) {
-            // The damage packet still updates health normally; skipping vanilla's
-            // damage-event animation prevents the visible hurt/flinch reaction.
             hurtTime = 0;
             hurtDuration = 0;
             return;
         }
         super.handleDamageEvent(source);
+    }
+
+    public boolean isSlashBladeWielder() {
+        return entityData.get(DATA_SLASHBLADE_WIELDER);
+    }
+
+    public void setSlashBladeWielder(boolean value) {
+        entityData.set(DATA_SLASHBLADE_WIELDER, value);
+        if (value && !level().isClientSide) {
+            ensureSlashBladeEquipped();
+            applyBladeReach();
+        }
+    }
+
+    public boolean hasSlashBladeEquipped() {
+        return SlashBladeCompat.isSlashBladeItem(getMainHandItem());
+    }
+
+    public boolean isBladeTechniqueActive() {
+        return entityData.get(DATA_BLADE_TECHNIQUE) != BLADE_TECHNIQUE_NONE;
+    }
+
+    public int getBladeTechnique() {
+        return entityData.get(DATA_BLADE_TECHNIQUE);
+    }
+
+    public int getBladeTechniqueTick() {
+        return entityData.get(DATA_BLADE_TECHNIQUE_TICK);
+    }
+
+    public int getBladeTechniqueCooldown() {
+        return bladeTechniqueCooldown;
+    }
+
+    public void startBladeCombo(LivingEntity target) {
+        if (level().isClientSide || isBladeTechniqueActive() || bladeTechniqueCooldown > 0 || target == null) {
+            return;
+        }
+        bindBladeDamageTarget(target);
+        entityData.set(DATA_BLADE_TECHNIQUE, BLADE_TECHNIQUE_COMBO);
+        entityData.set(DATA_BLADE_TECHNIQUE_TICK, 0);
+    }
+
+    public void startRapidSlash(LivingEntity target) {
+        if (level().isClientSide || isBladeTechniqueActive() || bladeTechniqueCooldown > 0 || target == null) {
+            return;
+        }
+        bindBladeDamageTarget(target);
+        entityData.set(DATA_BLADE_TECHNIQUE, BLADE_TECHNIQUE_RAPID_SLASH);
+        entityData.set(DATA_BLADE_TECHNIQUE_TICK, 0);
+    }
+
+    /**
+     * SlashBlade attacks from this zombie may only hurt the same entity type as the
+     * target selected when the technique started.
+     */
+    public boolean canBladeDamage(LivingEntity victim) {
+        EntityType<?> allowedType = bladeDamageTargetType;
+        if (allowedType == null) {
+            LivingEntity currentTarget = getTarget();
+            allowedType = currentTarget != null ? currentTarget.getType() : null;
+        }
+        return allowedType == null || victim.getType() == allowedType;
+    }
+
+    private void bindBladeDamageTarget(LivingEntity target) {
+        bladeDamageTargetType = target.getType();
+        bladeDamageTargetTicks = 40;
+    }
+
+    private void tickBladeTechnique() {
+        int technique = getBladeTechnique();
+        if (technique == BLADE_TECHNIQUE_NONE) {
+            return;
+        }
+
+        int tick = getBladeTechniqueTick();
+        if (technique == BLADE_TECHNIQUE_COMBO) {
+            tickBladeCombo(tick);
+            if (tick >= 21) {
+                finishBladeTechnique(10 + getRandom().nextInt(9));
+                return;
+            }
+        } else if (technique == BLADE_TECHNIQUE_RAPID_SLASH) {
+            tickRapidSlash(tick);
+            if (tick >= 8) {
+                finishBladeTechnique(16 + getRandom().nextInt(9));
+                return;
+            }
+        }
+
+        entityData.set(DATA_BLADE_TECHNIQUE_TICK, tick + 1);
+    }
+
+    /**
+     * A1 -> A2 -> A3 -> A4-like sequence using SlashBlade's real slash effect.
+     */
+    private void tickBladeCombo(int tick) {
+        switch (tick) {
+            case 0 -> performBladeSlash(-10.0F, true, 0.44D);
+            case 4 -> performBladeSlash(170.0F, true, 0.44D);
+            case 8 -> performBladeSlash(-61.0F, false, 0.44D);
+            case 11 -> performBladeSlash(138.0F, false, 0.44D);
+            case 15 -> performBladeSlash(45.0F, false, 0.44D);
+            case 17 -> performBladeSlash(50.0F, true, 0.44D);
+            default -> {
+            }
+        }
+    }
+
+    /**
+     * Shift + forward + right-click style 疾走居合: step in, then two crossed slashes.
+     */
+    private void tickRapidSlash(int tick) {
+        if (tick == 0) {
+            dashTowardBladeTarget();
+        } else if (tick == 2) {
+            performBladeSlash(30.0F, false, 1.0D);
+        } else if (tick == 3) {
+            performBladeSlash(210.0F, false, 1.0D);
+        }
+    }
+
+    private void performBladeSlash(float roll, boolean mute, double comboRatio) {
+        if (!hasSlashBladeEquipped()) {
+            finishBladeTechnique(10);
+            return;
+        }
+        SlashBladeCompat.doSlash(this, roll, mute, false, comboRatio);
+    }
+
+    private void dashTowardBladeTarget() {
+        LivingEntity target = getTarget();
+        if (target == null || !target.isAlive()) {
+            return;
+        }
+
+        Vec3 delta = target.position().subtract(position());
+        Vec3 horizontal = new Vec3(delta.x, 0.0D, delta.z);
+        if (horizontal.lengthSqr() > 1.0E-4D) {
+            Vec3 dash = horizontal.normalize().scale(1.45D);
+            setDeltaMovement(dash.x, Math.max(getDeltaMovement().y, 0.10D), dash.z);
+            hasImpulse = true;
+        }
+    }
+
+    private void finishBladeTechnique(int cooldown) {
+        entityData.set(DATA_BLADE_TECHNIQUE, BLADE_TECHNIQUE_NONE);
+        entityData.set(DATA_BLADE_TECHNIQUE_TICK, 0);
+        bladeTechniqueCooldown = cooldown;
+    }
+
+    private void ensureSlashBladeEquipped() {
+        if (hasSlashBladeEquipped()) {
+            return;
+        }
+
+        ItemStack blade = SlashBladeCompat.createRandomVenusZombieBlade(getRandom());
+        if (!blade.isEmpty()) {
+            setItemSlot(EquipmentSlot.MAINHAND, blade);
+        }
+    }
+
+    private void applyBladeReach() {
+        AttributeInstance reach = getAttribute(Attributes.ENTITY_INTERACTION_RANGE);
+        if (reach != null && reach.getBaseValue() < BLADE_INTERACTION_RANGE) {
+            reach.setBaseValue(BLADE_INTERACTION_RANGE);
+        }
     }
 
     private static boolean isSlashBladeDamage(DamageSource source) {
@@ -121,15 +332,8 @@ public class VenusZombie extends Zombie {
         if (!(entity instanceof LivingEntity living)) {
             return false;
         }
-        return isSlashBladeItem(living.getMainHandItem()) || isSlashBladeItem(living.getOffhandItem());
-    }
-
-    private static boolean isSlashBladeItem(ItemStack stack) {
-        if (stack.isEmpty()) {
-            return false;
-        }
-        ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
-        return id != null && SLASHBLADE_MOD_ID.equals(id.getNamespace());
+        return SlashBladeCompat.isSlashBladeItem(living.getMainHandItem())
+                || SlashBladeCompat.isSlashBladeItem(living.getOffhandItem());
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -164,8 +368,7 @@ public class VenusZombie extends Zombie {
             setStunLimit.invoke(effectState, 0);
             setStunTimeOut.invoke(effectState, -1L);
         } catch (ReflectiveOperationException ignored) {
-            // Optional compatibility: VenusMod must still run when SlashBlade is absent
-            // or when a different SlashBlade version exposes a different attachment.
+            // Optional compatibility: VenusMod must still run when SlashBlade is absent.
         }
     }
 
@@ -209,6 +412,20 @@ public class VenusZombie extends Zombie {
     @Override
     public void knockback(double strength, double x, double z) {
         // Venus zombies are completely immune to knockback.
+    }
+
+    @Override
+    protected void addAdditionalSaveData(CompoundTag tag) {
+        super.addAdditionalSaveData(tag);
+        tag.putBoolean(NBT_SLASHBLADE_WIELDER, isSlashBladeWielder());
+    }
+
+    @Override
+    protected void readAdditionalSaveData(CompoundTag tag) {
+        super.readAdditionalSaveData(tag);
+        if (tag.getBoolean(NBT_SLASHBLADE_WIELDER)) {
+            setSlashBladeWielder(true);
+        }
     }
 
     @Override
