@@ -24,6 +24,7 @@ public final class VenusMod {
         NeoForge.EVENT_BUS.addListener(VenusCombatEvents::onLivingIncomingDamage);
         NeoForge.EVENT_BUS.addListener(VenusEnchantmentEvents::onIncomingDamage);
         NeoForge.EVENT_BUS.addListener(VenusEnchantmentEvents::onDamagePost);
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, VenusEnchantmentEvents::onAnvilUpdate);
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, VenusEnchantmentEvents::onLivingDeath);
         NeoForge.EVENT_BUS.addListener(VenusEnchantmentEvents::onPlayerClone);
     }
