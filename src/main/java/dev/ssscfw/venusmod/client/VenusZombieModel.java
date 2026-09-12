@@ -10,18 +10,25 @@ public final class VenusZombieModel extends ZombieModel<VenusZombie> {
         super(root);
     }
 
+    private static boolean isBladeWielderForRender(VenusZombie zombie) {
+        // Prefer the synced Venus flag, but also trust the actually synced held item.
+        // This keeps animation/rendering correct even if entity NBT and SynchedEntityData
+        // arrive on different client ticks after spawning/loading.
+        return zombie.isSlashBladeWielder() || zombie.hasSlashBladeEquipped();
+    }
+
     @Override
     public boolean isAggressive(VenusZombie zombie) {
         // AbstractZombieModel always calls animateZombieArms when this returns true,
         // even with attackTime == 0. Blade wielders use SlashBlade VMD/fallback poses
         // instead, so suppress the vanilla zombie-arm animation entirely for them.
-        return !zombie.isSlashBladeWielder() && super.isAggressive(zombie);
+        return !isBladeWielderForRender(zombie) && super.isAggressive(zombie);
     }
 
     @Override
     public void setupAnim(VenusZombie zombie, float limbSwing, float limbSwingAmount,
                           float ageInTicks, float netHeadYaw, float headPitch) {
-        boolean bladeWielder = zombie.isSlashBladeWielder();
+        boolean bladeWielder = isBladeWielderForRender(zombie);
 
         // A blade-wielding Venus zombie must not inherit HumanoidModel's normal melee
         // swing either. SlashBlade's VMD (or our fallback blade pose) is applied after
