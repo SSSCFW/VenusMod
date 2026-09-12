@@ -74,8 +74,14 @@ public final class ModEntities {
         // Normal Venus zombies keep the vanilla three-block interaction range. Blade
         // wielders raise this per-instance to seven blocks so SlashBlade's own target
         // selector also benefits from the longer weapon reach.
+        //
+        // SlashBlade 2.0.7 calculates every slash through AttackHelper and reads the
+        // player-only SWEEPING_DAMAGE_RATIO attribute even when the attacker is a Mob.
+        // Registering it at zero keeps normal Venus zombies unchanged while allowing
+        // SlashBlade's visual slash entity to tick safely for blade-wielding variants.
         event.put(VENUS_ZOMBIE.get(), Zombie.createAttributes()
                 .add(Attributes.ENTITY_INTERACTION_RANGE, 3.0D)
+                .add(Attributes.SWEEPING_DAMAGE_RATIO, 0.0D)
                 .build());
         event.put(VENUS_SKELETON.get(), AbstractSkeleton.createAttributes().build());
         event.put(VENUS_CREEPER.get(), Creeper.createAttributes().build());
