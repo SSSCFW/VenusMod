@@ -41,10 +41,9 @@ public final class DiamondHopperBlockEntity extends HopperBlockEntity {
         hopper.transferAccumulator %= MOVE_ITEM_SPEED;
 
         for (int i = 0; i < cycles; i++) {
-            // Vanilla pushItemsTick respects HopperBlock.ENABLED and performs the
-            // normal push + pull logic. Reset only its transfer cooldown so each
-            // earned cycle is allowed to run immediately.
-            hopper.cooldownTime = 0;
+            // NeoForge exposes HopperBlockEntity#setCooldown. Reset only the vanilla
+            // transfer cooldown, then run vanilla's own push/pull cycle unchanged.
+            hopper.setCooldown(0);
             HopperBlockEntity.pushItemsTick(level, pos, state, hopper);
         }
     }
