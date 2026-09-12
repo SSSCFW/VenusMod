@@ -4,6 +4,7 @@ import dev.ssscfw.venusmod.event.VenusCombatEvents;
 import dev.ssscfw.venusmod.event.VenusEnchantmentEvents;
 import dev.ssscfw.venusmod.registry.ModEntities;
 import dev.ssscfw.venusmod.registry.ModItems;
+import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
@@ -23,7 +24,7 @@ public final class VenusMod {
         NeoForge.EVENT_BUS.addListener(VenusCombatEvents::onLivingIncomingDamage);
         NeoForge.EVENT_BUS.addListener(VenusEnchantmentEvents::onIncomingDamage);
         NeoForge.EVENT_BUS.addListener(VenusEnchantmentEvents::onDamagePost);
-        NeoForge.EVENT_BUS.addListener(VenusEnchantmentEvents::onLivingDeath);
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, VenusEnchantmentEvents::onLivingDeath);
         NeoForge.EVENT_BUS.addListener(VenusEnchantmentEvents::onPlayerClone);
     }
 }
