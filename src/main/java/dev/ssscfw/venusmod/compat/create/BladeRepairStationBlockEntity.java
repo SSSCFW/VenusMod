@@ -3,15 +3,14 @@ package dev.ssscfw.venusmod.compat.create;
 import dev.ssscfw.venusmod.compat.SlashBladeEnchantmentCompat;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
 /** Automatically repairs one durability point per 20 units of kinetic work. */
 public final class BladeRepairStationBlockEntity extends AbstractBladeMachineBlockEntity {
     private static final int REPAIR_WORK = 20;
 
-    public BladeRepairStationBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
-        super(type, pos, state, 1);
+    public BladeRepairStationBlockEntity(BlockPos pos, BlockState state) {
+        super(VenusCreateCompat.BLADE_REPAIR_STATION_BE.get(), pos, state, 1);
     }
 
     @Override
