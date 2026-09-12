@@ -23,8 +23,9 @@ public final class VenusMod {
         modBus.addListener(ModEntities::registerAttributes);
         modBus.addListener(ModItems::addCreativeTabContents);
 
-        // Create is optional. Its integration classes are initialized only on a Create install.
-        if (ModList.get().isLoaded("create")) {
+        // Create/SlashBlade are both optional. The kinetic blade machines exist only
+        // when both sides of the compatibility feature are installed.
+        if (ModList.get().isLoaded("create") && ModList.get().isLoaded("slashblade")) {
             VenusCreateCompat.register(modBus);
         }
 
