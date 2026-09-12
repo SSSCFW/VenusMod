@@ -11,15 +11,21 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.ItemInteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.level.pathfinder.PathComputationType;
 import net.minecraft.world.phys.BlockHitResult;
 
 /** A Create kinetic machine dedicated to SlashBlade items. */
 public final class BladeMachineBlock extends KineticBlock implements IBE<AbstractBladeMachineBlockEntity> {
+    public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
+
     public enum Mode {
         REPAIR,
         BREAK
@@ -30,6 +36,7 @@ public final class BladeMachineBlock extends KineticBlock implements IBE<Abstrac
     public BladeMachineBlock(Mode mode, Properties properties) {
         super(properties);
         this.mode = mode;
+        registerDefaultState(defaultBlockState().setValue(FACING, Direction.NORTH));
     }
 
     public Mode getMode() {
@@ -37,14 +44,25 @@ public final class BladeMachineBlock extends KineticBlock implements IBE<Abstrac
     }
 
     @Override
+    public BlockState getStateForPlacement(BlockPlaceContext context) {
+        return defaultBlockState().setValue(FACING, context.getHorizontalDirection().getOpposite());
+    }
+
+    @Override
+    protected void createBlockStateDefinition(StateDefinition.Builder<net.minecraft.world.level.block.Block, BlockState> builder) {
+        super.createBlockStateDefinition(builder);
+        builder.add(FACING);
+    }
+
+    @Override
     public boolean hasShaftTowards(LevelReader level, BlockPos pos, BlockState state, Direction face) {
-        // The exposed couplers in the model are on the north/south faces.
-        return face.getAxis() == Axis.Z;
+        // The visible couplers are on both ends of the machine's local horizontal axis.
+        return face.getAxis() == state.getValue(FACING).getAxis();
     }
 
     @Override
     public Axis getRotationAxis(BlockState state) {
-        return Axis.Z;
+        return state.getValue(FACING).getAxis();
     }
 
     @Override
