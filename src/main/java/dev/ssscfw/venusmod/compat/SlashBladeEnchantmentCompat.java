@@ -10,7 +10,6 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Optional;
 
@@ -18,8 +17,8 @@ import java.util.Optional;
 public final class SlashBladeEnchantmentCompat {
     private static final ResourceLocation CONCENTRATION_ATTACHMENT =
             ResourceLocation.fromNamespaceAndPath(SlashBladeCompat.MOD_ID, "concentration");
-    private static final ResourceLocation PROUDSOUL_TINY =
-            ResourceLocation.fromNamespaceAndPath(SlashBladeCompat.MOD_ID, "proudsoul_tiny");
+    private static final ResourceLocation PROUDSOUL =
+            ResourceLocation.fromNamespaceAndPath(SlashBladeCompat.MOD_ID, "proudsoul");
 
     private static boolean lookupDone;
     private static Class<?> slashBladeItemClass;
@@ -34,10 +33,7 @@ public final class SlashBladeEnchantmentCompat {
     private static boolean machineLookupDone;
     private static Method isBrokenMethod;
     private static Method isDestructableMethod;
-    private static Method getProudSoulCountMethod;
-    private static Method setProudSoulCountMethod;
     private static Method setBrokenMethod;
-    private static int maxProudSoulDrop = 10;
 
     private SlashBladeEnchantmentCompat() {
     }
@@ -96,16 +92,15 @@ public final class SlashBladeEnchantmentCompat {
     }
 
     /**
-     * Performs the state transformation used by the Create blade breaker without
-     * spawning entities into the world. Destructable blades disappear; persistent
-     * blades are returned with damage=max-1 and broken=true. The recovered normal
-     * soul fragment count follows SlashBlade's normal proudSoul/100 rule and config cap.
+     * Breaks one intact blade for the Create machine and creates exactly one regular
+     * 刀の魂片 (slashblade:proudsoul). Destructable blades disappear. Blades that
+     * normally survive breaking are returned at maxDamage - 1 with broken=true.
      */
     public static Optional<BladeBreakResult> breakBladeForMachine(ItemStack input) {
         if (!isBlade(input) || !resolveMachineMethods()) {
             return Optional.empty();
         }
-        if (!BuiltInRegistries.ITEM.containsKey(PROUDSOUL_TINY)) {
+        if (!BuiltInRegistries.ITEM.containsKey(PROUDSOUL)) {
             return Optional.empty();
         }
 
@@ -117,23 +112,17 @@ public final class SlashBladeEnchantmentCompat {
                 return Optional.empty();
             }
 
-            int proudSoul = ((Number) getProudSoulCountMethod.invoke(state)).intValue();
-            int soulCount = proudSoul >= maxProudSoulDrop * 100
-                    ? maxProudSoulDrop
-                    : Math.max(1, proudSoul / 100);
-
-            Item soulItem = BuiltInRegistries.ITEM.get(PROUDSOUL_TINY);
-            ItemStack souls = new ItemStack(soulItem, soulCount);
+            Item soulItem = BuiltInRegistries.ITEM.get(PROUDSOUL);
+            ItemStack soul = new ItemStack(soulItem, 1);
 
             boolean destructable = (boolean) isDestructableMethod.invoke(state);
             if (destructable) {
-                return Optional.of(new BladeBreakResult(ItemStack.EMPTY, souls));
+                return Optional.of(new BladeBreakResult(ItemStack.EMPTY, soul));
             }
 
             blade.setDamageValue(Math.max(0, blade.getMaxDamage() - 1));
             setBrokenMethod.invoke(state, true);
-            setProudSoulCountMethod.invoke(state, Math.max(0, proudSoul - soulCount * 100));
-            return Optional.of(new BladeBreakResult(blade, souls));
+            return Optional.of(new BladeBreakResult(blade, soul));
         } catch (ReflectiveOperationException | LinkageError ignored) {
             return Optional.empty();
         }
@@ -175,27 +164,11 @@ public final class SlashBladeEnchantmentCompat {
                     "mods.flammpfeil.slashblade.capability.slashblade.ISlashBladeState");
             isBrokenMethod = bladeStateInterface.getMethod("isBroken");
             isDestructableMethod = bladeStateInterface.getMethod("isDestructable");
-            getProudSoulCountMethod = bladeStateInterface.getMethod("getProudSoulCount");
-            setProudSoulCountMethod = bladeStateInterface.getMethod("setProudSoulCount", int.class);
             setBrokenMethod = bladeStateInterface.getMethod("setBroken", boolean.class);
-            maxProudSoulDrop = resolveSlashBladeConfigInt("MAX_PROUDSOUL_DROP", 10);
             return true;
         } catch (ReflectiveOperationException | LinkageError ignored) {
             isBrokenMethod = null;
             return false;
-        }
-    }
-
-    private static int resolveSlashBladeConfigInt(String fieldName, int fallback) {
-        try {
-            Class<?> configClass = Class.forName("mods.flammpfeil.slashblade.SlashBladeConfig");
-            Field field = configClass.getField(fieldName);
-            Object configValue = field.get(null);
-            Method getter = configValue.getClass().getMethod("get");
-            Object value = getter.invoke(configValue);
-            return value instanceof Number number ? Math.max(1, number.intValue()) : fallback;
-        } catch (ReflectiveOperationException | LinkageError ignored) {
-            return fallback;
         }
     }
 
