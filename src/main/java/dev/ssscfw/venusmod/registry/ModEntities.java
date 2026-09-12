@@ -10,6 +10,7 @@ import dev.ssscfw.venusmod.entity.VenusZombie;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.AbstractSkeleton;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.EnderMan;
@@ -70,7 +71,12 @@ public final class ModEntities {
     }
 
     public static void registerAttributes(EntityAttributeCreationEvent event) {
-        event.put(VENUS_ZOMBIE.get(), Zombie.createAttributes().build());
+        // Normal Venus zombies keep the vanilla three-block interaction range. Blade
+        // wielders raise this per-instance to seven blocks so SlashBlade's own target
+        // selector also benefits from the longer weapon reach.
+        event.put(VENUS_ZOMBIE.get(), Zombie.createAttributes()
+                .add(Attributes.ENTITY_INTERACTION_RANGE, 3.0D)
+                .build());
         event.put(VENUS_SKELETON.get(), AbstractSkeleton.createAttributes().build());
         event.put(VENUS_CREEPER.get(), Creeper.createAttributes().build());
         event.put(VENUS_SPIDER.get(), Spider.createAttributes().build());
