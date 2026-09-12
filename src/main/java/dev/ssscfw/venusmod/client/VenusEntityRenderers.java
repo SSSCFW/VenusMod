@@ -17,6 +17,7 @@ import net.minecraft.client.renderer.entity.SpiderRenderer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.EnderMan;
+import net.minecraft.world.entity.monster.Zombie;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -60,7 +61,7 @@ public final class VenusEntityRenderers {
         }
 
         @Override
-        public ResourceLocation getTextureLocation(VenusZombie entity) {
+        public ResourceLocation getTextureLocation(Zombie entity) {
             return ZOMBIE_TEXTURE;
         }
     }
