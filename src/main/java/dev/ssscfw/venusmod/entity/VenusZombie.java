@@ -86,7 +86,7 @@ public class VenusZombie extends Zombie {
     }
 
     @Override
-    public ResourceKey<LootTable> getLootTable() {
+    protected ResourceKey<LootTable> getDefaultLootTable() {
         return EntityType.ZOMBIE.getDefaultLootTable();
     }
 
