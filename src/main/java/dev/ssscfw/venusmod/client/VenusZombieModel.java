@@ -11,13 +11,21 @@ public final class VenusZombieModel extends ZombieModel<VenusZombie> {
     }
 
     @Override
+    public boolean isAggressive(VenusZombie zombie) {
+        // AbstractZombieModel always calls animateZombieArms when this returns true,
+        // even with attackTime == 0. Blade wielders use SlashBlade VMD/fallback poses
+        // instead, so suppress the vanilla zombie-arm animation entirely for them.
+        return !zombie.isSlashBladeWielder() && super.isAggressive(zombie);
+    }
+
+    @Override
     public void setupAnim(VenusZombie zombie, float limbSwing, float limbSwingAmount,
                           float ageInTicks, float netHeadYaw, float headPitch) {
         boolean bladeWielder = zombie.isSlashBladeWielder();
 
-        // A blade-wielding Venus zombie must not inherit the vanilla zombie punch
-        // animation. SlashBlade's VMD (or our fallback blade pose) is applied after
-        // the vanilla locomotion/head setup instead.
+        // A blade-wielding Venus zombie must not inherit HumanoidModel's normal melee
+        // swing either. SlashBlade's VMD (or our fallback blade pose) is applied after
+        // vanilla locomotion/head setup instead.
         if (bladeWielder) {
             this.attackTime = 0.0F;
         }
