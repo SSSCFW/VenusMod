@@ -58,7 +58,6 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
         if (SlashBladeEnchantmentCompat.isBlade(input)) {
             return input;
         }
-
         for (int slot = 0; slot < outputInv.getSlots(); slot++) {
             ItemStack output = outputInv.getStackInSlot(slot);
             if (SlashBladeEnchantmentCompat.isBlade(output)) {
@@ -77,7 +76,6 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
     @Override
     public void tick() {
         super.tick();
-
         if (level == null || level.isClientSide || getSpeed() == 0) {
             return;
         }
@@ -87,16 +85,13 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
             timer = 0;
             return;
         }
-
         if (!canProcessBlade(blade)) {
             moveInputToOutput(0);
             return;
         }
-
         if (!outputsReady(blade)) {
             return;
         }
-
         if (timer <= 0) {
             timer = getWorkDuration();
             setChanged();
@@ -124,11 +119,8 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
     }
 
     protected abstract int getWorkDuration();
-
     protected abstract boolean canProcessBlade(ItemStack blade);
-
     protected abstract boolean outputsReady(ItemStack blade);
-
     protected abstract void processBlade(ItemStack blade);
 
     protected boolean canInsertBlade(ItemStack stack) {
@@ -140,12 +132,10 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
         if (input.isEmpty() || outputSlot < 0 || outputSlot >= outputInv.getSlots()) {
             return false;
         }
-
         ItemStack remainder = outputInv.insertItem(outputSlot, input.copy(), false);
         if (!remainder.isEmpty()) {
             return false;
         }
-
         inputInv.setStackInSlot(0, ItemStack.EMPTY);
         return true;
     }
@@ -154,14 +144,12 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
         if (held.isEmpty()) {
             return false;
         }
-
         ItemStack one = held.copy();
         one.setCount(1);
         ItemStack remainder = capability.insertItem(0, one, false);
         if (!remainder.isEmpty()) {
             return false;
         }
-
         if (!player.getAbilities().instabuild) {
             held.shrink(1);
         }
@@ -233,8 +221,11 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
 
     /**
      * Capability layout exposed to hoppers/funnels:
-     * slot 0 = inputInv[0], insert-only
-     * slot 1..N = outputInv[0..N-1], extract-only
+     * global slot 0      -> inputInv slot 0 (insert only)
+     * global slot 1..N   -> outputInv slot 0..N-1 (extract only)
+     *
+     * Keep the conversion here instead of composing child handlers so a hopper scan
+     * can never pass a capability-global slot index directly to outputInv.
      */
     private final class MachineInventoryHandler implements IItemHandler {
         @Override
