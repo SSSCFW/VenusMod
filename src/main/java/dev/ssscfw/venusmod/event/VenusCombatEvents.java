@@ -10,7 +10,9 @@ public final class VenusCombatEvents {
 
     public static void onLivingIncomingDamage(LivingIncomingDamageEvent event) {
         Entity attacker = event.getSource().getEntity();
-        if (!(attacker instanceof VenusZombie venusZombie) || !venusZombie.isSlashBladeWielder()) {
+        if (!(attacker instanceof VenusZombie venusZombie)
+                || !venusZombie.isSlashBladeWielder()
+                || !venusZombie.hasSlashBladeEquipped()) {
             return;
         }
 
@@ -19,6 +21,7 @@ public final class VenusCombatEvents {
         // can attack players even when SlashBlade PVP is disabled and can enforce the
         // target-species rule. Cancel every other damage path from the blade wielder.
         if (!venusZombie.isApplyingBladeDamage() || !venusZombie.canBladeDamage(event.getEntity())) {
+            event.getEntity().getPersistentData().remove("knockback_factor");
             event.setCanceled(true);
         }
     }
