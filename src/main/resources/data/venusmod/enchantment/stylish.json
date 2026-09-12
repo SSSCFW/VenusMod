@@ -1,0 +1,22 @@
+{
+  "anvil_cost": 4,
+  "description": {
+    "translate": "enchantment.venusmod.stylish"
+  },
+  "effects": {},
+  "max_cost": {
+    "base": 45,
+    "per_level_above_first": 10
+  },
+  "max_level": 3,
+  "min_cost": {
+    "base": 15,
+    "per_level_above_first": 10
+  },
+  "primary_items": "#venusmod:enchantable/blade_special_sources",
+  "slots": [
+    "mainhand"
+  ],
+  "supported_items": "#venusmod:enchantable/blade_special_supported",
+  "weight": 3
+}
