@@ -1,0 +1,22 @@
+{
+  "variants": {
+    "facing=down": {
+      "model": "venusmod:block/diamond_hopper"
+    },
+    "facing=north": {
+      "model": "venusmod:block/diamond_hopper_side"
+    },
+    "facing=south": {
+      "model": "venusmod:block/diamond_hopper_side",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "venusmod:block/diamond_hopper_side",
+      "y": 270
+    },
+    "facing=east": {
+      "model": "venusmod:block/diamond_hopper_side",
+      "y": 90
+    }
+  }
+}
