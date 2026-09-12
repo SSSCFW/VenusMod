@@ -44,6 +44,14 @@ public final class VenusCreateCompat {
                             .strength(3.5F)
                             .sound(SoundType.METAL)));
 
+    /** Late-game intermediate for the automatic repair station. */
+    public static final DeferredHolder<Item, Item> STELLAR_PRECISION_CORE =
+            ITEMS.register("stellar_precision_core", () -> new Item(new Item.Properties()));
+
+    /** Netherite/Create reinforced intermediate for the automatic repair station. */
+    public static final DeferredHolder<Item, Item> NETHERITE_REINFORCED_MECHANISM =
+            ITEMS.register("netherite_reinforced_mechanism", () -> new Item(new Item.Properties()));
+
     public static final DeferredHolder<Item, BlockItem> BLADE_REPAIR_STATION_ITEM =
             ITEMS.register("blade_repair_station",
                     () -> new BlockItem(BLADE_REPAIR_STATION.get(), new Item.Properties()));
@@ -92,6 +100,8 @@ public final class VenusCreateCompat {
 
     private static void addCreativeTabContents(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey().equals(ModCreativeTabs.VENUS_TAB_KEY)) {
+            event.accept(STELLAR_PRECISION_CORE.get());
+            event.accept(NETHERITE_REINFORCED_MECHANISM.get());
             event.accept(BLADE_REPAIR_STATION_ITEM.get());
             event.accept(BLADE_BREAKER_ITEM.get());
         }
