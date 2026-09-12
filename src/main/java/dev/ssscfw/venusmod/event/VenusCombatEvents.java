@@ -14,11 +14,11 @@ public final class VenusCombatEvents {
             return;
         }
 
-        // SlashBlade's area attacks are intentionally broad. A blade-wielding Venus
-        // zombie is allowed to hit only the entity type (species) of its selected
-        // target, preventing nearby mobs of other species from being caught in the
-        // slash effect.
-        if (!venusZombie.canBladeDamage(event.getEntity())) {
+        // SlashBlade's visual slash entity performs its own delayed area damage. The
+        // Venus zombie already applies the authoritative technique damage itself so it
+        // can attack players even when SlashBlade PVP is disabled and can enforce the
+        // target-species rule. Cancel every other damage path from the blade wielder.
+        if (!venusZombie.isApplyingBladeDamage() || !venusZombie.canBladeDamage(event.getEntity())) {
             event.setCanceled(true);
         }
     }
