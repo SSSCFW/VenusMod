@@ -4,18 +4,19 @@ import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.entity.VenusArrow;
 import dev.ssscfw.venusmod.entity.VenusSkeleton;
 import dev.ssscfw.venusmod.entity.VenusSpider;
+import dev.ssscfw.venusmod.entity.VenusZombie;
 import dev.ssscfw.venusmod.registry.ModEntities;
+import net.minecraft.client.model.geom.ModelLayers;
+import net.minecraft.client.renderer.entity.AbstractZombieRenderer;
 import net.minecraft.client.renderer.entity.ArrowRenderer;
 import net.minecraft.client.renderer.entity.CreeperRenderer;
 import net.minecraft.client.renderer.entity.EndermanRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.SkeletonRenderer;
 import net.minecraft.client.renderer.entity.SpiderRenderer;
-import net.minecraft.client.renderer.entity.ZombieRenderer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.EnderMan;
-import net.minecraft.world.entity.monster.Zombie;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -49,13 +50,17 @@ public final class VenusEntityRenderers {
         event.registerEntityRenderer(ModEntities.VENUS_ARROW.get(), VenusArrowRenderer::new);
     }
 
-    private static final class GoldZombieRenderer extends ZombieRenderer {
+    private static final class GoldZombieRenderer extends AbstractZombieRenderer<VenusZombie, VenusZombieModel> {
         private GoldZombieRenderer(EntityRendererProvider.Context context) {
-            super(context);
+            super(
+                    context,
+                    new VenusZombieModel(context.bakeLayer(ModelLayers.ZOMBIE)),
+                    new VenusZombieModel(context.bakeLayer(ModelLayers.ZOMBIE_INNER_ARMOR)),
+                    new VenusZombieModel(context.bakeLayer(ModelLayers.ZOMBIE_OUTER_ARMOR)));
         }
 
         @Override
-        public ResourceLocation getTextureLocation(Zombie entity) {
+        public ResourceLocation getTextureLocation(VenusZombie entity) {
             return ZOMBIE_TEXTURE;
         }
     }
