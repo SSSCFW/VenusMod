@@ -43,6 +43,11 @@ public final class VenusSlashBladeAttackGoal extends Goal {
     }
 
     @Override
+    public boolean requiresUpdateEveryTick() {
+        return true;
+    }
+
+    @Override
     public void stop() {
         zombie.getNavigation().stop();
     }
