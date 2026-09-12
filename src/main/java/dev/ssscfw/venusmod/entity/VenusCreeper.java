@@ -60,7 +60,7 @@ public class VenusCreeper extends Creeper {
     }
 
     @Override
-    public ResourceKey<LootTable> getLootTable() {
+    protected ResourceKey<LootTable> getDefaultLootTable() {
         return EntityType.CREEPER.getDefaultLootTable();
     }
 
