@@ -263,13 +263,7 @@ public class VenusZombie extends Zombie {
             return;
         }
 
-        // Keep SlashBlade's own visual/projectile slash behavior.
         SlashBladeCompat.doSlash(this, roll, mute, false, comboRatio);
-
-        // SlashBlade defaults to PVP disabled, which would make a hostile mob's slash
-        // unable to damage a player. Apply the actual mob damage ourselves so the
-        // technique works against any valid zombie target. The global damage event
-        // suppresses the later SlashBlade area-effect damage, avoiding double hits.
         applyBladeDamageToTargetSpecies(comboRatio, reach);
     }
 
@@ -451,13 +445,13 @@ public class VenusZombie extends Zombie {
     }
 
     @Override
-    protected void addAdditionalSaveData(CompoundTag tag) {
+    public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
         tag.putBoolean(NBT_SLASHBLADE_WIELDER, isSlashBladeWielder());
     }
 
     @Override
-    protected void readAdditionalSaveData(CompoundTag tag) {
+    public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
         if (tag.getBoolean(NBT_SLASHBLADE_WIELDER)) {
             setSlashBladeWielder(true);
