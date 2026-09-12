@@ -97,7 +97,7 @@ public class VenusEnderman extends EnderMan {
     }
 
     @Override
-    public ResourceKey<LootTable> getLootTable() {
+    protected ResourceKey<LootTable> getDefaultLootTable() {
         return EntityType.ENDERMAN.getDefaultLootTable();
     }
 
