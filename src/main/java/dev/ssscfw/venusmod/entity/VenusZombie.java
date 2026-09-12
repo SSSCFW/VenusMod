@@ -15,12 +15,22 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.attachment.AttachmentType;
+import net.neoforged.neoforge.registries.NeoForgeRegistries;
+
+import java.lang.reflect.Method;
 
 public class VenusZombie extends Zombie {
     private static final int DASH_DAMAGE_BOOST_TICKS = 30;
     private static final String SLASHBLADE_MOD_ID = "slashblade";
     private static final String SLASHBLADE_PACKAGE_PREFIX = "mods.flammpfeil.slashblade.";
     private static final String SLASHBLADE_KNOCKBACK_FACTOR_KEY = "knockback_factor";
+    private static final ResourceLocation SLASHBLADE_MOB_EFFECT_ATTACHMENT_ID =
+            ResourceLocation.fromNamespaceAndPath(SLASHBLADE_MOD_ID, "mob_effect");
+
+    private static AttachmentType<?> slashBladeMobEffectAttachment;
+    private static Method slashBladeSetStunLimitMethod;
+    private static Method slashBladeSetStunTimeoutMethod;
 
     private int dashDamageBoostTicks;
 
@@ -31,7 +41,20 @@ public class VenusZombie extends Zombie {
 
     @Override
     public void tick() {
+        // SlashBlade's normal combo attacks apply a managed stun to PathfinderMob
+        // targets. Its StunGoal owns MOVE/JUMP/LOOK/TARGET while that stun is active,
+        // which makes the zombie appear to flinch/freeze even though knockback and
+        // hurt animation have already been suppressed. Set this entity's SlashBlade
+        // stun limit to zero before AI ticks so newly queued combo stuns are invalid.
+        disableSlashBladeStun();
+
         super.tick();
+
+        // Clear again after the entity tick in case another SlashBlade callback queued
+        // stun state during this tick. The zero limit also makes subsequent setStun
+        // calls resolve to an immediately expired timeout.
+        disableSlashBladeStun();
+
         if (dashDamageBoostTicks > 0) {
             dashDamageBoostTicks--;
         }
@@ -48,12 +71,14 @@ public class VenusZombie extends Zombie {
             // zombies are completely knockback immune, so never leave that value
             // queued for a later unrelated knockback event.
             getPersistentData().remove(SLASHBLADE_KNOCKBACK_FACTOR_KEY);
+            disableSlashBladeStun();
         }
 
         boolean hurt = super.hurt(source, amount);
 
         if (slashBladeHit) {
             getPersistentData().remove(SLASHBLADE_KNOCKBACK_FACTOR_KEY);
+            disableSlashBladeStun();
             setDeltaMovement(movementBeforeHit);
             hurtTime = 0;
             hurtDuration = 0;
@@ -105,6 +130,43 @@ public class VenusZombie extends Zombie {
         }
         ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
         return id != null && SLASHBLADE_MOD_ID.equals(id.getNamespace());
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private void disableSlashBladeStun() {
+        AttachmentType<?> attachment = slashBladeMobEffectAttachment;
+        if (attachment == null) {
+            attachment = NeoForgeRegistries.ATTACHMENT_TYPES.getValue(SLASHBLADE_MOB_EFFECT_ATTACHMENT_ID);
+            if (attachment == null) {
+                return;
+            }
+            slashBladeMobEffectAttachment = attachment;
+        }
+
+        Object effectState = getData((AttachmentType) attachment);
+        if (effectState == null) {
+            return;
+        }
+
+        try {
+            Method setStunLimit = slashBladeSetStunLimitMethod;
+            if (setStunLimit == null) {
+                setStunLimit = effectState.getClass().getMethod("setStunLimit", int.class);
+                slashBladeSetStunLimitMethod = setStunLimit;
+            }
+
+            Method setStunTimeOut = slashBladeSetStunTimeoutMethod;
+            if (setStunTimeOut == null) {
+                setStunTimeOut = effectState.getClass().getMethod("setStunTimeOut", long.class);
+                slashBladeSetStunTimeoutMethod = setStunTimeOut;
+            }
+
+            setStunLimit.invoke(effectState, 0);
+            setStunTimeOut.invoke(effectState, -1L);
+        } catch (ReflectiveOperationException ignored) {
+            // Optional compatibility: VenusMod must still run when SlashBlade is absent
+            // or when a different SlashBlade version exposes a different attachment.
+        }
     }
 
     public void reactToInvulnerabilityPiercingHit(Entity attacker) {
