@@ -34,6 +34,8 @@ public final class SlashBladeEnchantmentCompat {
     private static Method isBrokenMethod;
     private static Method isDestructableMethod;
     private static Method setBrokenMethod;
+    private static Method getDamageMethod;
+    private static Method setDamageMethod;
 
     private SlashBladeEnchantmentCompat() {
     }
@@ -92,6 +94,65 @@ public final class SlashBladeEnchantmentCompat {
     }
 
     /**
+     * Returns SlashBlade's own normalized durability damage (0.0 = healthy,
+     * 1.0 = fully damaged/broken). ItemStack#getDamageValue is not authoritative
+     * for SlashBlade and must not be used by the repair machine.
+     */
+    public static float getBladeDamage(ItemStack stack) {
+        if (!isBlade(stack) || !resolveMachineMethods()) {
+            return 0.0F;
+        }
+        try {
+            Object state = getBladeState(stack);
+            if (state == null) {
+                return 0.0F;
+            }
+            return Math.max(0.0F, ((Number) getDamageMethod.invoke(state)).floatValue());
+        } catch (ReflectiveOperationException | LinkageError ignored) {
+            return 0.0F;
+        }
+    }
+
+    public static boolean needsBladeRepair(ItemStack stack) {
+        return getBladeDamage(stack) > 0.0F;
+    }
+
+    /**
+     * Repairs exactly one vanilla durability point worth of SlashBlade's normalized
+     * damage. SlashBladeState#setDamage is used deliberately: when damage reaches
+     * zero it also clears broken=true for non-sealed blades according to SlashBlade's
+     * native repair rule.
+     */
+    public static boolean repairBladeOnePoint(ItemStack stack) {
+        if (!isBlade(stack) || !resolveMachineMethods()) {
+            return false;
+        }
+
+        try {
+            Object state = getBladeState(stack);
+            if (state == null) {
+                return false;
+            }
+
+            float damage = ((Number) getDamageMethod.invoke(state)).floatValue();
+            if (damage <= 0.0F) {
+                return false;
+            }
+
+            int maxDamage = Math.max(1, stack.getMaxDamage());
+            float repaired = Math.max(0.0F, damage - (1.0F / maxDamage));
+            // Avoid leaving a tiny positive floating-point remainder at full repair.
+            if (repaired < (0.5F / maxDamage)) {
+                repaired = 0.0F;
+            }
+            setDamageMethod.invoke(state, repaired);
+            return true;
+        } catch (ReflectiveOperationException | LinkageError ignored) {
+            return false;
+        }
+    }
+
+    /**
      * Breaks one intact blade for the Create machine and creates exactly one regular
      * 刀の魂片 (slashblade:proudsoul). Destructable blades disappear. Blades that
      * normally survive breaking are returned at maxDamage - 1 with broken=true.
@@ -120,7 +181,8 @@ public final class SlashBladeEnchantmentCompat {
                 return Optional.of(new BladeBreakResult(ItemStack.EMPTY, soul));
             }
 
-            blade.setDamageValue(Math.max(0, blade.getMaxDamage() - 1));
+            // SlashBlade's visible durability is state-backed and normalized.
+            setDamageMethod.invoke(state, 1.0F);
             setBrokenMethod.invoke(state, true);
             return Optional.of(new BladeBreakResult(blade, soul));
         } catch (ReflectiveOperationException | LinkageError ignored) {
@@ -151,7 +213,7 @@ public final class SlashBladeEnchantmentCompat {
 
     private static boolean resolveMachineMethods() {
         if (machineLookupDone) {
-            return isBrokenMethod != null;
+            return isBrokenMethod != null && getDamageMethod != null && setDamageMethod != null;
         }
         machineLookupDone = true;
 
@@ -165,9 +227,13 @@ public final class SlashBladeEnchantmentCompat {
             isBrokenMethod = bladeStateInterface.getMethod("isBroken");
             isDestructableMethod = bladeStateInterface.getMethod("isDestructable");
             setBrokenMethod = bladeStateInterface.getMethod("setBroken", boolean.class);
+            getDamageMethod = bladeStateInterface.getMethod("getDamage");
+            setDamageMethod = bladeStateInterface.getMethod("setDamage", float.class);
             return true;
         } catch (ReflectiveOperationException | LinkageError ignored) {
             isBrokenMethod = null;
+            getDamageMethod = null;
+            setDamageMethod = null;
             return false;
         }
     }
