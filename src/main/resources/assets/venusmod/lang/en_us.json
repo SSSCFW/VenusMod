@@ -10,5 +10,8 @@
   "item.venusmod.venus_skeleton_spawn_egg": "Venus Skeleton Spawn Egg",
   "item.venusmod.venus_creeper_spawn_egg": "Venus Creeper Spawn Egg",
   "item.venusmod.venus_spider_spawn_egg": "Venus Spider Spawn Egg",
-  "item.venusmod.venus_enderman_spawn_egg": "Venus Enderman Spawn Egg"
+  "item.venusmod.venus_enderman_spawn_egg": "Venus Enderman Spawn Egg",
+  "enchantment.venusmod.blade_retention": "Blade Retention",
+  "enchantment.venusmod.stylish": "Stylish",
+  "enchantment.venusmod.summoned_sword_damage": "Summoned Sword Damage"
 }
