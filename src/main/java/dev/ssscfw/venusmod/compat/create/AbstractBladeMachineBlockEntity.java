@@ -53,11 +53,6 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
         return capability;
     }
 
-    /**
-     * Returns the blade that should be visible in the open work chamber.
-     * Input takes priority; once processing finishes a surviving blade in output
-     * stays visible until automation/player extraction removes it.
-     */
     public ItemStack getDisplayedBlade() {
         ItemStack input = inputInv.getStackInSlot(0);
         if (SlashBladeEnchantmentCompat.isBlade(input)) {
@@ -124,7 +119,6 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
                 : 0;
     }
 
-    /** Same RPM scaling rule used by Create's millstone. */
     protected int getProcessingSpeed() {
         return Mth.clamp((int) Math.abs(getSpeed() / 16.0F), 1, 512);
     }
@@ -174,7 +168,6 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
         return true;
     }
 
-    /** Empty-hand interaction takes finished output first, then allows canceling the input. */
     public boolean takeOutputOrInput(Player player) {
         for (int slot = 0; slot < outputInv.getSlots(); slot++) {
             ItemStack inSlot = outputInv.getStackInSlot(slot);
@@ -239,12 +232,9 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
     }
 
     /**
-     * Stable automation layout:
-     * slot 0 = machine input (insert-only)
-     * slot 1..N = outputInv slot 0..N-1 (extract-only)
-     *
-     * Explicit translation avoids forwarding a capability-global slot directly into
-     * the smaller child ItemStackHandler when hoppers scan every exposed slot.
+     * Capability layout exposed to hoppers/funnels:
+     * slot 0 = inputInv[0], insert-only
+     * slot 1..N = outputInv[0..N-1], extract-only
      */
     private final class MachineInventoryHandler implements IItemHandler {
         @Override
@@ -272,10 +262,9 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
         @Override
         public ItemStack extractItem(int slot, int amount, boolean simulate) {
             int outputSlot = toOutputSlot(slot);
-            if (outputSlot < 0 || amount <= 0) {
-                return ItemStack.EMPTY;
-            }
-            return outputInv.extractItem(outputSlot, amount, simulate);
+            return outputSlot >= 0 && amount > 0
+                    ? outputInv.extractItem(outputSlot, amount, simulate)
+                    : ItemStack.EMPTY;
         }
 
         @Override
@@ -293,10 +282,7 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
         }
 
         private int toOutputSlot(int globalSlot) {
-            if (globalSlot <= 0 || globalSlot >= getSlots()) {
-                return -1;
-            }
-            return globalSlot - 1;
+            return globalSlot > 0 && globalSlot < getSlots() ? globalSlot - 1 : -1;
         }
     }
 }
