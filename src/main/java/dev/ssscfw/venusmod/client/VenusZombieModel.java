@@ -13,13 +13,25 @@ public final class VenusZombieModel extends ZombieModel<VenusZombie> {
     @Override
     public void setupAnim(VenusZombie zombie, float limbSwing, float limbSwingAmount,
                           float ageInTicks, float netHeadYaw, float headPitch) {
-        super.setupAnim(zombie, limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch);
+        boolean bladeWielder = zombie.isSlashBladeWielder();
 
-        if (zombie.isSlashBladeWielder()) {
-            applyBladePose(zombie);
+        // A blade-wielding Venus zombie must not inherit the vanilla zombie punch
+        // animation. SlashBlade's VMD (or our fallback blade pose) is applied after
+        // the vanilla locomotion/head setup instead.
+        if (bladeWielder) {
+            this.attackTime = 0.0F;
         }
 
-        PlayerAnimatorCompat.applyBladeBends(this, zombie);
+        super.setupAnim(zombie, limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch);
+
+        if (!bladeWielder) {
+            return;
+        }
+
+        boolean usedSlashBladeVmd = PlayerAnimatorCompat.applySlashBladeAnimation(this, zombie, ageInTicks);
+        if (!usedSlashBladeVmd) {
+            applyBladePose(zombie);
+        }
     }
 
     private void applyBladePose(VenusZombie zombie) {
@@ -51,7 +63,8 @@ public final class VenusZombieModel extends ZombieModel<VenusZombie> {
             return;
         }
 
-        // Ready stance while holding the sheathed/unsheathed blade.
+        // Ready stance while holding the blade. This also serves as the fallback when
+        // PlayerAnimator is absent or SlashBlade changes its optional animation API.
         body.yRot = 0.06F;
         rightArm.xRot = -0.88F;
         rightArm.yRot = -0.42F;
