@@ -7,7 +7,12 @@ import net.minecraft.client.model.geom.ModelPart;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
-/** Optional PlayerAnimator bend integration without a hard dependency. */
+/**
+ * Optional PlayerAnimator integration for blade-wielding Venus zombies.
+ * PlayerAnimator's bend API is applied to the same synced technique state used by
+ * VenusZombieModel; without PlayerAnimator, the normal model rotations remain as a
+ * fallback and VenusMod has no hard dependency on the animation mod.
+ */
 public final class PlayerAnimatorCompat {
     private static boolean lookupDone;
     private static Object bendHelper;
