@@ -3,6 +3,7 @@ package dev.ssscfw.venusmod;
 import dev.ssscfw.venusmod.compat.create.VenusCreateCompat;
 import dev.ssscfw.venusmod.event.VenusCombatEvents;
 import dev.ssscfw.venusmod.event.VenusEnchantmentEvents;
+import dev.ssscfw.venusmod.registry.ModCreativeTabs;
 import dev.ssscfw.venusmod.registry.ModEntities;
 import dev.ssscfw.venusmod.registry.ModItems;
 import net.neoforged.bus.api.EventPriority;
@@ -19,6 +20,7 @@ public final class VenusMod {
     public VenusMod(IEventBus modBus, ModContainer modContainer) {
         ModEntities.ENTITY_TYPES.register(modBus);
         ModItems.ITEMS.register(modBus);
+        ModCreativeTabs.CREATIVE_MODE_TABS.register(modBus);
 
         modBus.addListener(ModEntities::registerAttributes);
         modBus.addListener(ModItems::addCreativeTabContents);
