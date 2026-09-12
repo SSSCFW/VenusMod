@@ -1,6 +1,7 @@
 package dev.ssscfw.venusmod;
 
 import dev.ssscfw.venusmod.event.VenusCombatEvents;
+import dev.ssscfw.venusmod.event.VenusEnchantmentEvents;
 import dev.ssscfw.venusmod.registry.ModEntities;
 import dev.ssscfw.venusmod.registry.ModItems;
 import net.neoforged.bus.api.IEventBus;
@@ -20,5 +21,9 @@ public final class VenusMod {
         modBus.addListener(ModItems::addCreativeTabContents);
 
         NeoForge.EVENT_BUS.addListener(VenusCombatEvents::onLivingIncomingDamage);
+        NeoForge.EVENT_BUS.addListener(VenusEnchantmentEvents::onIncomingDamage);
+        NeoForge.EVENT_BUS.addListener(VenusEnchantmentEvents::onDamagePost);
+        NeoForge.EVENT_BUS.addListener(VenusEnchantmentEvents::onLivingDeath);
+        NeoForge.EVENT_BUS.addListener(VenusEnchantmentEvents::onPlayerClone);
     }
 }
