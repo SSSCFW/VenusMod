@@ -81,10 +81,8 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
 
     @Override
     public void tick() {
-        // Create's kinetic network still needs its normal tick on both logical sides.
         super.tick();
 
-        // Inventory mutation and blade state changes are authoritative on the server.
         if (level == null || level.isClientSide || getSpeed() == 0) {
             return;
         }
@@ -145,7 +143,7 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
 
     protected boolean moveInputToOutput(int outputSlot) {
         ItemStack input = inputInv.getStackInSlot(0);
-        if (input.isEmpty()) {
+        if (input.isEmpty() || outputSlot < 0 || outputSlot >= outputInv.getSlots()) {
             return false;
         }
 
@@ -295,8 +293,10 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
         }
 
         private int toOutputSlot(int globalSlot) {
-            int outputSlot = globalSlot - 1;
-            return outputSlot >= 0 && outputSlot < outputInv.getSlots() ? outputSlot : -1;
+            if (globalSlot <= 0 || globalSlot >= getSlots()) {
+                return -1;
+            }
+            return globalSlot - 1;
         }
     }
 }
