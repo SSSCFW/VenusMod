@@ -13,6 +13,8 @@
   "item.venusmod.venus_enderman_spawn_egg": "Venus Enderman Spawn Egg",
   "item.venusmod.stellar_precision_core": "Stellar Precision Core",
   "item.venusmod.netherite_reinforced_mechanism": "Netherite Reinforced Mechanism",
+  "block.venusmod.diamond_hopper": "Diamond Hopper",
+  "container.venusmod.diamond_hopper": "Diamond Hopper",
   "block.venusmod.blade_repair_station": "Blade Repair Station",
   "block.venusmod.blade_breaker": "Blade Breaker",
   "enchantment.venusmod.blade_retention": "Blade Retention",
