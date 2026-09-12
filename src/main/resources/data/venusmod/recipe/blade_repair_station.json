@@ -12,15 +12,16 @@
   "type": "minecraft:crafting_shaped",
   "category": "redstone",
   "pattern": [
-    "ASA",
-    "ACA",
-    "III"
+    "MSM",
+    "PAP",
+    "MHM"
   ],
   "key": {
-    "A": { "item": "create:andesite_casing" },
-    "S": { "item": "create:shaft" },
-    "C": { "item": "minecraft:anvil" },
-    "I": { "item": "minecraft:iron_ingot" }
+    "M": { "item": "venusmod:netherite_reinforced_mechanism" },
+    "S": { "item": "venusmod:stellar_precision_core" },
+    "P": { "item": "create:precision_mechanism" },
+    "A": { "item": "minecraft:anvil" },
+    "H": { "item": "create:shaft" }
   },
   "result": {
     "count": 1,
