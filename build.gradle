@@ -65,8 +65,10 @@ dependencies {
     implementation "net.neoforged:neoforge:${neo_version}"
 
     // Compile against Create without forcing it into VenusMod's runtime classpath.
-    // VenusMod registers the Create machines only when the Create mod is present.
-    compileOnly "com.simibubi.create:create-${minecraft_version}:${create_version}"
+    // Create's official 1.21.1 setup uses the slim jar with dependencies supplied separately.
+    compileOnly("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") {
+        transitive = false
+    }
     compileOnly "com.tterrag.registrate:Registrate:${registrate_version}"
     compileOnly "net.createmod.ponder:ponder-neoforge:${ponder_version}+mc${minecraft_version}"
     compileOnly "dev.engine-room.flywheel:flywheel-neoforge-api-${minecraft_version}:${flywheel_version}"
