@@ -3,6 +3,7 @@ package dev.ssscfw.venusmod.compat;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -45,9 +46,7 @@ public final class SlashBladeCompat {
         return id != null && MOD_ID.equals(id.getNamespace());
     }
 
-    /**
-     * Returns one of 木偶 / 白鞘 / 無銘. If SlashBlade is absent, returns EMPTY.
-     */
+    /** Returns one of 木偶 / 白鞘 / 無銘. If SlashBlade is absent, returns EMPTY. */
     public static ItemStack createRandomVenusZombieBlade(RandomSource random) {
         List<Item> available = new ArrayList<>(VENUS_ZOMBIE_BLADES.length);
         for (ResourceLocation id : VENUS_ZOMBIE_BLADES) {
@@ -67,7 +66,9 @@ public final class SlashBladeCompat {
     }
 
     /**
-     * Invokes SlashBlade's real AttackManager.doSlash implementation when available.
+     * Invokes SlashBlade's real AttackManager.doSlash implementation for its authentic
+     * slash entity/effect. The returned projectile's owner is then cleared so it stays
+     * visual-only; VenusZombie performs the authoritative species-filtered damage.
      */
     public static boolean doSlash(LivingEntity user, float roll, boolean mute, boolean critical, double comboRatio) {
         Method method = resolveDoSlashMethod();
@@ -76,7 +77,18 @@ public final class SlashBladeCompat {
         }
 
         try {
-            method.invoke(null, user, roll, mute, critical, comboRatio);
+            Object slash = method.invoke(null, user, roll, mute, critical, comboRatio);
+            if (slash == null) {
+                return false;
+            }
+
+            try {
+                Method setOwner = slash.getClass().getMethod("setOwner", Entity.class);
+                setOwner.invoke(slash, new Object[] { null });
+            } catch (ReflectiveOperationException ignored) {
+                // Damage filtering still prevents cross-species hits if a future
+                // SlashBlade version changes the projectile owner API.
+            }
             return true;
         } catch (ReflectiveOperationException | LinkageError ignored) {
             return false;
