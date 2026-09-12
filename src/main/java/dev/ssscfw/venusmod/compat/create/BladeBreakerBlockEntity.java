@@ -3,7 +3,6 @@ package dev.ssscfw.venusmod.compat.create;
 import dev.ssscfw.venusmod.compat.SlashBladeEnchantmentCompat;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.Optional;
@@ -12,8 +11,8 @@ import java.util.Optional;
 public final class BladeBreakerBlockEntity extends AbstractBladeMachineBlockEntity {
     private static final int BREAK_WORK = 100;
 
-    public BladeBreakerBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
-        super(type, pos, state, 2);
+    public BladeBreakerBlockEntity(BlockPos pos, BlockState state) {
+        super(VenusCreateCompat.BLADE_BREAKER_BE.get(), pos, state, 2);
     }
 
     @Override
