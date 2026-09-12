@@ -3,7 +3,6 @@ package dev.ssscfw.venusmod.compat;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -33,6 +32,8 @@ public final class SlashBladeCompat {
     };
 
     private static Method doSlashMethod;
+    private static Method setSlashDamageMethod;
+    private static Method discardSlashMethod;
     private static boolean attackManagerLookupDone;
 
     private SlashBladeCompat() {
@@ -67,8 +68,13 @@ public final class SlashBladeCompat {
 
     /**
      * Invokes SlashBlade's real AttackManager.doSlash implementation for its authentic
-     * slash entity/effect. The returned projectile's owner is then cleared so it stays
-     * visual-only; VenusZombie performs the authoritative species-filtered damage.
+     * slash entity/effect. VenusMod owns the actual hit/damage decision, so the native
+     * slash entity is immediately changed to zero damage while its owner is retained.
+     * Keeping the owner is important for SlashBlade's renderer/state, while zero damage
+     * prevents its delayed area attack from bypassing VenusMod's species filter.
+     *
+     * If the SlashBlade version no longer exposes setDamage(double), the spawned effect
+     * is discarded rather than leaving a live damaging slash behind.
      */
     public static boolean doSlash(LivingEntity user, float roll, boolean mute, boolean critical, double comboRatio) {
         Method method = resolveDoSlashMethod();
@@ -83,15 +89,34 @@ public final class SlashBladeCompat {
             }
 
             try {
-                Method setOwner = slash.getClass().getMethod("setOwner", Entity.class);
-                setOwner.invoke(slash, new Object[] { null });
-            } catch (ReflectiveOperationException ignored) {
-                // Damage filtering still prevents cross-species hits if a future
-                // SlashBlade version changes the projectile owner API.
+                Method setDamage = setSlashDamageMethod;
+                if (setDamage == null || setDamage.getDeclaringClass() != slash.getClass()) {
+                    setDamage = slash.getClass().getMethod("setDamage", double.class);
+                    setSlashDamageMethod = setDamage;
+                }
+                setDamage.invoke(slash, 0.0D);
+                return true;
+            } catch (ReflectiveOperationException | LinkageError neutralizeFailure) {
+                discardSlashEffect(slash);
+                return false;
             }
-            return true;
         } catch (ReflectiveOperationException | LinkageError ignored) {
             return false;
+        }
+    }
+
+    private static void discardSlashEffect(Object slash) {
+        try {
+            Method discard = discardSlashMethod;
+            if (discard == null || !discard.getDeclaringClass().isAssignableFrom(slash.getClass())) {
+                discard = slash.getClass().getMethod("discard");
+                discardSlashMethod = discard;
+            }
+            discard.invoke(slash);
+        } catch (ReflectiveOperationException | LinkageError ignored) {
+            // Last-resort compatibility failure: the caller still keeps authoritative
+            // Venus damage separate, and future SlashBlade API changes can be handled
+            // without making SlashBlade a hard compile-time dependency.
         }
     }
 
