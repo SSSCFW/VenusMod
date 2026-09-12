@@ -68,7 +68,7 @@ public class VenusSkeleton extends Skeleton {
     }
 
     @Override
-    public ResourceKey<LootTable> getLootTable() {
+    protected ResourceKey<LootTable> getDefaultLootTable() {
         return EntityType.SKELETON.getDefaultLootTable();
     }
 
