@@ -136,7 +136,7 @@ public class VenusZombie extends Zombie {
     private void disableSlashBladeStun() {
         AttachmentType<?> attachment = slashBladeMobEffectAttachment;
         if (attachment == null) {
-            attachment = NeoForgeRegistries.ATTACHMENT_TYPES.getValue(SLASHBLADE_MOB_EFFECT_ATTACHMENT_ID);
+            attachment = NeoForgeRegistries.ATTACHMENT_TYPES.get(SLASHBLADE_MOB_EFFECT_ATTACHMENT_ID);
             if (attachment == null) {
                 return;
             }
