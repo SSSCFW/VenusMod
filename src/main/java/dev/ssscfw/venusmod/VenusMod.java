@@ -1,5 +1,6 @@
 package dev.ssscfw.venusmod;
 
+import dev.ssscfw.venusmod.compat.create.VenusCreateCompat;
 import dev.ssscfw.venusmod.event.VenusCombatEvents;
 import dev.ssscfw.venusmod.event.VenusEnchantmentEvents;
 import dev.ssscfw.venusmod.registry.ModEntities;
@@ -7,6 +8,7 @@ import dev.ssscfw.venusmod.registry.ModItems;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
 
@@ -20,6 +22,11 @@ public final class VenusMod {
 
         modBus.addListener(ModEntities::registerAttributes);
         modBus.addListener(ModItems::addCreativeTabContents);
+
+        // Create is optional. Its integration classes are initialized only on a Create install.
+        if (ModList.get().isLoaded("create")) {
+            VenusCreateCompat.register(modBus);
+        }
 
         NeoForge.EVENT_BUS.addListener(VenusCombatEvents::onLivingIncomingDamage);
         NeoForge.EVENT_BUS.addListener(VenusEnchantmentEvents::onIncomingDamage);
