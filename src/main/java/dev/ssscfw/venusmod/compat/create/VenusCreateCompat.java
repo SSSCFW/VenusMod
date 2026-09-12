@@ -2,9 +2,9 @@ package dev.ssscfw.venusmod.compat.create;
 
 import com.simibubi.create.api.stress.BlockStressValues;
 import dev.ssscfw.venusmod.VenusMod;
+import dev.ssscfw.venusmod.registry.ModCreativeTabs;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
@@ -91,7 +91,7 @@ public final class VenusCreateCompat {
     }
 
     private static void addCreativeTabContents(BuildCreativeModeTabContentsEvent event) {
-        if (event.getTabKey() == CreativeModeTabs.FUNCTIONAL_BLOCKS) {
+        if (event.getTabKey().equals(ModCreativeTabs.VENUS_TAB_KEY)) {
             event.accept(BLADE_REPAIR_STATION_ITEM.get());
             event.accept(BLADE_BREAKER_ITEM.get());
         }
