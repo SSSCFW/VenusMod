@@ -94,34 +94,32 @@ public final class SlashBladeEnchantmentCompat {
     }
 
     /**
-     * Returns SlashBlade's own normalized durability damage (0.0 = healthy,
-     * 1.0 = fully damaged/broken). ItemStack#getDamageValue is not authoritative
-     * for SlashBlade and must not be used by the repair machine.
+     * Returns SlashBlade Resharped 1.21.1's native durability damage in vanilla
+     * durability points. BladeStateAccess routes this directly to DataComponents.DAMAGE.
      */
-    public static float getBladeDamage(ItemStack stack) {
+    public static int getBladeDamage(ItemStack stack) {
         if (!isBlade(stack) || !resolveMachineMethods()) {
-            return 0.0F;
+            return 0;
         }
         try {
             Object state = getBladeState(stack);
             if (state == null) {
-                return 0.0F;
+                return 0;
             }
-            return Math.max(0.0F, ((Number) getDamageMethod.invoke(state)).floatValue());
+            return Math.max(0, ((Number) getDamageMethod.invoke(state)).intValue());
         } catch (ReflectiveOperationException | LinkageError ignored) {
-            return 0.0F;
+            return 0;
         }
     }
 
     public static boolean needsBladeRepair(ItemStack stack) {
-        return getBladeDamage(stack) > 0.0F;
+        return getBladeDamage(stack) > 0;
     }
 
     /**
-     * Repairs exactly one vanilla durability point worth of SlashBlade's normalized
-     * damage. SlashBladeState#setDamage is used deliberately: when damage reaches
-     * zero it also clears broken=true for non-sealed blades according to SlashBlade's
-     * native repair rule.
+     * Repairs exactly one native SlashBlade durability point. Resharped 1.21.1 uses
+     * ISlashBladeState#setDamage(int); when damage reaches zero that method also
+     * clears broken=true for an unsealed blade.
      */
     public static boolean repairBladeOnePoint(ItemStack stack) {
         if (!isBlade(stack) || !resolveMachineMethods()) {
@@ -134,18 +132,12 @@ public final class SlashBladeEnchantmentCompat {
                 return false;
             }
 
-            float damage = ((Number) getDamageMethod.invoke(state)).floatValue();
-            if (damage <= 0.0F) {
+            int damage = ((Number) getDamageMethod.invoke(state)).intValue();
+            if (damage <= 0) {
                 return false;
             }
 
-            int maxDamage = Math.max(1, stack.getMaxDamage());
-            float repaired = Math.max(0.0F, damage - (1.0F / maxDamage));
-            // Avoid leaving a tiny positive floating-point remainder at full repair.
-            if (repaired < (0.5F / maxDamage)) {
-                repaired = 0.0F;
-            }
-            setDamageMethod.invoke(state, repaired);
+            setDamageMethod.invoke(state, Math.max(0, damage - 1));
             return true;
         } catch (ReflectiveOperationException | LinkageError ignored) {
             return false;
@@ -181,8 +173,9 @@ public final class SlashBladeEnchantmentCompat {
                 return Optional.of(new BladeBreakResult(ItemStack.EMPTY, soul));
             }
 
-            // SlashBlade's visible durability is state-backed and normalized.
-            setDamageMethod.invoke(state, 1.0F);
+            // Resharped keeps a surviving broken blade just below the vanilla hard-break limit.
+            int brokenDamage = Math.max(0, blade.getMaxDamage() - 1);
+            setDamageMethod.invoke(state, brokenDamage);
             setBrokenMethod.invoke(state, true);
             return Optional.of(new BladeBreakResult(blade, soul));
         } catch (ReflectiveOperationException | LinkageError ignored) {
@@ -228,10 +221,14 @@ public final class SlashBladeEnchantmentCompat {
             isDestructableMethod = bladeStateInterface.getMethod("isDestructable");
             setBrokenMethod = bladeStateInterface.getMethod("setBroken", boolean.class);
             getDamageMethod = bladeStateInterface.getMethod("getDamage");
-            setDamageMethod = bladeStateInterface.getMethod("setDamage", float.class);
+            // SlashBlade Resharped 1.21.1 changed durability from normalized float to
+            // vanilla integer durability points backed by DataComponents.DAMAGE.
+            setDamageMethod = bladeStateInterface.getMethod("setDamage", int.class);
             return true;
         } catch (ReflectiveOperationException | LinkageError ignored) {
             isBrokenMethod = null;
+            isDestructableMethod = null;
+            setBrokenMethod = null;
             getDamageMethod = null;
             setDamageMethod = null;
             return false;
