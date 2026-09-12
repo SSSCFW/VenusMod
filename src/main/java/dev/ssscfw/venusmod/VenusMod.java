@@ -28,6 +28,7 @@ public final class VenusMod {
 
         modBus.addListener(ModEntities::registerAttributes);
         modBus.addListener(ModItems::addCreativeTabContents);
+        modBus.addListener(ModBlockEntities::registerCapabilities);
 
         // Create/SlashBlade are both optional. The kinetic blade machines exist only
         // when both sides of the compatibility feature are installed.
