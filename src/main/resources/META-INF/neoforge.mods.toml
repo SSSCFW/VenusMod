@@ -27,6 +27,7 @@ versionRange="${minecraft_version_range}"
 ordering="NONE"
 side="BOTH"
 
+# Optional integration, but when Create is present this feature targets Create 6.0.10 only.
 [[dependencies.${mod_id}]]
 modId="create"
 type="optional"
