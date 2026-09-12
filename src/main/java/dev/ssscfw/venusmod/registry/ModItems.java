@@ -4,6 +4,7 @@ import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.entity.VenusZombie;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.component.CustomData;
@@ -14,6 +15,10 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 
 public final class ModItems {
     public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(VenusMod.MOD_ID);
+
+    public static final DeferredItem<BlockItem> DIAMOND_HOPPER =
+            ITEMS.register("diamond_hopper",
+                    () -> new BlockItem(ModBlocks.DIAMOND_HOPPER.get(), new Item.Properties()));
 
     public static final DeferredItem<DeferredSpawnEggItem> VENUS_ZOMBIE_SPAWN_EGG =
             ITEMS.register("venus_zombie_spawn_egg",
