@@ -1,6 +1,7 @@
 package dev.ssscfw.venusmod.client;
 
 import dev.ssscfw.venusmod.VenusMod;
+import dev.ssscfw.venusmod.compat.create.client.VenusCreateClientCompat;
 import dev.ssscfw.venusmod.entity.VenusArrow;
 import dev.ssscfw.venusmod.entity.VenusSkeleton;
 import dev.ssscfw.venusmod.entity.VenusSpider;
@@ -20,6 +21,7 @@ import net.minecraft.world.entity.monster.EnderMan;
 import net.minecraft.world.entity.monster.Zombie;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 
@@ -49,6 +51,10 @@ public final class VenusEntityRenderers {
         event.registerEntityRenderer(ModEntities.VENUS_SPIDER.get(), GoldSpiderRenderer::new);
         event.registerEntityRenderer(ModEntities.VENUS_ENDERMAN.get(), GoldEndermanRenderer::new);
         event.registerEntityRenderer(ModEntities.VENUS_ARROW.get(), VenusArrowRenderer::new);
+
+        if (ModList.get().isLoaded("create") && ModList.get().isLoaded("slashblade")) {
+            VenusCreateClientCompat.registerRenderers(event);
+        }
     }
 
     private static final class GoldZombieRenderer extends AbstractZombieRenderer<VenusZombie, VenusZombieModel> {
