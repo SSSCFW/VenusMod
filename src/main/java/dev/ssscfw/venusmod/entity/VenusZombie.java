@@ -40,6 +40,10 @@ public class VenusZombie extends Zombie {
             SynchedEntityData.defineId(VenusZombie.class, EntityDataSerializers.INT);
 
     private static final int DASH_DAMAGE_BOOST_TICKS = 30;
+    private static final int BLADE_COMBO_COOLDOWN_MIN_TICKS = 28;
+    private static final int BLADE_COMBO_COOLDOWN_RANDOM_TICKS = 13;
+    private static final int RAPID_SLASH_COOLDOWN_MIN_TICKS = 40;
+    private static final int RAPID_SLASH_COOLDOWN_RANDOM_TICKS = 21;
     private static final double BLADE_INTERACTION_RANGE = 7.0D;
     private static final String SLASHBLADE_PACKAGE_PREFIX = "mods.flammpfeil.slashblade.";
     private static final String SLASHBLADE_KNOCKBACK_FACTOR_KEY = "knockback_factor";
@@ -220,13 +224,15 @@ public class VenusZombie extends Zombie {
         if (technique == BLADE_TECHNIQUE_COMBO) {
             tickBladeCombo(tick);
             if (tick >= 21) {
-                finishBladeTechnique(10 + getRandom().nextInt(9));
+                finishBladeTechnique(BLADE_COMBO_COOLDOWN_MIN_TICKS
+                        + getRandom().nextInt(BLADE_COMBO_COOLDOWN_RANDOM_TICKS));
                 return;
             }
         } else if (technique == BLADE_TECHNIQUE_RAPID_SLASH) {
             tickRapidSlash(tick);
             if (tick >= 8) {
-                finishBladeTechnique(16 + getRandom().nextInt(9));
+                finishBladeTechnique(RAPID_SLASH_COOLDOWN_MIN_TICKS
+                        + getRandom().nextInt(RAPID_SLASH_COOLDOWN_RANDOM_TICKS));
                 return;
             }
         }
