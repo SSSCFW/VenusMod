@@ -1,3 +1,13 @@
 {
-  "itemGroup.venusmod": "VenusMod"
+  "itemGroup.venusmod": "VenusMod",
+  "entity.venusmod.venus_zombie": "Venus Zombie",
+  "entity.venusmod.venus_skeleton": "Venus Skeleton",
+  "entity.venusmod.venus_creeper": "Venus Creeper",
+  "entity.venusmod.venus_spider": "Venus Spider",
+  "entity.venusmod.venus_enderman": "Venus Enderman",
+  "item.venusmod.venus_zombie_spawn_egg": "Venus Zombie Spawn Egg",
+  "item.venusmod.venus_skeleton_spawn_egg": "Venus Skeleton Spawn Egg",
+  "item.venusmod.venus_creeper_spawn_egg": "Venus Creeper Spawn Egg",
+  "item.venusmod.venus_spider_spawn_egg": "Venus Spider Spawn Egg",
+  "item.venusmod.venus_enderman_spawn_egg": "Venus Enderman Spawn Egg"
 }

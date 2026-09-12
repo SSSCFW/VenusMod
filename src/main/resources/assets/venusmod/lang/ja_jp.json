@@ -1,3 +1,13 @@
 {
-  "itemGroup.venusmod": "VenusMod"
+  "itemGroup.venusmod": "VenusMod",
+  "entity.venusmod.venus_zombie": "金星ゾンビ",
+  "entity.venusmod.venus_skeleton": "金星スケルトン",
+  "entity.venusmod.venus_creeper": "金星クリーパー",
+  "entity.venusmod.venus_spider": "金星スパイダー",
+  "entity.venusmod.venus_enderman": "金星エンダーマン",
+  "item.venusmod.venus_zombie_spawn_egg": "金星ゾンビのスポーンエッグ",
+  "item.venusmod.venus_skeleton_spawn_egg": "金星スケルトンのスポーンエッグ",
+  "item.venusmod.venus_creeper_spawn_egg": "金星クリーパーのスポーンエッグ",
+  "item.venusmod.venus_spider_spawn_egg": "金星スパイダーのスポーンエッグ",
+  "item.venusmod.venus_enderman_spawn_egg": "金星エンダーマンのスポーンエッグ"
 }
