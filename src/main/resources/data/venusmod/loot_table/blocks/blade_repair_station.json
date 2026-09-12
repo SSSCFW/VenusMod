@@ -3,6 +3,10 @@
     {
       "type": "neoforge:mod_loaded",
       "modid": "create"
+    },
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "slashblade"
     }
   ],
   "type": "minecraft:block",
