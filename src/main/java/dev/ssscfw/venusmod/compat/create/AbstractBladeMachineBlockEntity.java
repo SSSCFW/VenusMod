@@ -54,6 +54,26 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
         return capability;
     }
 
+    /**
+     * Returns the blade that should be visible in the open work chamber.
+     * Input takes priority; once processing finishes a surviving blade in output
+     * stays visible until automation/player extraction removes it.
+     */
+    public ItemStack getDisplayedBlade() {
+        ItemStack input = inputInv.getStackInSlot(0);
+        if (SlashBladeEnchantmentCompat.isBlade(input)) {
+            return input;
+        }
+
+        for (int slot = 0; slot < outputInv.getSlots(); slot++) {
+            ItemStack output = outputInv.getStackInSlot(slot);
+            if (SlashBladeEnchantmentCompat.isBlade(output)) {
+                return output;
+            }
+        }
+        return ItemStack.EMPTY;
+    }
+
     @Override
     public void addBehaviours(List<BlockEntityBehaviour> behaviours) {
         behaviours.add(new DirectBeltInputBehaviour(this));
