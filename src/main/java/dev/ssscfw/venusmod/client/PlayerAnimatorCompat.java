@@ -9,9 +9,9 @@ import java.lang.reflect.Method;
 
 /**
  * Optional PlayerAnimator integration for blade-wielding Venus zombies.
- * PlayerAnimator's bend API is applied to the same synced technique state used by
- * VenusZombieModel; without PlayerAnimator, the normal model rotations remain as a
- * fallback and VenusMod has no hard dependency on the animation mod.
+ * PlayerAnimator's humanoid bend API is applied to the same synced technique state
+ * used by VenusZombieModel. Without PlayerAnimator, normal model rotations remain as
+ * the fallback and VenusMod keeps no hard dependency on the animation mod.
  */
 public final class PlayerAnimatorCompat {
     private static boolean lookupDone;
