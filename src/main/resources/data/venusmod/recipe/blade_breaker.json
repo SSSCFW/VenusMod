@@ -1,0 +1,25 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "create"
+    }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    "ASA",
+    "AGA",
+    "III"
+  ],
+  "key": {
+    "A": { "item": "create:andesite_casing" },
+    "S": { "item": "create:shaft" },
+    "G": { "item": "minecraft:grindstone" },
+    "I": { "item": "minecraft:iron_ingot" }
+  },
+  "result": {
+    "count": 1,
+    "id": "venusmod:blade_breaker"
+  }
+}
