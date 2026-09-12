@@ -63,7 +63,8 @@ public final class PlayerAnimatorCompat {
      * Returns true only when VMD transforms were successfully applied this frame.
      */
     public static boolean applySlashBladeAnimation(ZombieModel<?> model, VenusZombie zombie, float ageInTicks) {
-        if (!zombie.isSlashBladeWielder() || !zombie.isBladeTechniqueActive()) {
+        boolean bladeWielder = zombie.isSlashBladeWielder() || zombie.hasSlashBladeEquipped();
+        if (!bladeWielder || !zombie.isBladeTechniqueActive()) {
             clearAnimationState(model);
             return false;
         }
