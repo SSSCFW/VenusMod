@@ -36,7 +36,7 @@ public final class ModItems {
                     () -> new DeferredSpawnEggItem(ModEntities.VENUS_SKELETON, 0xC89B3C, 0xFFF7CC, new Item.Properties()));
 
     public static final DeferredItem<DeferredSpawnEggItem> VENUS_CREEPER_SPAWN_EGG =
-            ITEMS.register("venus_creper_spawn_egg",
+            ITEMS.register("venus_creeper_spawn_egg",
                     () -> new DeferredSpawnEggItem(ModEntities.VENUS_CREEPER, 0xE0B93F, 0x8C6A13, new Item.Properties()));
 
     public static final DeferredItem<DeferredSpawnEggItem> VENUS_SPIDER_SPAWN_EGG =
