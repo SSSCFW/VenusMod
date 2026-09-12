@@ -54,6 +54,7 @@ public class VenusZombie extends Zombie {
     private int bladeTechniqueCooldown;
     private EntityType<?> bladeDamageTargetType;
     private int bladeDamageTargetTicks;
+    private boolean applyingBladeDamage;
 
     public VenusZombie(EntityType<? extends Zombie> entityType, Level level) {
         super(entityType, level);
@@ -63,8 +64,6 @@ public class VenusZombie extends Zombie {
     @Override
     protected void registerGoals() {
         super.registerGoals();
-        // Priority 1 lets the blade AI take control from ZombieAttackGoal only for
-        // blade-wielding instances. Normal Venus zombies keep vanilla zombie combat.
         goalSelector.addGoal(1, new VenusSlashBladeAttackGoal(this, 1.2D));
     }
 
@@ -78,12 +77,8 @@ public class VenusZombie extends Zombie {
 
     @Override
     public void tick() {
-        // SlashBlade's normal combo attacks apply a managed stun to PathfinderMob
-        // targets. Keep every Venus zombie immune to that stun, as well as knockback.
         disableSlashBladeStun();
-
         super.tick();
-
         disableSlashBladeStun();
 
         if (!level().isClientSide) {
@@ -179,6 +174,10 @@ public class VenusZombie extends Zombie {
         return bladeTechniqueCooldown;
     }
 
+    public boolean isApplyingBladeDamage() {
+        return applyingBladeDamage;
+    }
+
     public void startBladeCombo(LivingEntity target) {
         if (level().isClientSide || isBladeTechniqueActive() || bladeTechniqueCooldown > 0 || target == null) {
             return;
@@ -197,10 +196,6 @@ public class VenusZombie extends Zombie {
         entityData.set(DATA_BLADE_TECHNIQUE_TICK, 0);
     }
 
-    /**
-     * SlashBlade attacks from this zombie may only hurt the same entity type as the
-     * target selected when the technique started.
-     */
     public boolean canBladeDamage(LivingEntity victim) {
         EntityType<?> allowedType = bladeDamageTargetType;
         if (allowedType == null) {
@@ -239,41 +234,82 @@ public class VenusZombie extends Zombie {
         entityData.set(DATA_BLADE_TECHNIQUE_TICK, tick + 1);
     }
 
-    /**
-     * A1 -> A2 -> A3 -> A4-like sequence using SlashBlade's real slash effect.
-     */
     private void tickBladeCombo(int tick) {
         switch (tick) {
-            case 0 -> performBladeSlash(-10.0F, true, 0.44D);
-            case 4 -> performBladeSlash(170.0F, true, 0.44D);
-            case 8 -> performBladeSlash(-61.0F, false, 0.44D);
-            case 11 -> performBladeSlash(138.0F, false, 0.44D);
-            case 15 -> performBladeSlash(45.0F, false, 0.44D);
-            case 17 -> performBladeSlash(50.0F, true, 0.44D);
+            case 0 -> performBladeSlash(-10.0F, true, 0.44D, 6.0D);
+            case 4 -> performBladeSlash(170.0F, true, 0.44D, 6.0D);
+            case 8 -> performBladeSlash(-61.0F, false, 0.44D, 6.0D);
+            case 11 -> performBladeSlash(138.0F, false, 0.44D, 6.0D);
+            case 15 -> performBladeSlash(45.0F, false, 0.44D, 6.0D);
+            case 17 -> performBladeSlash(50.0F, true, 0.44D, 6.0D);
             default -> {
             }
         }
     }
 
-    /**
-     * Shift + forward + right-click style 疾走居合: step in, then two crossed slashes.
-     */
     private void tickRapidSlash(int tick) {
         if (tick == 0) {
             dashTowardBladeTarget();
         } else if (tick == 2) {
-            performBladeSlash(30.0F, false, 1.0D);
+            performBladeSlash(30.0F, false, 1.0D, 7.0D);
         } else if (tick == 3) {
-            performBladeSlash(210.0F, false, 1.0D);
+            performBladeSlash(210.0F, false, 1.0D, 7.0D);
         }
     }
 
-    private void performBladeSlash(float roll, boolean mute, double comboRatio) {
+    private void performBladeSlash(float roll, boolean mute, double comboRatio, double reach) {
         if (!hasSlashBladeEquipped()) {
             finishBladeTechnique(10);
             return;
         }
+
+        // Keep SlashBlade's own visual/projectile slash behavior.
         SlashBladeCompat.doSlash(this, roll, mute, false, comboRatio);
+
+        // SlashBlade defaults to PVP disabled, which would make a hostile mob's slash
+        // unable to damage a player. Apply the actual mob damage ourselves so the
+        // technique works against any valid zombie target. The global damage event
+        // suppresses the later SlashBlade area-effect damage, avoiding double hits.
+        applyBladeDamageToTargetSpecies(comboRatio, reach);
+    }
+
+    private void applyBladeDamageToTargetSpecies(double comboRatio, double reach) {
+        LivingEntity target = getTarget();
+        if (target == null || !target.isAlive()) {
+            return;
+        }
+        bindBladeDamageTarget(target);
+
+        double baseDamage = getAttributeValue(Attributes.ATTACK_DAMAGE);
+        float amount = (float) Math.max(1.0D, baseDamage * comboRatio);
+        Vec3 look = getLookAngle();
+
+        for (LivingEntity victim : level().getEntitiesOfClass(
+                LivingEntity.class,
+                getBoundingBox().inflate(reach),
+                entity -> entity != this && entity.isAlive() && canBladeDamage(entity))) {
+            Vec3 toVictim = victim.position().subtract(position());
+            double distanceSqr = toVictim.lengthSqr();
+            if (distanceSqr > reach * reach || distanceSqr < 1.0E-4D) {
+                continue;
+            }
+
+            Vec3 horizontal = new Vec3(toVictim.x, 0.0D, toVictim.z);
+            Vec3 lookHorizontal = new Vec3(look.x, 0.0D, look.z);
+            if (horizontal.lengthSqr() > 1.0E-4D && lookHorizontal.lengthSqr() > 1.0E-4D
+                    && horizontal.normalize().dot(lookHorizontal.normalize()) < -0.20D) {
+                continue;
+            }
+
+            victim.invulnerableTime = 0;
+            applyingBladeDamage = true;
+            try {
+                victim.hurt(damageSources().mobAttack(this), amount);
+            } finally {
+                applyingBladeDamage = false;
+            }
+            victim.invulnerableTime = 0;
+        }
     }
 
     private void dashTowardBladeTarget() {
