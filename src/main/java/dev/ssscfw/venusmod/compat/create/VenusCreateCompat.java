@@ -92,8 +92,8 @@ public final class VenusCreateCompat {
 
     private static void addCreativeTabContents(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == CreativeModeTabs.FUNCTIONAL_BLOCKS) {
-            event.accept(BLADE_REPAIR_STATION_ITEM);
-            event.accept(BLADE_BREAKER_ITEM);
+            event.accept(BLADE_REPAIR_STATION_ITEM.get());
+            event.accept(BLADE_BREAKER_ITEM.get());
         }
     }
 
