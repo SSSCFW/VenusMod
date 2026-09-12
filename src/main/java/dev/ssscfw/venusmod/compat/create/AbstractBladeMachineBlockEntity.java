@@ -16,7 +16,6 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.ItemStackHandler;
-import net.neoforged.neoforge.items.wrapper.CombinedInvWrapper;
 
 import java.util.List;
 
@@ -241,36 +240,64 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
         super.read(compound, registries, clientPacket);
     }
 
-    private final class MachineInventoryHandler extends CombinedInvWrapper {
-        private MachineInventoryHandler() {
-            super(inputInv, outputInv);
+    /**
+     * Exposes a stable automation layout without relying on CombinedInvWrapper's
+     * nested slot translation:
+     *   slot 0      = machine input (insert-only)
+     *   slot 1..N   = outputInv slot 0..N-1 (extract-only)
+     *
+     * Explicit translation also keeps hopper capability scans from ever forwarding
+     * a global slot index directly into the smaller child ItemStackHandler.
+     */
+    private final class MachineInventoryHandler implements IItemHandler {
+        @Override
+        public int getSlots() {
+            return 1 + outputInv.getSlots();
         }
 
         @Override
-        public boolean isItemValid(int slot, ItemStack stack) {
-            if (outputInv == getHandlerFromIndex(getIndexForSlot(slot))) {
-                return false;
+        public ItemStack getStackInSlot(int slot) {
+            if (slot == 0) {
+                return inputInv.getStackInSlot(0);
             }
-            return canInsertBlade(stack) && super.isItemValid(slot, stack);
+            int outputSlot = toOutputSlot(slot);
+            return outputSlot >= 0 ? outputInv.getStackInSlot(outputSlot) : ItemStack.EMPTY;
         }
 
         @Override
         public ItemStack insertItem(int slot, ItemStack stack, boolean simulate) {
-            if (outputInv == getHandlerFromIndex(getIndexForSlot(slot))) {
+            if (slot != 0 || stack.isEmpty() || !canInsertBlade(stack)) {
                 return stack;
             }
-            if (!isItemValid(slot, stack)) {
-                return stack;
-            }
-            return super.insertItem(slot, stack, simulate);
+            return inputInv.insertItem(0, stack, simulate);
         }
 
         @Override
         public ItemStack extractItem(int slot, int amount, boolean simulate) {
-            if (inputInv == getHandlerFromIndex(getIndexForSlot(slot))) {
+            int outputSlot = toOutputSlot(slot);
+            if (outputSlot < 0 || amount <= 0) {
                 return ItemStack.EMPTY;
             }
-            return super.extractItem(slot, amount, simulate);
+            return outputInv.extractItem(outputSlot, amount, simulate);
+        }
+
+        @Override
+        public int getSlotLimit(int slot) {
+            if (slot == 0) {
+                return inputInv.getSlotLimit(0);
+            }
+            int outputSlot = toOutputSlot(slot);
+            return outputSlot >= 0 ? outputInv.getSlotLimit(outputSlot) : 0;
+        }
+
+        @Override
+        public boolean isItemValid(int slot, ItemStack stack) {
+            return slot == 0 && canInsertBlade(stack) && inputInv.isItemValid(0, stack);
+        }
+
+        private int toOutputSlot(int globalSlot) {
+            int outputSlot = globalSlot - 1;
+            return outputSlot >= 0 && outputSlot < outputInv.getSlots() ? outputSlot : -1;
         }
     }
 }
