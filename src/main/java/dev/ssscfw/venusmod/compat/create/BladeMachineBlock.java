@@ -18,7 +18,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.pathfinder.PathComputationType;
 import net.minecraft.world.phys.BlockHitResult;
 
-/** A simple vertical-shaft Create kinetic machine dedicated to SlashBlade items. */
+/** A Create kinetic machine dedicated to SlashBlade items. */
 public final class BladeMachineBlock extends KineticBlock implements IBE<AbstractBladeMachineBlockEntity> {
     public enum Mode {
         REPAIR,
@@ -38,12 +38,13 @@ public final class BladeMachineBlock extends KineticBlock implements IBE<Abstrac
 
     @Override
     public boolean hasShaftTowards(LevelReader level, BlockPos pos, BlockState state, Direction face) {
-        return face == Direction.DOWN;
+        // The exposed couplers in the model are on the north/south faces.
+        return face.getAxis() == Axis.Z;
     }
 
     @Override
     public Axis getRotationAxis(BlockState state) {
-        return Axis.Y;
+        return Axis.Z;
     }
 
     @Override
