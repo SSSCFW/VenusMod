@@ -62,9 +62,11 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
 
     @Override
     public void tick() {
+        // Create's kinetic network still needs its normal tick on both logical sides.
         super.tick();
 
-        if (level == null || getSpeed() == 0) {
+        // Inventory mutation and blade state changes are authoritative on the server.
+        if (level == null || level.isClientSide || getSpeed() == 0) {
             return;
         }
 
@@ -75,9 +77,7 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
         }
 
         if (!canProcessBlade(blade)) {
-            if (!level.isClientSide) {
-                moveInputToOutput(0);
-            }
+            moveInputToOutput(0);
             return;
         }
 
@@ -93,7 +93,7 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
         }
 
         timer -= getProcessingSpeed();
-        if (timer > 0 || level.isClientSide) {
+        if (timer > 0) {
             return;
         }
 
