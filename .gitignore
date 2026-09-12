@@ -1,0 +1,12 @@
+.gradle/
+build/
+run/
+out/
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+logs/
+crash-reports/
+src/generated/resources/.cache/

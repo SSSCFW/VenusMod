@@ -1,0 +1,111 @@
+name: Build 1.21.1 NeoForge
+
+on:
+  workflow_dispatch:
+    inputs:
+      server_smoke_test:
+        description: Run dedicated server smoke test
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.2.1'
+          cache-read-only: false
+          cache-cleanup: on-success
+
+      - name: Build
+        run: gradle build --build-cache --stacktrace
+
+      - name: Dedicated server smoke test
+        if: ${{ inputs.server_smoke_test }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p run/server
+          printf 'eula=true\n' > run/server/eula.txt
+          log="$GITHUB_WORKSPACE/server-smoke.log"
+          : > "$log"
+
+          setsid gradle runServer --build-cache --stacktrace > "$log" 2>&1 &
+          server_pid=$!
+
+          cleanup() {
+            kill -- -"$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for _ in $(seq 1 90); do
+            if grep -q "Done (" "$log"; then
+              cat "$log"
+              echo "Dedicated server reached the ready state."
+              exit 0
+            fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              cat "$log"
+              echo "Dedicated server exited before reaching the ready state."
+              exit 1
+            fi
+            sleep 1
+          done
+
+          cat "$log"
+          echo "Dedicated server did not reach the ready state within 90 seconds."
+          exit 1
+
+      - name: Prepare direct JAR
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          jar_path="$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' | head -n 1)"
+          if [ -z "$jar_path" ]; then
+            echo "Built JAR was not found."
+            exit 1
+          fi
+          cp "$jar_path" VenusMod-1.21.1.jar
+
+      - name: Publish direct JAR download
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          notes="$(printf 'Branch: `%s`\nCommit: `%s`\nRun: %s/%s/actions/runs/%s\n' \
+            "$GITHUB_REF_NAME" "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")"
+
+          if gh release view ci-latest >/dev/null 2>&1; then
+            gh release edit ci-latest \
+              --target "$GITHUB_SHA" \
+              --title "Latest CI build" \
+              --notes "$notes" \
+              --prerelease \
+              --latest=false
+            gh release upload ci-latest VenusMod-1.21.1.jar --clobber
+          else
+            gh release create ci-latest VenusMod-1.21.1.jar \
+              --target "$GITHUB_SHA" \
+              --title "Latest CI build" \
+              --notes "$notes" \
+              --prerelease \
+              --latest=false
+          fi
+
+          direct_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/ci-latest/VenusMod-1.21.1.jar"
+          echo "### Direct JAR download" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download VenusMod-1.21.1.jar]($direct_url)" >> "$GITHUB_STEP_SUMMARY"
