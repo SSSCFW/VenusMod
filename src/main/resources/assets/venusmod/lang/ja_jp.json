@@ -11,6 +11,8 @@
   "item.venusmod.venus_creeper_spawn_egg": "金星クリーパーのスポーンエッグ",
   "item.venusmod.venus_spider_spawn_egg": "金星スパイダーのスポーンエッグ",
   "item.venusmod.venus_enderman_spawn_egg": "金星エンダーマンのスポーンエッグ",
+  "item.venusmod.stellar_precision_core": "星核精密コア",
+  "item.venusmod.netherite_reinforced_mechanism": "ネザーライト強化機構",
   "block.venusmod.blade_repair_station": "抜刀剣修復機",
   "block.venusmod.blade_breaker": "抜刀剣解体機",
   "enchantment.venusmod.blade_retention": "刀保持",
