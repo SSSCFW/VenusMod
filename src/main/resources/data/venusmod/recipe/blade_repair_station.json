@@ -1,0 +1,25 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "create"
+    }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    "ASA",
+    "ACA",
+    "III"
+  ],
+  "key": {
+    "A": { "item": "create:andesite_casing" },
+    "S": { "item": "create:shaft" },
+    "C": { "item": "minecraft:anvil" },
+    "I": { "item": "minecraft:iron_ingot" }
+  },
+  "result": {
+    "count": 1,
+    "id": "venusmod:blade_repair_station"
+  }
+}
