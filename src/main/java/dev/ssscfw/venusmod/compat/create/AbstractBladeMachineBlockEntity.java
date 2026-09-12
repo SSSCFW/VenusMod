@@ -241,13 +241,12 @@ public abstract class AbstractBladeMachineBlockEntity extends KineticBlockEntity
     }
 
     /**
-     * Exposes a stable automation layout without relying on CombinedInvWrapper's
-     * nested slot translation:
-     *   slot 0      = machine input (insert-only)
-     *   slot 1..N   = outputInv slot 0..N-1 (extract-only)
+     * Stable automation layout:
+     * slot 0 = machine input (insert-only)
+     * slot 1..N = outputInv slot 0..N-1 (extract-only)
      *
-     * Explicit translation also keeps hopper capability scans from ever forwarding
-     * a global slot index directly into the smaller child ItemStackHandler.
+     * Explicit translation avoids forwarding a capability-global slot directly into
+     * the smaller child ItemStackHandler when hoppers scan every exposed slot.
      */
     private final class MachineInventoryHandler implements IItemHandler {
         @Override
