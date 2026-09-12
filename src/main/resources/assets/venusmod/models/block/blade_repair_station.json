@@ -3,6 +3,6 @@
   "textures": {
     "side": "minecraft:block/iron_block",
     "bottom": "minecraft:block/smooth_stone",
-    "top": "minecraft:block/anvil"
+    "top": "minecraft:block/gold_block"
   }
 }
