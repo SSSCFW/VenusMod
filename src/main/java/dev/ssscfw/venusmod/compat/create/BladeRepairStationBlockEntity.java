@@ -5,7 +5,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 
-/** Automatically repairs one durability point per 20 units of kinetic work. */
+/** Automatically repairs one SlashBlade durability point per 20 units of kinetic work. */
 public final class BladeRepairStationBlockEntity extends AbstractBladeMachineBlockEntity {
     private static final int REPAIR_WORK = 20;
 
@@ -20,7 +20,8 @@ public final class BladeRepairStationBlockEntity extends AbstractBladeMachineBlo
 
     @Override
     protected boolean canProcessBlade(ItemStack blade) {
-        return SlashBladeEnchantmentCompat.isBlade(blade) && blade.getDamageValue() > 0;
+        return SlashBladeEnchantmentCompat.isBlade(blade)
+                && SlashBladeEnchantmentCompat.needsBladeRepair(blade);
     }
 
     @Override
@@ -30,17 +31,18 @@ public final class BladeRepairStationBlockEntity extends AbstractBladeMachineBlo
 
     @Override
     protected void processBlade(ItemStack blade) {
-        int damage = blade.getDamageValue();
-        if (damage <= 0) {
+        if (!SlashBladeEnchantmentCompat.needsBladeRepair(blade)) {
             moveInputToOutput(0);
             return;
         }
 
-        blade.setDamageValue(Math.max(0, damage - 1));
+        if (!SlashBladeEnchantmentCompat.repairBladeOnePoint(blade)) {
+            // Reflection/API mismatch: do not consume or silently move a damaged blade.
+            timer = 0;
+            return;
+        }
 
-        // ItemSlashBlade#setDamage automatically clears the broken flag at zero
-        // when the blade is not sealed, preserving SlashBlade's native repair rules.
-        if (blade.getDamageValue() <= 0) {
+        if (!SlashBladeEnchantmentCompat.needsBladeRepair(blade)) {
             moveInputToOutput(0);
         }
     }
