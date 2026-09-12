@@ -15,7 +15,7 @@ public class VenusSpider extends Spider {
     }
 
     @Override
-    public ResourceKey<LootTable> getLootTable() {
+    protected ResourceKey<LootTable> getDefaultLootTable() {
         return EntityType.SPIDER.getDefaultLootTable();
     }
 
