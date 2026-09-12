@@ -1,3 +1,9 @@
 {
-  "parent": "venusmod:block/diamond_hopper"
+  "parent": "minecraft:block/hopper",
+  "textures": {
+    "particle": "venusmod:block/diamond_hopper_outside",
+    "top": "venusmod:block/diamond_hopper_top",
+    "side": "venusmod:block/diamond_hopper_outside",
+    "inside": "venusmod:block/diamond_hopper_inside"
+  }
 }
