@@ -1,24 +1,33 @@
 package dev.ssscfw.venusmod.compat;
 
+import net.minecraft.core.Holder;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.enchantment.Enchantment;
 import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /** Optional reflection bridge used by VenusMod's SlashBlade-only features. */
 public final class SlashBladeEnchantmentCompat {
     private static final ResourceLocation CONCENTRATION_ATTACHMENT =
             ResourceLocation.fromNamespaceAndPath(SlashBladeCompat.MOD_ID, "concentration");
-    private static final ResourceLocation PROUDSOUL =
-            ResourceLocation.fromNamespaceAndPath(SlashBladeCompat.MOD_ID, "proudsoul");
+    private static final ResourceLocation PROUDSOUL_TINY =
+            ResourceLocation.fromNamespaceAndPath(SlashBladeCompat.MOD_ID, "proudsoul_tiny");
 
     private static boolean lookupDone;
     private static Class<?> slashBladeItemClass;
@@ -36,6 +45,7 @@ public final class SlashBladeEnchantmentCompat {
     private static Method setBrokenMethod;
     private static Method getDamageMethod;
     private static Method setDamageMethod;
+    private static Method getProudSoulCountMethod;
 
     private SlashBladeEnchantmentCompat() {
     }
@@ -145,15 +155,20 @@ public final class SlashBladeEnchantmentCompat {
     }
 
     /**
-     * Breaks one intact blade for the Create machine and creates exactly one regular
-     * 刀の魂片 (slashblade:proudsoul). Destructable blades disappear. Blades that
-     * normally survive breaking are returned at maxDamage - 1 with broken=true.
+     * Breaks one intact blade using SlashBlade Resharped 1.21.1's native broken-blade
+     * soul-drop rules. Player breaking always produces slashblade:proudsoul_tiny;
+     * the count is based on ProudSoul / 100 and SlashBlade's configured caps. An
+     * enchanted blade additionally produces individually enchanted tiny souls using
+     * the same supported-enchantment/random-selection rule as ItemSlashBlade#getOnBroken.
      */
-    public static Optional<BladeBreakResult> breakBladeForMachine(ItemStack input) {
+    public static Optional<BladeBreakResult> breakBladeForMachine(
+            ItemStack input,
+            RegistryAccess registryAccess,
+            RandomSource random) {
         if (!isBlade(input) || !resolveMachineMethods()) {
             return Optional.empty();
         }
-        if (!BuiltInRegistries.ITEM.containsKey(PROUDSOUL)) {
+        if (!BuiltInRegistries.ITEM.containsKey(PROUDSOUL_TINY)) {
             return Optional.empty();
         }
 
@@ -165,22 +180,97 @@ public final class SlashBladeEnchantmentCompat {
                 return Optional.empty();
             }
 
-            Item soulItem = BuiltInRegistries.ITEM.get(PROUDSOUL);
-            ItemStack soul = new ItemStack(soulItem, 1);
+            Item tinySoulItem = BuiltInRegistries.ITEM.get(PROUDSOUL_TINY);
+            int proudSoulCount = Math.max(0, ((Number) getProudSoulCountMethod.invoke(state)).intValue());
+            List<ItemStack> soulOutputs = new ArrayList<>();
 
-            boolean destructable = (boolean) isDestructableMethod.invoke(state);
-            if (destructable) {
-                return Optional.of(new BladeBreakResult(ItemStack.EMPTY, soul));
+            // Mirror ItemSlashBlade#getOnBroken exactly: enchanted souls are emitted
+            // first and consume 100 points each from the local drop calculation.
+            if (blade.isEnchanted()) {
+                Set<String> nonDroppable = getNonDroppableEnchantments();
+                List<Holder.Reference<Enchantment>> enchantments = registryAccess
+                        .lookupOrThrow(Registries.ENCHANTMENT)
+                        .listElements()
+                        .filter(blade::supportsEnchantment)
+                        .filter(enchantment -> !nonDroppable.contains(enchantment.key().location().toString()))
+                        .toList();
+
+                // Native code returns immediately here, so an enchanted blade with no
+                // eligible enchantment produces no soul drops at all.
+                if (!enchantments.isEmpty()) {
+                    int maxEnchantedDrops = getSlashBladeConfigInt("MAX_ENCHANTED_PROUDSOUL_DROP", 10);
+                    int enchantedCount = proudSoulCount >= maxEnchantedDrops * 100
+                            ? maxEnchantedDrops
+                            : Math.max(1, proudSoulCount / 100);
+
+                    for (int i = 0; i < enchantedCount; i++) {
+                        ItemStack enchantedSoul = new ItemStack(tinySoulItem);
+                        Holder<Enchantment> enchantment = enchantments.get(random.nextInt(enchantments.size()));
+                        enchantedSoul.enchant(enchantment, 1);
+                        soulOutputs.add(enchantedSoul);
+                        proudSoulCount -= 100;
+                    }
+                } else {
+                    ItemStack survivingBlade = makeBrokenSurvivor(blade, state);
+                    return Optional.of(new BladeBreakResult(survivingBlade, List.of()));
+                }
             }
 
-            // Resharped keeps a surviving broken blade just below the vanilla hard-break limit.
-            int brokenDamage = Math.max(0, blade.getMaxDamage() - 1);
-            setDamageMethod.invoke(state, brokenDamage);
-            setBrokenMethod.invoke(state, true);
-            return Optional.of(new BladeBreakResult(blade, soul));
+            int maxNormalDrops = getSlashBladeConfigInt("MAX_PROUDSOUL_DROP", 10);
+            int normalCount = proudSoulCount >= maxNormalDrops * 100
+                    ? maxNormalDrops
+                    : Math.max(1, proudSoulCount / 100);
+            ItemStack normalSoul = new ItemStack(tinySoulItem, normalCount);
+            soulOutputs.add(normalSoul);
+
+            ItemStack survivingBlade = makeBrokenSurvivor(blade, state);
+            return Optional.of(new BladeBreakResult(survivingBlade, List.copyOf(soulOutputs)));
         } catch (ReflectiveOperationException | LinkageError ignored) {
             return Optional.empty();
         }
+    }
+
+    private static ItemStack makeBrokenSurvivor(ItemStack blade, Object state)
+            throws ReflectiveOperationException {
+        boolean destructable = (boolean) isDestructableMethod.invoke(state);
+        if (destructable) {
+            return ItemStack.EMPTY;
+        }
+
+        int brokenDamage = Math.max(0, blade.getMaxDamage() - 1);
+        setDamageMethod.invoke(state, brokenDamage);
+        setBrokenMethod.invoke(state, true);
+        return blade;
+    }
+
+    private static int getSlashBladeConfigInt(String fieldName, int fallback) {
+        try {
+            Class<?> configClass = Class.forName("mods.flammpfeil.slashblade.SlashBladeConfig");
+            Object configValue = configClass.getField(fieldName).get(null);
+            Object value = configValue.getClass().getMethod("get").invoke(configValue);
+            return Math.max(1, ((Number) value).intValue());
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException ignored) {
+            return fallback;
+        }
+    }
+
+    private static Set<String> getNonDroppableEnchantments() {
+        Set<String> result = new HashSet<>();
+        try {
+            Class<?> configClass = Class.forName("mods.flammpfeil.slashblade.SlashBladeConfig");
+            Object configValue = configClass.getField("NON_DROPPABLE_ENCHANTMENT").get(null);
+            Object value = configValue.getClass().getMethod("get").invoke(configValue);
+            if (value instanceof List<?> list) {
+                for (Object entry : list) {
+                    if (entry instanceof String id) {
+                        result.add(id);
+                    }
+                }
+            }
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException ignored) {
+            // Empty set matches SlashBlade's default configuration.
+        }
+        return result;
     }
 
     private static float getNativeRankModifier(Object rank, LivingEntity user, DamageSource source)
@@ -206,7 +296,10 @@ public final class SlashBladeEnchantmentCompat {
 
     private static boolean resolveMachineMethods() {
         if (machineLookupDone) {
-            return isBrokenMethod != null && getDamageMethod != null && setDamageMethod != null;
+            return isBrokenMethod != null
+                    && getDamageMethod != null
+                    && setDamageMethod != null
+                    && getProudSoulCountMethod != null;
         }
         machineLookupDone = true;
 
@@ -221,9 +314,8 @@ public final class SlashBladeEnchantmentCompat {
             isDestructableMethod = bladeStateInterface.getMethod("isDestructable");
             setBrokenMethod = bladeStateInterface.getMethod("setBroken", boolean.class);
             getDamageMethod = bladeStateInterface.getMethod("getDamage");
-            // SlashBlade Resharped 1.21.1 changed durability from normalized float to
-            // vanilla integer durability points backed by DataComponents.DAMAGE.
             setDamageMethod = bladeStateInterface.getMethod("setDamage", int.class);
+            getProudSoulCountMethod = bladeStateInterface.getMethod("getProudSoulCount");
             return true;
         } catch (ReflectiveOperationException | LinkageError ignored) {
             isBrokenMethod = null;
@@ -231,6 +323,7 @@ public final class SlashBladeEnchantmentCompat {
             setBrokenMethod = null;
             getDamageMethod = null;
             setDamageMethod = null;
+            getProudSoulCountMethod = null;
             return false;
         }
     }
@@ -271,6 +364,6 @@ public final class SlashBladeEnchantmentCompat {
         }
     }
 
-    public record BladeBreakResult(ItemStack survivingBlade, ItemStack soulOutput) {
+    public record BladeBreakResult(ItemStack survivingBlade, List<ItemStack> soulOutputs) {
     }
 }
