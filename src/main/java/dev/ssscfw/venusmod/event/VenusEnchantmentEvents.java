@@ -2,15 +2,20 @@ package dev.ssscfw.venusmod.event;
 
 import dev.ssscfw.venusmod.compat.SlashBladeEnchantmentCompat;
 import dev.ssscfw.venusmod.registry.ModEnchantments;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameRules;
+import net.neoforged.neoforge.event.AnvilUpdateEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
@@ -21,6 +26,9 @@ public final class VenusEnchantmentEvents {
     private static final String RETAINED_BLADES_KEY = "VenusRetainedBlades";
     private static final String RETAINED_SLOT_KEY = "Slot";
     private static final String RETAINED_STACK_KEY = "Stack";
+    private static final TagKey<Item> SLASHBLADE_PROUDSOULS = TagKey.create(
+            Registries.ITEM,
+            ResourceLocation.fromNamespaceAndPath("slashblade", "proudsouls"));
 
     private VenusEnchantmentEvents() {
     }
@@ -73,6 +81,34 @@ public final class VenusEnchantmentEvents {
         if (level > 0) {
             SlashBladeEnchantmentCompat.addStylishRankBonus(livingAttacker, event.getSource(), level);
         }
+    }
+
+    /**
+     * SlashBlade's RefineHandler runs at LOW and creates the refined blade output from
+     * base.copy(), so Soul Fragment enchantments are otherwise lost. This LOWEST hook
+     * runs afterwards and transfers only VenusMod's three blade-specific enchantments.
+     */
+    public static void onAnvilUpdate(AnvilUpdateEvent event) {
+        ItemStack blade = event.getLeft();
+        ItemStack soulFragment = event.getRight();
+        ItemStack output = event.getOutput();
+
+        if (output.isEmpty()
+                || !SlashBladeEnchantmentCompat.isBlade(blade)
+                || !SlashBladeEnchantmentCompat.isBlade(output)
+                || !soulFragment.is(SLASHBLADE_PROUDSOULS)) {
+            return;
+        }
+
+        if (!ModEnchantments.hasAnyBladeSpecialEnchantment(soulFragment, event.getPlayer().registryAccess())) {
+            return;
+        }
+
+        ModEnchantments.mergeBladeSpecialEnchantments(
+                soulFragment,
+                output,
+                event.getPlayer().registryAccess());
+        event.setOutput(output);
     }
 
     /**
