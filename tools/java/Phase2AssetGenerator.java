@@ -2,6 +2,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +13,20 @@ import javax.imageio.ImageIO;
 public final class Phase2AssetGenerator {
     private static Path root;
     private static final String NS = "venusmod:";
+    // Images 2.5で作成後、16x16へ最近傍縮小して確定したアイテムテクスチャ。
+    // Base64でソース管理し、ビルド時にPNGへ復元するため画像内容を再描画・劣化させない。
+    private static final Map<String, String> ITEM_TEXTURES = Map.ofEntries(
+            Map.entry("sulfur_crystal", "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAB30lEQVR4nMVSTWtTURQ89737+vLS2pX6B/oD6sZtwa3FVWPBRrGK+JGkUE0UqsWC0J0UFEL9WrgSRNCNyyqxuijUih8IUqvWok3yiMEKQpN7Z667QjAVFcRZHs6ZMzOMyD+EGhsO6UTUX12fORi9srbOxZkQhXQH/phg/fsqrSkS5YDV+QRHBv3fJymkA9hvfbT2OqypsboQ0TSzbLer2w2VOKktzrltvTuUSEO29p6QlSdF98uvsF+Y36eRTwcQEfk420WUNVHVPHc4gq34GwpODwXI7w9aLdn1Edq1AhFrjB/t7rk63k3UOgBznNNjnfhQCikiMjq8ZY81JTLWrZbi+QSsmQZMjTAHeGi3h+XZEKhqrDyOeG+qk/l0QGtybJYD1F8m0JLB9p3rfuPzKN+/PulKjzxlnMjyW188JWqqCNe0Rvr7AqXEuU9vfLlYtK0Z5Aa0uXK2yx7p16jMRbT1HprmMTa/erDmMkvXkjw1pLn0MMTEhHg/hZhL+bCmzHghxP1LCVqTY/15BKz5QKxRfxFyYJfCZCa5eR9yKW2e3Y1QuhFxaSbJTEojm9JkHCCT0qw+jXDzQoTcoN4gadvz7F6NSo1y+5Ynq+8CVTjfcMpTis65Ow/ob6rgv+AHGtcQ+qZHuAUAAAAASUVORK5CYII="),
+            Map.entry("venesite", "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABsElEQVR4nGNgGLSggNn572+fWX/vStf/i2Wy/odLHRMuCV12CQYGf31GBUs5BkYGpv8kGxBfGMPAJLOM4b+hCsMMVV9GkgzIYnb8x/BoDcN/ZlaGNe0LGVhDDBjimWyxegOrAXacigz/3TIZlwe9/f/k94f/jOrCDA4cSgwMDAwMyUx2n3C5hiGRyfYvhLb/+1W1899tpfS/x2Uj/xayuvyLZbL5y8DAwPB75YV/8VB1GC6Yvd2X8Ztq579PDD8Z77x7/V9GlofBpO0PY6Ks9P8vDL8Z/sQs/Mf4t5tBnUWYEasB/1fK/2e/osGwUN7v/7+fvxg/vfnLyBjRzyDIzcK4RNGPkcFMhYHx3B+GC39e/sdqQM2ieQz/Jwv+n/PsHKOmjNz/z5/+/GeIbmH49kWLYfnzGwxPZsz+H9n76P+qf8eZYXowoue7evffsx/eMZ7+eOt/Xm0uw5kJGxnufPvI6KT+97/gD21GjmtlOKMeDoKYzP7+fTnr72KepH8/C7b/jWG2/ruUJ+GfD7PZX4KaYcCfyezvb++kv39Kt/2bzRWLMykTBFUsXuRrJgYAAGK8pRdlDc/IAAAAAElFTkSuQmCC"),
+            Map.entry("pressure_alloy_blend", "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABp0lEQVR4nGNgGAUEwbOnz//Z2dj/xSXPhE+zn0/Av337DjJY29gxphkbsxJtgKe719/fl7T+VYZxMKxft+a/Nf+i/wJOHj/NTMxwugQF7N617190VNy/nTv2/nv25Nk/DzePv7/eTPi3oVnpr6WZJYohjMgcX2/fv+vb7jLuPajIMH0PG4OKmgbDu7dvGTqzBf+HFJ5gUFZWY3z18vn/N29eMZw4fYoZrvH///+MgT7ey96+fvevpqrx35XDZf+urVL9t6Hf5O++PQf/RYeH/P3ze+nfX+c1/3q6e/+bMmnGP3s7h7/wMGBkZPz/4/f/8OkzZjFcuXKeYfMhsf+H3pUzTN7Ez3jlylWGDx+/M/6/2sL49/cfhtevX/5fsmTB/4OHDjAHB4b8ZWFgYGDw9vT5u3X7FuZZye849Zgef9nyQIohw1f0v+xPLoap27cwblroyeARsfH/5y+fGPT09RmFBIQZGBj+/127fg3CG+Vltf/cXNy/MTAwMJyYLvWHgYGBwcTI5C8DAwNDU6zCXwYGBoaJ6eKwAGQszC/96+rsRlysDG4AAFgLuMogXtMPAAAAAElFTkSuQmCC"),
+            Map.entry("pressure_alloy_ingot", "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAB90lEQVR4nN2ST0iTcRjHv8/7lhi1Cq3Yu72REtQb/TmMCAMPBW60pBgJdXRES80OHZQC7bRDVIfoULFCZyAFQR1W1KGVa7hCzKW57Z17J+j+OTeUcjFb9r6/DpFoUZ3rc3zg833+8AD/FE1mQf25xv1NarYID89YBX/sUa0q2VyU95qXhdCfOxq0a54JJDOzCIXHwHM8prLTeHuvFV0vs9zSCRaDHHUGtdkiaMX5kua46sfT528QjsQgRxVUV4nYX2PC6jLCQsCiLRNP1wnqTeduCq1x4VX/AESDHiBCMpVmn0tfKBweRffJUYxFPzDJdoiICGdP3GEEAF+LA5r3ciPup+thMu0FA0E06tlkIkXvgkHMFEp43KYw5wsbVVZUIBDox9aiB3JijnEAwEYuwnzuOE5JXuawH4No1IMjjoaGBtFzpRxPejaxW7fjtEPaxuLjcYA4xtOS3YM3TNqz+Vacr32AgD8Dt2JFPj8Nj7sK7o5efNrlRGIyxSKR96Rbux4zwbuMAeiTC99zDkg6dU/9BdouSTiyoQvGw9fR225FLL3AlFVHkc9lIG6uplwui5LiYb7oHP/jdisAwBct8MAldSprpzKdDPvGFvQNfwS/00GzE+NYWb4Oydcu5pMLi+Jv6WzYooa6a7SGfZXqQUn3y+f9h3wDN4zM3dqb+uoAAAAASUVORK5CYII="),
+            Map.entry("portable_life_support", "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAB/ElEQVR4nLVS30tTcRT/fL93t4S8c9Qlp20uiSx0s/Q2XZSNSUGNin7MqJeIUVQPPfggRhFBEP0Dvc0hWK6IZEWQPdiDoCxzZKzIhCBjFKR5CxcS457vtyej5TIp+rydD+fzOR/OOcA/ghUj99SX0EqVu6Yt6R43dZHNZtNLNjjo115Ew3pdmabApnJ5LrEGjCtIpwaUJUU61GwX1lhYbK1ZIeY5oylErqr1VKyf/0oMvXNI/+k5+XpGQzAIGwC4ZBoPLtj+PH21000Dj4fEzURSRI5ERfU6L7XWlVC50y021Boi07WRDvi1giQFto1OE0rmjGTvZ6FN5+B1WKisCeJ4kwqSwLX+b5iU5QAGf2gKllhR6aGR1DBzzpxC560Anj9LyVVzT3BPD6GlL8byPo/U7Rx5S6J/7KuyYAeKTcXUxzdovzgCzhka9ZdMCoFdd+Msc7ULXGHs/mjONi9eYMAZn7REKQLHYjBNU94Y5DJ6OYmTD5/K0HACJzq65V7DboUbSoteBBM9PlHfsJ3O7taF0byT7Ho19SUf0ZZAK1kfOsSrbi85Kzz5gqE/F/suTc329sTY5sh16fN5WWfbcnz+ksOd3jjwaQKj6hVYZC3+UPH2Krp9fq04uq2MAOBwwEFttVgmxiNiUeHvsCO0n+TbqNhktMi/Mvjv+A4iN8AZaUA1XAAAAABJRU5ErkJggg=="),
+            Map.entry("pressure_helmet", "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACZUlEQVR4nM1SXUjTcRQ99z81nfkRUWkK879Jfq4sCktTJCiSCgOjFH0qIYJeSiSKPh6UiF4qEfNJIa2IiEqjWEVtMmYfDlqbZoGrJmvKMj/mHJv7/24Porl66aGHztu93Hvu4ZwL/LeoKU4Us+ZdwtCUrWjlHKHV5ip/tajT5Y/XlCQrM/21olyvVrofPRe9Zpvo7jGJrKwC9+/z0tJClnPCFkvviiunNyB+VRCt57dArU5CwXodZvxBHKyqS5XlnAgltLTwfTgpftitsL5zo7REA0ufi0tLZer6VAf3Nw902gxM+2bRcq2Rnc5BVQTB5doUpdmcTMVbd+DN65cMAAxGXNxyNO6foLISGa3WSniMZ5C5pwX1J2okAIhaIGg1J8PbdQurC7MwYugnMewCTCZAr8elxw/RcNuNV813YMMaGDy/rFj04Ev9WQo/60OAAcXYB7bZARCzfQDWvE34mqbDyvQErmsLo7pqHzQaTWyEAnK5AZ8fnW8/AjHRoKnJ+T4zs0pFiI7BtHeKHIM2LPt+jiVJ7QegWlSgudvOPDUJxTMODA1BCGZIEmEuSFEV5chwDXFzhwNj3buxucJCwTBThILCVA8CJgO8SghpViMDRO6dlaDcbGy82IRAfBJYTGBk7VUUJJVxp90XmQIA2p6vU9pPpXObfS/13O/gw0eOkUoCFE7A+wfH4fERhxKLMDo6goUYo5YQ8Isb69j7OUx+3zQUBRQIRbPzaQOcooiE2AZTZyxVHzWyxTl//Y9HyszMY38wJA7pJzCnMMYSD5DD0Y8nF9S4fnOQ7w2kYNg5oMK/xE/zYA4mPLGr5AAAAABJRU5ErkJggg=="),
+            Map.entry("pressure_chestplate", "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACHklEQVR4nN2SXUiTcRTGn/POmG6Z4MXahrXlcn2ADkzqdWEsQyvQkiCMZhgFIXVX5EV3QRbL6qZPMIQ0HNTYJJuazot06DtWrqhcDropyMpgWtoHcf7/rgr8qNug39XhcM7D4XkO8H/yVTskTKY8nhn0itmhOjabV4ovI/W82Kzyq8jPX8uRC1vE0KDGnz5Ow+FYg40NSVlyZAx5K1bJqQ/TFI3GRL/PLWz2Ap4jEIslOPk8Tm63HdHhGJUdT8k+n5X0+ixkZhoQ8ZnJc/IVolENpe58pJIJWmrMFb/P0LQEJ0afiWs3bgm7vYADwftc4CziniaVw2c2sdNZJEKhMK92rBNXrraKR4+fCqMhlwGAAKDvfBkrEHgYnyCbNUcuKT5FyfFxxLQRKYSEqqpwuQoxM3waE5OfobpMaAm+pEA8rSgAUNk4pHui89KUpVZ6VCuRQnLf3hrZXxym/XVeBO76QZC0c5ud3ubsxpjhIAXiaWWOiRebfdJgMGI0o0HWrh+gF8kUnHtKpSN9nfR6PWps96D9OCyzl2XDd65J/jHCUG+Uy7dWie+zPaLl5m1ubfWz/NbDqlrOd0JdC6Kk+Q3z8jyONBdiLOsoaW3HpE6Xgc31l8mYOisPXHqNd+/f6P4qEAx28y7PJFV7w9i+o0KCFPT1PkBXewV1j9hkdVWlbv7OAtobS4TFbOMOfyd3+DvZYrVx24kNi37iv+cnizPlfYT0rP4AAAAASUVORK5CYII="),
+            Map.entry("pressure_leggings", "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABfUlEQVR4nNWQzyvDcRzGn89a5jJKfTf2nZohw4imXGUNRfgvODlzk1KchZC12BzmpI3YWEr5nR8pirKYNoSL2GLf99sVk+2kPLf309PT6/0A/17iu8HhHiq2L7OisJAkPd/fxUSWRsMXAbsQ5hHV93yK4XUGeGLKBYulgpPvb8JSXonRsUnhdq5khhRc3SK9zkCFxiIym8tINppIkgrIv7ROP+W/ENiKs982d3YwO+fFttMKrTYHR+4a9njmcXR8glpTtu/XAibBYAYpQKJkHPHXF4rlDQsCg5gBFVIo1J+Pg3BcU397Rw9PjwivRnB+care2NpTcrVaxGJRcXiZ6Ei7gU4qoOurKPn8IQKABV+IIpGootcZ0m8AAHZHGxte+tn8OsgAUJEcQv7zgGh0tHJGBWtBPyBU4vD4BgCwexCGUAGh4GJaegBA8rybrFYbNTnaCQBamjupuqqO3s+6fnwhRbJcqOzPNJKrr0wBgOneUtpzNZCcL2dW8Of6AP/Oo9XJ/pLTAAAAAElFTkSuQmCC"),
+            Map.entry("pressure_boots", "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABmUlEQVR4nN2RvWtTURyGn5PU0OggFdIm+JF7gya0VnQwGqogxaFKneqklmay5B8QOnSsWgcXsQmJaAZxUaHQv0CLYsAUSyJYAt57KSiCgx0Kvb3JOaeTKbn92PUdX9734fcB/6cMw5RG3JR+zzQ6PYCA39j8MCJjsbiIxk7gfbwuAdzFa6q37xihULfwQ3YA3i3+5nKkoe+e/8Gr198BeLvg8Kmc5MlEGBBiX0CutCYGzEMiEAyI1Z6sAHAOZ3F/WSIy+hLbsTo6XX6A7ViBldWjSiv0N7suAD4v1bH6XMYe3PDHd04AcPXicX3m5mNGohUNcH/U0qmzUZ27pPRu+Q4tFy7IRjktT51MyWSyXwGcHjynMpkrsrl8SyUSCbVn+Us+LaemZ9XtO5OyVRtXpeJzBfCs9EIuVetyanpWVas1ZRqJ9ifaKxhxU775OSaankvwQBdaaZ7OFTTAXL7IzMNHQskWta8rev7ekfYnxDbAkOnMMI7dEO7Ghl5f/4Nt28G/uaGh4ZbX9EQ4fJCm51GpvN/1fv+gtgB8z56snIr6FQAAAABJRU5ErkJggg=="),
+            Map.entry("acid_condensate_bucket", "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACCElEQVR4nM2Tu2tTcRTHv+d3702aIekmBV2KQcGLJD4WB8Um2IpJHcR/wVVtcS0dfGBULFioiC7F+hgUpaSmVOimKEJi2iQNKW1Nr7UldlMi3uR3jkNwaG/EwcUzHc7jcx6cA/yj0HaDbUc0QCAQgSAiDIigWJoz/gqw7SgnkmcRDneDqOXq641h6tUMRkdvA8K6VJqz2rZi2xG+ODjMx2MJrn619JNJxY9eKp54obgnnuSF8grfuHWP2yfv289jY+N88nRcNxuG1q7J2jX16zeKtWtwelbp9KzSx04c5WjksBcyMDjMD54Su66pcxVLLzkHuPTJ4kK1Q9frPv5R9+uyY+rCitIXBoa2ABQAZLPvIN8e41Sin0xL6O2HPHIftTA34Lc0fGaDwl1M588lKJd9v6W4CQCbtQ1ZXFpGqDNE+F7G+N1LAISIFIgI0+lJiff1osPvo9rGqngAxVLeICJO3RzB1WspBAIBkFLC3IT7swGmGdq7J4NgMIjpzHPDAwAAgeDz2jouXxlCpbyMVcchIoLjfEFP7DqS/WdQq9U8+1O/lWIxr+6MpLC7exeIgFBnEJZpAqRw8NARsACZqWf6jwAAYObWfERQZEAAGEqBCBDd9FT3ABbK80ZlsQoIQAQwM1oHqWTi4X20u8I2vxDVO7p2wjRNEhYopbC+VsV8Iae2x/4f8gvwIeV7kOIS0QAAAABJRU5ErkJggg==")
+    );
     private static Map<String, Object> m(Object... pairs) {
         Map<String, Object> map = new LinkedHashMap<>();
         if (pairs.length % 2 != 0) throw new IllegalArgumentException("Odd key/value list");
@@ -120,26 +135,10 @@ public final class Phase2AssetGenerator {
         for (int y = 0; y < 16; y++) for (int x = 0; x < 16; x++) glass.setRGB(x, y,
                 x == 0 || y == 0 || x == 15 || y == 15 ? 0xffa58134 : (x + y == 8 || x + y == 9 || x + y == 24) ? 0x88fff1ae : 0x24edca68);
         png("block/venus_glass", glass);
-        for (String name : List.of("sulfur_crystal", "venesite", "pressure_alloy_blend", "pressure_alloy_ingot", "portable_life_support",
-                "pressure_helmet", "pressure_chestplate", "pressure_leggings", "pressure_boots", "acid_condensate_bucket")) {
-            BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
-            for (int y = 1; y < 15; y++) for (int x = 1; x < 15; x++) {
-                boolean draw; int color = 0xffc6a54d;
-                if (name.endsWith("helmet")) draw = x >= 3 && x <= 12 && y >= 3 && y <= 10 && !(y >= 8 && x >= 5 && x <= 10);
-                else if (name.endsWith("chestplate")) draw = y >= 3 && y <= 13 && !(y <= 5 && x >= 6 && x <= 9) && (y <= 7 || x >= 4 && x <= 11);
-                else if (name.endsWith("leggings")) draw = x >= 4 && x <= 11 && y >= 2 && y <= 14 && (y <= 6 || x <= 6 || x >= 9);
-                else if (name.endsWith("boots")) draw = y >= 4 && y <= 12 && (x >= 3 && x <= 6 || x >= 9 && x <= 12);
-                else if (name.equals("portable_life_support")) { draw = x >= 3 && x <= 12 && y >= 2 && y <= 14; color = x >= 7 && x <= 8 ? 0xff272e35 : y >= 5 && y <= 7 ? 0xff70daba : 0xffc7cbd0; }
-                else if (name.endsWith("bucket")) { draw = y >= 6 && y <= 13 && x >= 3 + (y - 6) / 4 && x <= 12 - (y - 6) / 4; color = y <= 8 ? 0xffd0b945 : 0xff8c9399; }
-                else if (name.endsWith("ingot")) { draw = y >= 5 && y <= 11 && x >= Math.max(2, 5 - (y - 5)) && x <= 13; color = y <= 7 ? 0xffe4d8a3 : 0xff9d9675; }
-                else if (name.endsWith("blend")) { draw = y >= 7 && y <= 13 && Math.abs(x - 8) <= y - 6; color = (x + y) % 3 == 0 ? 0xffd6b023 : 0xff969b95; }
-                else { draw = Math.abs(x - 8) + Math.abs(y - 8) <= 6; color = name.equals("sulfur_crystal") ? 0xffedce3a : 0xffbd5384; }
-                if (draw) {
-                    if ((x + y) % 5 == 0) color = 0xff000000 | ((color & 0xfefefe) >>> 1);
-                    image.setRGB(x, y, color);
-                }
-            }
-            png("item/" + name, image);
+        for (var entry : ITEM_TEXTURES.entrySet()) {
+            Path file = root.resolve("assets/venusmod/textures/item/" + entry.getKey() + ".png");
+            Files.createDirectories(file.getParent());
+            Files.write(file, Base64.getDecoder().decode(entry.getValue()));
         }
         for (int layer = 1; layer <= 2; layer++) {
             BufferedImage suit = new BufferedImage(64, 32, BufferedImage.TYPE_INT_ARGB);
@@ -154,6 +153,6 @@ public final class Phase2AssetGenerator {
     public static void main(String[] args) throws IOException {
         if (args.length != 1) throw new IllegalArgumentException("Expected output resource directory");
         root = Path.of(args[0]); data(); textures();
-        System.out.println("Generated phase 2 materials, armor, recipes, worldgen and textures");
+        System.out.println("Generated phase 2 materials, armor, recipes, worldgen and fixed 16x16 item textures");
     }
 }
