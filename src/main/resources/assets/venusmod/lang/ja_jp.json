@@ -22,6 +22,7 @@
   "container.venusmod.diamond_hopper": "ダイヤモンドホッパー",
   "block.venusmod.blade_repair_station": "抜刀剣修復機",
   "block.venusmod.blade_breaker": "抜刀剣解体機",
+  "block.venusmod.metal_separator": "金属分離機",
   "enchantment.venusmod.blade_retention": "刀保持",
   "enchantment.venusmod.stylish": "スタイリッシュ",
   "enchantment.venusmod.summoned_sword_damage": "幻影剣ダメージ増加"
