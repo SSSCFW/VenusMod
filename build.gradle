@@ -102,3 +102,25 @@ publishing {
         }
     }
 }
+
+// オリジナルPNG/NBTをJavaだけで生成。Pythonや手作業のアセット配置は不要。
+def generatedVenusAssets = layout.buildDirectory.dir('generated/venusAssets')
+def compileVenusAssetGenerator = tasks.register('compileVenusAssetGenerator', JavaCompile) {
+    source = fileTree('tools/java') { include '**/*.java' }
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('classes/venusAssetGenerator')
+    javaCompiler = javaToolchains.compilerFor { languageVersion = JavaLanguageVersion.of(21) }
+    options.release = 21
+}
+def generateVenusAssets = tasks.register('generateVenusAssets', JavaExec) {
+    dependsOn compileVenusAssetGenerator
+    classpath(compileVenusAssetGenerator.flatMap { it.destinationDirectory })
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'VenusAssetGenerator'
+    systemProperty 'java.awt.headless', 'true'
+    args generatedVenusAssets.get().asFile.absolutePath
+    inputs.files(fileTree('tools/java') { include '**/*.java' })
+    outputs.dir generatedVenusAssets
+}
+sourceSets.main.resources.srcDir generatedVenusAssets
+tasks.named('processResources') { dependsOn generateVenusAssets }

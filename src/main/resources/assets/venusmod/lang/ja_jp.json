@@ -25,5 +25,15 @@
   "block.venusmod.metal_separator": "金属分離機",
   "enchantment.venusmod.blade_retention": "刀保持",
   "enchantment.venusmod.stylish": "スタイリッシュ",
-  "enchantment.venusmod.summoned_sword_damage": "幻影剣ダメージ増加"
+  "enchantment.venusmod.summoned_sword_damage": "幻影剣ダメージ増加",
+  "block.venusmod.venus_portal": "金星ポータル",
+  "block.venusmod.guardian_altar": "金星守護者の祭壇",
+  "entity.venusmod.venus_guardian": "金星の守護者",
+  "item.venusmod.venus_core": "金星核",
+  "item.venusmod.venus_guardian_spawn_egg": "金星の守護者のスポーンエッグ",
+  "biome.venusmod.venus_wastes": "金星の荒野",
+  "dimension.venusmod.venus": "金星",
+  "message.venusmod.dimension_missing": "金星ディメンションを読み込めません。データパックを確認し、サーバーを再起動してください。",
+  "message.venusmod.no_safe_exit": "安全な移動先がありません。帰還先のポータル周辺に空間を確保してください。",
+  "message.venusmod.entity_too_large": "移動先のポータルが小さすぎます。"
 }

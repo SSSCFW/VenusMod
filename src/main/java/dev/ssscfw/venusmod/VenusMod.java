@@ -8,6 +8,7 @@ import dev.ssscfw.venusmod.registry.ModBlocks;
 import dev.ssscfw.venusmod.registry.ModCreativeTabs;
 import dev.ssscfw.venusmod.registry.ModEntities;
 import dev.ssscfw.venusmod.registry.ModItems;
+import dev.ssscfw.venusmod.world.VenusDimensionContent;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -25,6 +26,7 @@ public final class VenusMod {
         ModEntities.ENTITY_TYPES.register(modBus);
         ModItems.ITEMS.register(modBus);
         ModCreativeTabs.CREATIVE_MODE_TABS.register(modBus);
+        VenusDimensionContent.register(modBus);
 
         modBus.addListener(ModEntities::registerAttributes);
         modBus.addListener(ModItems::addCreativeTabContents);

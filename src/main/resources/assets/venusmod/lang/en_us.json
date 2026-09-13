@@ -25,5 +25,15 @@
   "block.venusmod.metal_separator": "Metal Separator",
   "enchantment.venusmod.blade_retention": "Blade Retention",
   "enchantment.venusmod.stylish": "Stylish",
-  "enchantment.venusmod.summoned_sword_damage": "Summoned Sword Damage"
+  "enchantment.venusmod.summoned_sword_damage": "Summoned Sword Damage",
+  "block.venusmod.venus_portal": "Venus Portal",
+  "block.venusmod.guardian_altar": "Venus Guardian Altar",
+  "entity.venusmod.venus_guardian": "Venus Guardian",
+  "item.venusmod.venus_core": "Venus Core",
+  "item.venusmod.venus_guardian_spawn_egg": "Venus Guardian Spawn Egg",
+  "biome.venusmod.venus_wastes": "Venus Wastes",
+  "dimension.venusmod.venus": "Venus",
+  "message.venusmod.dimension_missing": "Venus is unavailable. Check the data pack and restart the server.",
+  "message.venusmod.no_safe_exit": "No safe exit is available. Clear space around the destination portal.",
+  "message.venusmod.entity_too_large": "The destination portal is too small for this entity."
 }

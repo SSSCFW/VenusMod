@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.ssscfw.venusmod.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "NaturalSpawnerMixin",
+    "SpawnStateAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

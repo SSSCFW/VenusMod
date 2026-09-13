@@ -1,0 +1,11 @@
+{
+  "type": "venusmod:venus",
+  "generator": {
+    "type": "minecraft:noise",
+    "biome_source": {
+      "type": "minecraft:fixed",
+      "biome": "venusmod:venus_wastes"
+    },
+    "settings": "venusmod:venus"
+  }
+}
