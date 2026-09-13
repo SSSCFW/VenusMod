@@ -1,0 +1,26 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "create"
+    }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    "NCN",
+    "ASA",
+    "NPN"
+  ],
+  "key": {
+    "N": { "tag": "c:ingots/nickel" },
+    "C": { "item": "create:andesite_casing" },
+    "A": { "item": "create:andesite_alloy" },
+    "S": { "item": "create:shaft" },
+    "P": { "item": "create:precision_mechanism" }
+  },
+  "result": {
+    "count": 1,
+    "id": "venusmod:metal_separator"
+  }
+}
