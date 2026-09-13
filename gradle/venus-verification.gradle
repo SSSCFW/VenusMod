@@ -70,3 +70,19 @@ tasks.register('verifyMachineRendering') {
     }
 }
 tasks.named('check') { dependsOn 'verifyMachineRendering' }
+
+// 第二段階の素材・装備・レシピ・鉱石配置を生成する。
+def phase2Assets = layout.buildDirectory.dir('generated/phase2Assets')
+tasks.register('generatePhase2Assets', JavaExec) {
+    dependsOn tasks.named('compileVenusAssetGenerator')
+    classpath tasks.named('compileVenusAssetGenerator').flatMap { it.destinationDirectory }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'Phase2AssetGenerator'
+    systemProperty 'java.awt.headless', 'true'
+    args phase2Assets.get().asFile.absolutePath
+    outputs.dir phase2Assets
+    inputs.file('tools/java/Phase2AssetGenerator.java')
+}
+sourceSets.main.resources.srcDir phase2Assets
+tasks.named('processResources') { dependsOn 'generatePhase2Assets' }
+runs.server.systemProperty 'venusmod.verifyWorldgen', providers.gradleProperty('venusWorldgenSmoke').orElse('false').get()

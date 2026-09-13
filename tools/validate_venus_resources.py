@@ -38,6 +38,7 @@ class NBTReader:
         raise AssertionError(f'Unsupported NBT tag {kind}')
 
 def main():
+    subprocess.run(['python3', str(ROOT/'tools/validate_phase2.py')], check=True)
     workspace = tempfile.TemporaryDirectory(prefix='venus-assets-')
     work = Path(workspace.name)
     classes, assets = work/'classes', work/'resources'
@@ -63,7 +64,7 @@ def main():
     biome = data('worldgen/biome', 'venus_wastes')
     assert {entry['type'] for entry in biome['spawners']['monster']} == {
         'venusmod:venus_'+name for name in ('zombie','skeleton','creeper','spider','enderman')}
-    assert biome['features'][6] == ['venusmod:ore_nickel']
+    assert biome['features'][6] == ['venusmod:ore_nickel', 'venusmod:sulfur_ore', 'venusmod:venesite_ore']
     ore = data('worldgen/configured_feature', 'ore_nickel')
     assert {target['state']['Name'] for target in ore['config']['targets']} == {
         'venusmod:nickel_ore','venusmod:deepslate_nickel_ore'}

@@ -27,6 +27,7 @@ public final class VenusMod {
         ModItems.ITEMS.register(modBus);
         ModCreativeTabs.CREATIVE_MODE_TABS.register(modBus);
         VenusDimensionContent.register(modBus);
+        dev.ssscfw.venusmod.registry.VenusPhase2.register(modBus, modContainer);
 
         modBus.addListener(ModEntities::registerAttributes);
         modBus.addListener(ModItems::addCreativeTabContents);
