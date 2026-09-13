@@ -13,7 +13,7 @@
     "NPN"
   ],
   "key": {
-    "N": { "tag": "c:ingots/nickel" },
+    "N": { "item": "venusmod:nickel_ingot" },
     "C": { "item": "create:andesite_casing" },
     "A": { "item": "create:andesite_alloy" },
     "S": { "item": "create:shaft" },
