@@ -52,6 +52,12 @@ def main():
     assert data('dimension', 'venus')['generator']['biome_source']['biome'] == 'venusmod:venus_wastes'
     dimension = data('dimension_type', 'venus')
     assert dimension['monster_spawn_block_light_limit'] == 0
+    light_provider = dimension['monster_spawn_light_level']
+    assert light_provider == {
+        'type': 'minecraft:uniform',
+        'min_inclusive': 0,
+        'max_inclusive': 7,
+    }, '1.21.1 DimensionType IntProvider must keep min/max at the provider root (no nested value object)'
     assert dimension['fixed_time'] == 18000 and dimension['coordinate_scale'] == 1
     assert data('worldgen/noise_settings', 'venus')['noise']['height'] == dimension['height']
     biome = data('worldgen/biome', 'venus_wastes')
