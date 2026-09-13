@@ -198,12 +198,13 @@ public final class AphroditeCore extends Blaze {
                 player.push(push.x, 0.45D, push.z);
             }
         }
-        playSound(SoundEvents.GENERIC_EXPLODE, 1.5F, enraged ? 0.55F : 0.75F);
+        playSound(SoundEvents.GENERIC_EXPLODE.value(), 1.5F, enraged ? 0.55F : 0.75F);
     }
 
     private void tickBeam(ServerLevel server) {
         beamWindup--;
-        ServerPlayer target = beamTarget == null ? null : server.getPlayerByUUID(beamTarget);
+        net.minecraft.world.entity.player.Player found = beamTarget == null ? null : server.getPlayerByUUID(beamTarget);
+        ServerPlayer target = found instanceof ServerPlayer serverPlayer ? serverPlayer : null;
         if (target == null || !target.isAlive()) {
             beamWindup = 0;
             beamTarget = null;

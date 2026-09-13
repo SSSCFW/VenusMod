@@ -253,7 +253,7 @@ public final class VenusGeneral extends VenusZombie {
         target.invulnerableTime = 0;
         target.hurt(damageSources().mobAttack(this), count == 8 ? 24.0F : 12.0F);
         target.invulnerableTime = 0;
-        playSound(SoundEvents.TRIDENT_THROW, 1.1F, count == 8 ? 0.75F : 1.0F);
+        playSound(SoundEvents.TRIDENT_THROW.value(), 1.1F, count == 8 ? 0.75F : 1.0F);
     }
 
     private static double MthLerp(double from, double to, double t) { return from + (to - from) * t; }
