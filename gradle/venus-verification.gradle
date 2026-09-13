@@ -14,7 +14,6 @@ runs {
     gameTestServer {
         systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         systemProperty 'venusmod.requireCreateTests', withCreate.toString()
-        setForceExit false
     }
 }
 def verificationAssets = layout.buildDirectory.dir('generated/verificationAssets')
