@@ -3,6 +3,10 @@
   "values": [
     "venusmod:diamond_hopper",
     "venusmod:nickel_ore",
-    "venusmod:deepslate_nickel_ore"
+    "venusmod:deepslate_nickel_ore",
+    {
+      "id": "venusmod:metal_separator",
+      "required": false
+    }
   ]
 }
