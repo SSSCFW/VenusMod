@@ -3,12 +3,12 @@
   "temperature": 2.0,
   "downfall": 0.0,
   "effects": {
-    "fog_color": 12160573,
-    "sky_color": 12090396,
-    "water_color": 10912296,
-    "water_fog_color": 6968351,
-    "grass_color": 12164930,
-    "foliage_color": 11373365,
+    "fog_color": 14000218,
+    "sky_color": 13206074,
+    "water_color": 9136687,
+    "water_fog_color": 6046495,
+    "grass_color": 10122556,
+    "foliage_color": 8807474,
     "mood_sound": {
       "sound": "minecraft:ambient.cave",
       "tick_delay": 6000,
@@ -17,7 +17,7 @@
     },
     "particle": {
       "options": {"type": "minecraft:ash"},
-      "probability": 0.004
+      "probability": 0.006
     }
   },
   "carvers": {"air": ["minecraft:cave", "minecraft:canyon"]},

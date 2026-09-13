@@ -57,8 +57,8 @@ public final class VenusPortalBlock extends Block implements Portal {
         return VenusPortalTravel.destination(level, entity, pos);
     }
     @Override public Transition getLocalTransition() {
-        // バニラのCONFUSIONは紫のネザーポータル画像を重ねるため使用しない。
-        return Transition.NONE;
+        // ネザーポータルと同じ、滞在時間に応じて強くなる画面のゆがみ/揺れを使用する。
+        return Transition.CONFUSION;
     }
     @Override public void animateTick(BlockState state, Level level, BlockPos pos, RandomSource random) {
         if (random.nextInt(100) == 0) level.playLocalSound(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
