@@ -1,46 +1,7 @@
 {
-  "parent": "minecraft:block/block",
-  "ambientocclusion": false,
+  "parent": "venusmod:block/blade_machine_common",
   "textures": {
-    "particle": "create:block/andesite_casing",
-    "casing": "create:block/andesite_casing",
-    "axis": "create:block/axis",
-    "gearbox": "create:block/gearbox",
     "accent": "minecraft:block/copper_block",
-    "deck": "minecraft:block/polished_deepslate",
-    "dark": "minecraft:block/polished_blackstone"
-  },
-  "elements": [
-    { "from": [0, 0, 0], "to": [16, 5, 16], "faces": {
-      "north": {"texture":"#casing"}, "south": {"texture":"#casing"}, "east": {"texture":"#casing"}, "west": {"texture":"#casing"}, "up": {"texture":"#casing"}, "down": {"texture":"#casing"}
-    }},
-    { "from": [1, 5.05, 1], "to": [15, 7, 15], "faces": {
-      "north": {"texture":"#deck"}, "south": {"texture":"#deck"}, "east": {"texture":"#deck"}, "west": {"texture":"#deck"}, "up": {"texture":"#deck"}, "down": {"texture":"#deck"}
-    }},
-
-    { "from": [0, 5.05, 0], "to": [2, 14, 2], "faces": {"north":{"texture":"#casing"},"south":{"texture":"#casing"},"east":{"texture":"#casing"},"west":{"texture":"#casing"},"up":{"texture":"#casing"},"down":{"texture":"#casing"}} },
-    { "from": [14, 5.05, 0], "to": [16, 14, 2], "faces": {"north":{"texture":"#casing"},"south":{"texture":"#casing"},"east":{"texture":"#casing"},"west":{"texture":"#casing"},"up":{"texture":"#casing"},"down":{"texture":"#casing"}} },
-    { "from": [0, 5.05, 14], "to": [2, 14, 16], "faces": {"north":{"texture":"#casing"},"south":{"texture":"#casing"},"east":{"texture":"#casing"},"west":{"texture":"#casing"},"up":{"texture":"#casing"},"down":{"texture":"#casing"}} },
-    { "from": [14, 5.05, 14], "to": [16, 14, 16], "faces": {"north":{"texture":"#casing"},"south":{"texture":"#casing"},"east":{"texture":"#casing"},"west":{"texture":"#casing"},"up":{"texture":"#casing"},"down":{"texture":"#casing"}} },
-
-    { "from": [0, 13.5, 0], "to": [16, 16, 2], "faces": {"north":{"texture":"#accent"},"south":{"texture":"#accent"},"east":{"texture":"#accent"},"west":{"texture":"#accent"},"up":{"texture":"#accent"},"down":{"texture":"#accent"}} },
-    { "from": [0, 13.5, 14], "to": [16, 16, 16], "faces": {"north":{"texture":"#accent"},"south":{"texture":"#accent"},"east":{"texture":"#accent"},"west":{"texture":"#accent"},"up":{"texture":"#accent"},"down":{"texture":"#accent"}} },
-    { "from": [0, 13.5, 2], "to": [2, 16, 14], "faces": {"north":{"texture":"#accent"},"south":{"texture":"#accent"},"east":{"texture":"#accent"},"west":{"texture":"#accent"},"up":{"texture":"#accent"},"down":{"texture":"#accent"}} },
-    { "from": [14, 13.5, 2], "to": [16, 16, 14], "faces": {"north":{"texture":"#accent"},"south":{"texture":"#accent"},"east":{"texture":"#accent"},"west":{"texture":"#accent"},"up":{"texture":"#accent"},"down":{"texture":"#accent"}} },
-
-    { "from": [4, 10.5, 0.25], "to": [12, 12.5, 2.25], "faces": {"north":{"texture":"#gearbox"},"south":{"texture":"#gearbox"},"east":{"texture":"#gearbox"},"west":{"texture":"#gearbox"},"up":{"texture":"#gearbox"},"down":{"texture":"#gearbox"}} },
-    { "from": [4, 3.5, 0.25], "to": [12, 5.5, 2.25], "faces": {"north":{"texture":"#gearbox"},"south":{"texture":"#gearbox"},"east":{"texture":"#gearbox"},"west":{"texture":"#gearbox"},"up":{"texture":"#gearbox"},"down":{"texture":"#gearbox"}} },
-    { "from": [3, 5.75, 0.25], "to": [5.5, 10.25, 2.25], "faces": {"north":{"texture":"#gearbox"},"south":{"texture":"#gearbox"},"east":{"texture":"#gearbox"},"west":{"texture":"#gearbox"},"up":{"texture":"#gearbox"},"down":{"texture":"#gearbox"}} },
-    { "from": [10.5, 5.75, 0.25], "to": [13, 10.25, 2.25], "faces": {"north":{"texture":"#gearbox"},"south":{"texture":"#gearbox"},"east":{"texture":"#gearbox"},"west":{"texture":"#gearbox"},"up":{"texture":"#gearbox"},"down":{"texture":"#gearbox"}} },
-    { "from": [6.25, 6.25, -1], "to": [9.75, 9.75, 3.25], "faces": {"north":{"texture":"#axis"},"south":{"texture":"#axis"},"east":{"texture":"#axis"},"west":{"texture":"#axis"},"up":{"texture":"#axis"},"down":{"texture":"#axis"}} },
-
-    { "from": [4, 10.5, 13.75], "to": [12, 12.5, 15.75], "faces": {"north":{"texture":"#gearbox"},"south":{"texture":"#gearbox"},"east":{"texture":"#gearbox"},"west":{"texture":"#gearbox"},"up":{"texture":"#gearbox"},"down":{"texture":"#gearbox"}} },
-    { "from": [4, 3.5, 13.75], "to": [12, 5.5, 15.75], "faces": {"north":{"texture":"#gearbox"},"south":{"texture":"#gearbox"},"east":{"texture":"#gearbox"},"west":{"texture":"#gearbox"},"up":{"texture":"#gearbox"},"down":{"texture":"#gearbox"}} },
-    { "from": [3, 5.75, 13.75], "to": [5.5, 10.25, 15.75], "faces": {"north":{"texture":"#gearbox"},"south":{"texture":"#gearbox"},"east":{"texture":"#gearbox"},"west":{"texture":"#gearbox"},"up":{"texture":"#gearbox"},"down":{"texture":"#gearbox"}} },
-    { "from": [10.5, 5.75, 13.75], "to": [13, 10.25, 15.75], "faces": {"north":{"texture":"#gearbox"},"south":{"texture":"#gearbox"},"east":{"texture":"#gearbox"},"west":{"texture":"#gearbox"},"up":{"texture":"#gearbox"},"down":{"texture":"#gearbox"}} },
-    { "from": [6.25, 6.25, 12.75], "to": [9.75, 9.75, 17], "faces": {"north":{"texture":"#axis"},"south":{"texture":"#axis"},"east":{"texture":"#axis"},"west":{"texture":"#axis"},"up":{"texture":"#axis"},"down":{"texture":"#axis"}} },
-
-    { "from": [3, 7.1, 3], "to": [13, 7.9, 4.2], "faces": {"north":{"texture":"#dark"},"south":{"texture":"#dark"},"east":{"texture":"#dark"},"west":{"texture":"#dark"},"up":{"texture":"#dark"},"down":{"texture":"#dark"}} },
-    { "from": [3, 7.1, 11.8], "to": [13, 7.9, 13], "faces": {"north":{"texture":"#dark"},"south":{"texture":"#dark"},"east":{"texture":"#dark"},"west":{"texture":"#dark"},"up":{"texture":"#dark"},"down":{"texture":"#dark"}} }
-  ]
+    "deck": "minecraft:block/polished_deepslate"
+  }
 }

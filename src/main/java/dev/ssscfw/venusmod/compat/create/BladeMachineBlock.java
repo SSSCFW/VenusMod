@@ -1,9 +1,7 @@
 package dev.ssscfw.venusmod.compat.create;
 
 import com.simibubi.create.content.kinetics.base.IRotate;
-import com.simibubi.create.content.kinetics.base.KineticBlock;
 import com.simibubi.create.foundation.block.IBE;
-import dev.ssscfw.venusmod.compat.SlashBladeEnchantmentCompat;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Direction.Axis;
@@ -21,16 +19,11 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.level.pathfinder.PathComputationType;
 import net.minecraft.world.phys.BlockHitResult;
+import dev.ssscfw.venusmod.compat.SlashBladeEnchantmentCompat;
 
-/** A Create kinetic machine dedicated to SlashBlade items. */
-public final class BladeMachineBlock extends KineticBlock implements IBE<AbstractBladeMachineBlockEntity> {
-    public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
-
-    public enum Mode {
-        REPAIR,
-        BREAK
-    }
-
+/** Create kinetic machine dedicated to SlashBlade items. */
+public final class BladeMachineBlock extends VenusMachineBlock implements IBE<AbstractBladeMachineBlockEntity> {
+    public enum Mode { REPAIR, BREAK }
     private final Mode mode;
 
     public BladeMachineBlock(Mode mode, Properties properties) {
@@ -39,9 +32,9 @@ public final class BladeMachineBlock extends KineticBlock implements IBE<Abstrac
         registerDefaultState(defaultBlockState().setValue(FACING, Direction.NORTH));
     }
 
-    public Mode getMode() {
-        return mode;
-    }
+    public Mode getMode() { return mode; }
+
+    public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
 
     @Override
     public BlockState getStateForPlacement(BlockPlaceContext context) {
@@ -56,68 +49,34 @@ public final class BladeMachineBlock extends KineticBlock implements IBE<Abstrac
 
     @Override
     public boolean hasShaftTowards(LevelReader level, BlockPos pos, BlockState state, Direction face) {
-        // The visible couplers are on both ends of the machine's local horizontal axis.
         return face.getAxis() == state.getValue(FACING).getAxis();
     }
 
     @Override
-    public Axis getRotationAxis(BlockState state) {
-        return state.getValue(FACING).getAxis();
-    }
+    public Axis getRotationAxis(BlockState state) { return state.getValue(FACING).getAxis(); }
 
     @Override
-    public IRotate.SpeedLevel getMinimumRequiredSpeedLevel() {
-        return IRotate.SpeedLevel.SLOW;
-    }
+    public IRotate.SpeedLevel getMinimumRequiredSpeedLevel() { return IRotate.SpeedLevel.SLOW; }
 
     @Override
-    protected ItemInteractionResult useItemOn(
-            ItemStack held,
-            BlockState state,
-            Level level,
-            BlockPos pos,
-            Player player,
-            InteractionHand hand,
-            BlockHitResult hitResult) {
+    protected boolean isPathfindable(BlockState state, PathComputationType type) { return false; }
 
-        if (!held.isEmpty() && !SlashBladeEnchantmentCompat.isBlade(held)) {
+    @Override
+    protected ItemInteractionResult useItemOn(ItemStack held, BlockState state, Level level, BlockPos pos,
+            Player player, InteractionHand hand, BlockHitResult hitResult) {
+        if (!held.isEmpty() && !SlashBladeEnchantmentCompat.isBlade(held))
             return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
-        }
-
-        if (level.isClientSide) {
-            return ItemInteractionResult.SUCCESS;
-        }
-
+        if (level.isClientSide) return ItemInteractionResult.SUCCESS;
         AbstractBladeMachineBlockEntity machine = getBlockEntity(level, pos);
-        if (machine == null) {
-            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
-        }
-
-        if (held.isEmpty()) {
-            return machine.takeOutputOrInput(player)
-                    ? ItemInteractionResult.SUCCESS
-                    : ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
-        }
-
+        if (machine == null) return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+        if (held.isEmpty()) return machine.takeOutputOrInput(player)
+                ? ItemInteractionResult.SUCCESS : ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         return machine.insertBladeFromPlayer(held, player)
-                ? ItemInteractionResult.SUCCESS
-                : ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+                ? ItemInteractionResult.SUCCESS : ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
     }
 
-    @Override
-    public Class<AbstractBladeMachineBlockEntity> getBlockEntityClass() {
-        return AbstractBladeMachineBlockEntity.class;
-    }
-
-    @Override
-    public BlockEntityType<? extends AbstractBladeMachineBlockEntity> getBlockEntityType() {
-        return mode == Mode.REPAIR
-                ? VenusCreateCompat.BLADE_REPAIR_STATION_BE.get()
-                : VenusCreateCompat.BLADE_BREAKER_BE.get();
-    }
-
-    @Override
-    protected boolean isPathfindable(BlockState state, PathComputationType pathComputationType) {
-        return false;
+    @Override public Class<AbstractBladeMachineBlockEntity> getBlockEntityClass() { return AbstractBladeMachineBlockEntity.class; }
+    @Override public BlockEntityType<? extends AbstractBladeMachineBlockEntity> getBlockEntityType() {
+        return mode == Mode.REPAIR ? VenusCreateCompat.BLADE_REPAIR_STATION_BE.get() : VenusCreateCompat.BLADE_BREAKER_BE.get();
     }
 }
