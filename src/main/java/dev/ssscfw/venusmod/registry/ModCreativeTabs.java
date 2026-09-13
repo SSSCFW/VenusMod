@@ -25,6 +25,10 @@ public final class ModCreativeTabs {
                     .icon(() -> new ItemStack(ModItems.VENUS_ZOMBIE_SPAWN_EGG.get()))
                     .displayItems((parameters, output) -> {
                         output.accept(ModItems.DIAMOND_HOPPER.get());
+                        output.accept(ModItems.NICKEL_ORE.get());
+                        output.accept(ModItems.DEEPSLATE_NICKEL_ORE.get());
+                        output.accept(ModItems.RAW_NICKEL.get());
+                        output.accept(ModItems.NICKEL_INGOT.get());
                         output.accept(ModItems.VENUS_ZOMBIE_SPAWN_EGG.get());
                         output.accept(ModItems.VENUS_SLASHBLADE_ZOMBIE_SPAWN_EGG.get());
                         output.accept(ModItems.VENUS_SKELETON_SPAWN_EGG.get());

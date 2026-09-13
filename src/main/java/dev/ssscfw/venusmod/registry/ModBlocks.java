@@ -16,6 +16,16 @@ public final class ModBlocks {
                     "diamond_hopper",
                     () -> new DiamondHopperBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.HOPPER)));
 
+    public static final DeferredHolder<Block, Block> NICKEL_ORE =
+            BLOCKS.register(
+                    "nickel_ore",
+                    () -> new Block(BlockBehaviour.Properties.ofFullCopy(Blocks.IRON_ORE)));
+
+    public static final DeferredHolder<Block, Block> DEEPSLATE_NICKEL_ORE =
+            BLOCKS.register(
+                    "deepslate_nickel_ore",
+                    () -> new Block(BlockBehaviour.Properties.ofFullCopy(Blocks.DEEPSLATE_IRON_ORE)));
+
     private ModBlocks() {
     }
 }

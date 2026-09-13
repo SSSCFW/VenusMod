@@ -20,6 +20,20 @@ public final class ModItems {
             ITEMS.register("diamond_hopper",
                     () -> new BlockItem(ModBlocks.DIAMOND_HOPPER.get(), new Item.Properties()));
 
+    public static final DeferredItem<BlockItem> NICKEL_ORE =
+            ITEMS.register("nickel_ore",
+                    () -> new BlockItem(ModBlocks.NICKEL_ORE.get(), new Item.Properties()));
+
+    public static final DeferredItem<BlockItem> DEEPSLATE_NICKEL_ORE =
+            ITEMS.register("deepslate_nickel_ore",
+                    () -> new BlockItem(ModBlocks.DEEPSLATE_NICKEL_ORE.get(), new Item.Properties()));
+
+    public static final DeferredItem<Item> RAW_NICKEL =
+            ITEMS.register("raw_nickel", () -> new Item(new Item.Properties()));
+
+    public static final DeferredItem<Item> NICKEL_INGOT =
+            ITEMS.register("nickel_ingot", () -> new Item(new Item.Properties()));
+
     public static final DeferredItem<DeferredSpawnEggItem> VENUS_ZOMBIE_SPAWN_EGG =
             ITEMS.register("venus_zombie_spawn_egg",
                     () -> new DeferredSpawnEggItem(ModEntities.VENUS_ZOMBIE, 0xD4AF37, 0xFFF2A6, new Item.Properties()));
