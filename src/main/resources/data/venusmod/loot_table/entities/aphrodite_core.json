@@ -1,0 +1,7 @@
+{
+  "type":"minecraft:entity",
+  "pools":[
+    {"rolls":1,"entries":[{"type":"minecraft:item","name":"venusmod:venus_core","functions":[{"function":"minecraft:set_count","count":{"type":"minecraft:uniform","min":3,"max":5}}]}]},
+    {"rolls":1,"entries":[{"type":"minecraft:item","name":"venusmod:venesite","functions":[{"function":"minecraft:set_count","count":{"type":"minecraft:uniform","min":6,"max":12}}]}]}
+  ]
+}

@@ -47,6 +47,17 @@ public final class SlashBladeCompat {
         return id != null && MOD_ID.equals(id.getNamespace());
     }
 
+    /** 金星将軍用。無銘→白鞘→木偶の順に利用可能な最上位を選ぶ。 */
+    public static ItemStack createVenusGeneralBlade() {
+        for (ResourceLocation id : new ResourceLocation[]{NAMELESS_BLADE, WHITE_SCABBARD, WOODEN_BLADE}) {
+            if (BuiltInRegistries.ITEM.containsKey(id)) {
+                Item item = BuiltInRegistries.ITEM.get(id);
+                if (item != null) return new ItemStack(item);
+            }
+        }
+        return ItemStack.EMPTY;
+    }
+
     /** Returns one of 木偶 / 白鞘 / 無銘. If SlashBlade is absent, returns EMPTY. */
     public static ItemStack createRandomVenusZombieBlade(RandomSource random) {
         List<Item> available = new ArrayList<>(VENUS_ZOMBIE_BLADES.length);

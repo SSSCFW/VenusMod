@@ -1,0 +1,6 @@
+{
+  "variants": {
+    "powered=false": {"model":"venusmod:block/pressure_shield_controller"},
+    "powered=true": {"model":"venusmod:block/pressure_shield_controller_unlocked"}
+  }
+}

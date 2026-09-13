@@ -4,9 +4,16 @@
     "venusmod:diamond_hopper",
     "venusmod:nickel_ore",
     "venusmod:deepslate_nickel_ore",
-    {"id": "venusmod:metal_separator", "required": false},
+    {
+      "id": "venusmod:metal_separator",
+      "required": false
+    },
     "venusmod:sulfur_ore",
     "venusmod:venesite_ore",
-    {"id": "venusmod:atmospheric_condenser", "required": false}
+    {
+      "id": "venusmod:atmospheric_condenser",
+      "required": false
+    },
+    "venusmod:pressure_core"
   ]
 }

@@ -1,0 +1,10 @@
+{
+  "structures": [{"structure": "venusmod:aphrodite_reactor", "weight": 1}],
+  "placement": {
+    "type": "minecraft:random_spread",
+    "spacing": 84,
+    "separation": 32,
+    "salt": 98245171,
+    "spread_type": "linear"
+  }
+}

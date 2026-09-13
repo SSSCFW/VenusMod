@@ -90,6 +90,21 @@ public final class VenusAssetGenerator {
             core.setRGB(x, y, color);
         }
         writePNG(root, "item/venus_core", core);
+        BufferedImage soul = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < 16; y++) for (int x = 0; x < 16; x++) {
+            int dx = Math.abs(x - 7), dy = Math.abs(y - 7);
+            int diamond = dx + dy;
+            int color = 0;
+            if (diamond <= 6) {
+                if (diamond >= 5) color = 0xff4c153d;
+                else if (x <= 6 && y <= 7) color = 0xffffb53b;
+                else if (x >= 9 || y >= 10) color = 0xff7d225f;
+                else color = 0xffd7439b;
+                if ((x == 6 && y == 4) || (x == 5 && y == 5) || (x == 8 && y == 7)) color = 0xfffff1b8;
+            }
+            soul.setRGB(x, y, color);
+        }
+        writePNG(root, "item/venus_soul_stone", soul);
     }
     private static final class Template {
         final Map<State, Integer> indices = new LinkedHashMap<>();
@@ -177,9 +192,80 @@ public final class VenusAssetGenerator {
         t.write(root.resolve("data/venusmod/structure/venus_citadel.nbt"));
         System.out.println("Generated Venus assets: 16-frame portal, core icon, citadel with " + t.blocks.size() + " blocks");
     }
+    private static void generalKeep(Path root) throws IOException {
+        Template t = new Template();
+        String brick = "minecraft:deepslate_bricks", tile = "minecraft:deepslate_tiles", air = "minecraft:air";
+        t.box(0, 0, 4, 30, 3, 50, brick); t.box(0, 4, 4, 30, 12, 50, air);
+        t.box(0, 4, 4, 0, 11, 50, tile); t.box(30, 4, 4, 30, 11, 50, tile);
+        t.box(0, 4, 4, 30, 11, 4, tile); t.box(0, 4, 50, 30, 13, 50, tile);
+        t.box(0, 11, 4, 30, 11, 34, tile); t.box(0, 13, 35, 30, 13, 50, tile);
+        t.box(13, 4, 4, 17, 7, 4, air);
+        for (int z = 0; z < 4; z++) {
+            if (z > 0) t.box(13, 0, z, 17, z - 1, z, brick);
+            t.box(13, z, z, 17, z, z, "minecraft:deepslate_brick_stairs",
+                    properties("facing", "south", "half", "bottom", "shape", "straight", "waterlogged", "false"));
+        }
+        t.box(11, 4, 5, 11, 9, 33, tile); t.box(19, 4, 5, 19, 9, 33, tile);
+        t.box(1, 4, 17, 10, 9, 17, tile); t.box(20, 4, 17, 29, 9, 17, tile);
+        for (int x : new int[]{11,19}) for (int z : new int[]{9,25}) t.box(x,4,z,x,7,z+2,air);
+        for (int x = 3; x <= 27; x++) {
+            if (x < 13 || x > 17) t.put(x, 3, 27, "minecraft:magma_block");
+        }
+        t.box(13, 3, 27, 17, 3, 27, "minecraft:polished_blackstone_bricks");
+        t.box(1,4,34,29,9,34,tile); t.box(14,4,34,16,7,34,air);
+        for (int x : new int[]{3,27}) for (int z : new int[]{37,48}) {
+            t.box(x,4,z,x,11,z,"minecraft:polished_basalt", properties("axis","y"));
+            t.put(x,10,z,"minecraft:gold_block");
+        }
+        t.spawner(5, 12, "venusmod:venus_zombie");
+        t.spawner(25, 12, "venusmod:venus_skeleton");
+        t.spawner(6, 23, "venusmod:venus_spider");
+        for (int x : new int[]{5,25}) t.put(x,4,29,"minecraft:chest",
+                properties("facing","north","type","single","waterlogged","false"),
+                tags("id", text("minecraft:chest"), "LootTable", text("venusmod:chests/venus_general_keep")));
+        t.put(15,4,44,"venusmod:venus_general_altar", Map.of(), tags("id", text("venusmod:boss_altar")));
+        t.write(root.resolve("data/venusmod/structure/venus_general_keep.nbt"));
+        System.out.println("Generated Venus General keep with " + t.blocks.size() + " blocks");
+    }
+
+    private static void aphroditeReactor(Path root) throws IOException {
+        Template t = new Template();
+        String brick = "minecraft:polished_blackstone_bricks", air = "minecraft:air";
+        t.box(0,0,4,30,3,50,brick); t.box(0,4,4,30,14,50,air);
+        t.box(0,4,4,0,13,50,brick); t.box(30,4,4,30,13,50,brick);
+        t.box(0,4,4,30,13,4,brick); t.box(0,4,50,30,15,50,brick);
+        t.box(0,13,4,30,13,31,brick); t.box(0,15,32,30,15,50,brick);
+        t.box(13,4,4,17,8,4,air);
+        for (int z = 0; z < 4; z++) {
+            if (z > 0) t.box(13,0,z,17,z-1,z,brick);
+            t.box(13,z,z,17,z,z,"minecraft:polished_blackstone_brick_stairs",
+                    properties("facing","south","half","bottom","shape","straight","waterlogged","false"));
+        }
+        t.box(4,4,10,26,4,10,"minecraft:gold_block");
+        t.box(4,5,10,26,5,10,"minecraft:iron_bars");
+        t.spawner(5,18,"venusmod:venus_creeper"); t.spawner(25,18,"venusmod:venus_enderman");
+        t.box(1,4,31,29,10,31,"minecraft:reinforced_deepslate");
+        t.box(13,4,31,17,8,31,air);
+        t.put(15,4,34,"venusmod:pressure_shield_controller", properties("powered","false"),
+                tags("id", text("venusmod:pressure_shield_controller"), "Charge", integer(0)));
+        t.box(14,3,33,16,3,35,"minecraft:gold_block");
+        for (int[] p : new int[][]{{6,40},{24,40},{15,48}}) {
+            t.put(p[0],4,p[1],"venusmod:pressure_core");
+            t.box(p[0]-1,3,p[1]-1,p[0]+1,3,p[1]+1,"minecraft:crying_obsidian");
+            t.box(p[0],5,p[1],p[0],8,p[1],"minecraft:end_rod", properties("facing","up"));
+        }
+        t.put(15,4,43,"venusmod:aphrodite_altar", Map.of(), tags("id", text("venusmod:boss_altar")));
+        for (int x : new int[]{2,28}) for (int z : new int[]{34,48}) {
+            t.box(x,4,z,x,12,z,"minecraft:polished_basalt",properties("axis","y"));
+            t.put(x,11,z,"minecraft:ochre_froglight",properties("axis","y"),null);
+        }
+        t.write(root.resolve("data/venusmod/structure/aphrodite_reactor.nbt"));
+        System.out.println("Generated Aphrodite reactor with " + t.blocks.size() + " blocks");
+    }
+
     public static void main(String[] args) throws IOException {
         if (args.length != 1) throw new IllegalArgumentException("Usage: VenusAssetGenerator <resource-output-directory>");
         Path output = Path.of(args[0]);
-        textures(output); citadel(output);
+        textures(output); citadel(output); generalKeep(output); aphroditeReactor(output);
     }
 }

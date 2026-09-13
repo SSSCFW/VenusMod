@@ -6,6 +6,7 @@ import dev.ssscfw.venusmod.world.VenusDimensionContent;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.DimensionSpecialEffects;
 import net.minecraft.client.renderer.entity.ZombieRenderer;
+import net.minecraft.client.renderer.entity.BlazeRenderer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.monster.Zombie;
@@ -28,6 +29,12 @@ public final class VenusDimensionClient {
                 return VenusDimensionContent.id("textures/entity/venus_zombie.png");
             }
         });
+        event.registerEntityRenderer(VenusDimensionContent.GENERAL.get(), context -> new ZombieRenderer(context) {
+            @Override public ResourceLocation getTextureLocation(Zombie entity) {
+                return VenusDimensionContent.id("textures/entity/venus_zombie.png");
+            }
+        });
+        event.registerEntityRenderer(VenusDimensionContent.APHRODITE_CORE.get(), BlazeRenderer::new);
     }
 
     @SubscribeEvent public static void dimensionEffects(RegisterDimensionSpecialEffectsEvent event) {

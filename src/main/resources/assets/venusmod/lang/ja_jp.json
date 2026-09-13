@@ -60,5 +60,21 @@
   "machine.venusmod.needs_rotation": "16 RPM以上が必要です",
   "machine.venusmod.tank_full": "タンク満杯",
   "machine.venusmod.working": "凝縮中",
-  "machine.venusmod.condenser_status": "酸性凝縮液 %s / %s mB | %s"
+  "machine.venusmod.condenser_status": "酸性凝縮液 %s / %s mB | %s",
+  "entity.venusmod.venus_general": "金星将軍",
+  "entity.venusmod.aphrodite_core": "金星圧力生命体 アフロディーテ・コア",
+  "item.venusmod.venus_soul_stone": "金星魂石",
+  "item.venusmod.venus_general_spawn_egg": "金星将軍のスポーンエッグ",
+  "item.venusmod.aphrodite_core_spawn_egg": "アフロディーテ・コアのスポーンエッグ",
+  "block.venusmod.venus_general_altar": "金星将軍の祭壇",
+  "block.venusmod.aphrodite_altar": "アフロディーテ祭壇",
+  "block.venusmod.pressure_core": "圧力コア",
+  "block.venusmod.pressure_shield_controller": "圧力シールド制御器",
+  "message.venusmod.general_requires_core": "金星核を所持している者だけが金星将軍に挑める。",
+  "message.venusmod.aphrodite_requires_soul_stone": "金星魂石を所持している者だけがアフロディーテ・コアを起動できる。",
+  "bossbar.venusmod.general_posture": "金星将軍 - 姿勢",
+  "bossbar.venusmod.general_posture_broken": "金星将軍 - 姿勢崩壊",
+  "bossbar.venusmod.aphrodite_core": "アフロディーテ・コア - 圧力コア残存 %s/3",
+  "bossbar.venusmod.aphrodite_core_shielded": "アフロディーテ・コア - 圧力シールド展開中",
+  "bossbar.venusmod.aphrodite_shield": "圧力シールド - 回転入力 %s%%"
 }
