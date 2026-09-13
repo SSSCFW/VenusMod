@@ -34,6 +34,9 @@ public final class ModItems {
     public static final DeferredItem<Item> NICKEL_INGOT =
             ITEMS.register("nickel_ingot", () -> new Item(new Item.Properties()));
 
+    public static final DeferredItem<Item> NICKEL_NUGGET =
+            ITEMS.register("nickel_nugget", () -> new Item(new Item.Properties()));
+
     public static final DeferredItem<DeferredSpawnEggItem> VENUS_ZOMBIE_SPAWN_EGG =
             ITEMS.register("venus_zombie_spawn_egg",
                     () -> new DeferredSpawnEggItem(ModEntities.VENUS_ZOMBIE, 0xD4AF37, 0xFFF2A6, new Item.Properties()));
