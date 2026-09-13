@@ -140,15 +140,8 @@ public final class Phase2AssetGenerator {
             Files.createDirectories(file.getParent());
             Files.write(file, Base64.getDecoder().decode(entry.getValue()));
         }
-        for (int layer = 1; layer <= 2; layer++) {
-            BufferedImage suit = new BufferedImage(64, 32, BufferedImage.TYPE_INT_ARGB);
-            for (int y = 0; y < 32; y++) for (int x = 0; x < 64; x++) {
-                int color = x % 8 == 0 || y % 8 == 0 ? 0xff4c4a39 : 0xffb5a474;
-                if (layer == 1 && x >= 9 && x <= 14 && y >= 10 && y <= 12) color = 0xff29494d;
-                suit.setRGB(x, y, color);
-            }
-            png("models/armor/pressure_suit_layer_" + layer, suit);
-        }
+        // Armor model textures are now source-controlled hand-authored assets under
+        // src/main/resources/assets/venusmod/textures/models/armor/ to preserve their exact appearance.
     }
     public static void main(String[] args) throws IOException {
         if (args.length != 1) throw new IllegalArgumentException("Expected output resource directory");

@@ -34,11 +34,24 @@ def main():
             'pressure_leggings': '25586deb2b1ec976a027e7ed650d3fe3ed92808decd62a9adb877ed63c00387e',
             'pressure_boots': '9c863e60deef9d411c5c7d6e9ceb22fca88dfb5220ed1a64260e343dce0d223b',
             'acid_condensate_bucket': '45ba7f8dbc5f1f306e0487ee386587a9aabebe938c21b59015ce85bf13e44646',
+
         }
         for name, expected in expected_item_hashes.items():
             path = f'assets/venusmod/textures/item/{name}.png'
             assert path in generated, f'Missing fixed item texture: {name}'
             assert hashlib.sha256(generated[path]).hexdigest() == expected, f'Item texture changed unexpectedly: {name}'
+
+        expected_armor_hashes = {
+            'pressure_suit_layer_1': 'eadccd1ca9c9b3bc6bfd26c533a2c7f3121a83c0a13495e5d2711f2e568e0454',
+            'pressure_suit_layer_2': 'fde6927fccb8a7574e63442a86822d0d42e011e326250bd1b12c5b7fa20f5210',
+        }
+        for name, expected in expected_armor_hashes.items():
+            path = RES / f'assets/venusmod/textures/models/armor/{name}.png'
+            assert path.is_file(), f'Missing source armor texture: {name}'
+            content = path.read_bytes()
+            assert content[:8] == b'\x89PNG\r\n\x1a\n'
+            assert struct.unpack('>II', content[16:24]) == (64,32)
+            assert hashlib.sha256(content).hexdigest() == expected, f'Armor texture changed unexpectedly: {name}'
         suit = data['data/venusmod/tags/item/environment_suit.json']['values']
         assert len(suit) == len(set(suit)) == 4
         assert data['data/venusmod/recipe/atmospheric_condenser.json']['neoforge:conditions'] == [{'type':'neoforge:mod_loaded','modid':'create'}]
