@@ -110,7 +110,7 @@ public final class MetalSeparatorBlockEntity extends KineticBlockEntity implemen
         if (roll < NICKEL_CHANCE) {
             outputInv.setStackInSlot(0, new ItemStack(ModItems.NICKEL_NUGGET.get()));
         } else if (roll < COPPER_CUMULATIVE_CHANCE) {
-            outputInv.setStackInSlot(0, AllItems.COPPER_NUGGET.asStack());
+            outputInv.setStackInSlot(0, new ItemStack(AllItems.COPPER_NUGGET.get()));
         }
 
         setChanged();
@@ -133,7 +133,8 @@ public final class MetalSeparatorBlockEntity extends KineticBlockEntity implemen
             return false;
         }
 
-        ItemStack one = held.copyWithCount(1);
+        ItemStack one = held.copy();
+        one.setCount(1);
         ItemStack remainder = inputInv.insertItem(0, one, false);
         if (!remainder.isEmpty()) {
             return false;
