@@ -57,13 +57,13 @@ public final class VenusEntityRenderers {
         }
     }
 
-    private static final class GoldZombieRenderer extends AbstractZombieRenderer<VenusZombie, VenusZombieModel> {
+    private static final class GoldZombieRenderer extends AbstractZombieRenderer<VenusZombie, VenusZombieModel<VenusZombie>> {
         private GoldZombieRenderer(EntityRendererProvider.Context context) {
             super(
                     context,
-                    new VenusZombieModel(context.bakeLayer(ModelLayers.ZOMBIE)),
-                    new VenusZombieModel(context.bakeLayer(ModelLayers.ZOMBIE_INNER_ARMOR)),
-                    new VenusZombieModel(context.bakeLayer(ModelLayers.ZOMBIE_OUTER_ARMOR)));
+                    new VenusZombieModel<>(context.bakeLayer(ModelLayers.ZOMBIE)),
+                    new VenusZombieModel<>(context.bakeLayer(ModelLayers.ZOMBIE_INNER_ARMOR)),
+                    new VenusZombieModel<>(context.bakeLayer(ModelLayers.ZOMBIE_OUTER_ARMOR)));
         }
 
         @Override

@@ -6,7 +6,6 @@ import dev.ssscfw.venusmod.world.VenusDimensionContent;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.DimensionSpecialEffects;
 import net.minecraft.client.renderer.entity.ZombieRenderer;
-import net.minecraft.client.renderer.entity.BlazeRenderer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.monster.Zombie;
@@ -23,21 +22,25 @@ import org.joml.Vector3f;
 public final class VenusDimensionClient {
     private VenusDimensionClient() {}
 
-    @SubscribeEvent public static void renderers(EntityRenderersEvent.RegisterRenderers event) {
-        event.registerEntityRenderer(VenusDimensionContent.GUARDIAN.get(), context -> new ZombieRenderer(context) {
-            @Override public ResourceLocation getTextureLocation(Zombie entity) {
-                return VenusDimensionContent.id("textures/entity/venus_zombie.png");
-            }
-        });
-        event.registerEntityRenderer(VenusDimensionContent.GENERAL.get(), context -> new ZombieRenderer(context) {
-            @Override public ResourceLocation getTextureLocation(Zombie entity) {
-                return VenusDimensionContent.id("textures/entity/venus_zombie.png");
-            }
-        });
-        event.registerEntityRenderer(VenusDimensionContent.APHRODITE_CORE.get(), BlazeRenderer::new);
+    @SubscribeEvent
+    public static void layers(EntityRenderersEvent.RegisterLayerDefinitions event) {
+        event.registerLayerDefinition(AphroditeCoreModel.LAYER, AphroditeCoreModel::createBodyLayer);
     }
 
-    @SubscribeEvent public static void dimensionEffects(RegisterDimensionSpecialEffectsEvent event) {
+    @SubscribeEvent
+    public static void renderers(EntityRenderersEvent.RegisterRenderers event) {
+        event.registerEntityRenderer(VenusDimensionContent.GUARDIAN.get(), context -> new ZombieRenderer(context) {
+            @Override
+            public ResourceLocation getTextureLocation(Zombie entity) {
+                return VenusDimensionContent.id("textures/entity/venus_zombie.png");
+            }
+        });
+        event.registerEntityRenderer(VenusDimensionContent.GENERAL.get(), VenusGeneralRenderer::new);
+        event.registerEntityRenderer(VenusDimensionContent.APHRODITE_CORE.get(), AphroditeCoreRenderer::new);
+    }
+
+    @SubscribeEvent
+    public static void dimensionEffects(RegisterDimensionSpecialEffectsEvent event) {
         event.register(VenusDimensionContent.id("venus"), new VenusEffects());
     }
 
@@ -48,11 +51,11 @@ public final class VenusDimensionClient {
      */
     private static final class VenusEffects extends DimensionSpecialEffects {
         private VenusEffects() {
-            // 通常の青空・太陽・月・星・白い雲は描かず、霧色を空として見せる。
             super(Float.NaN, true, SkyType.NONE, false, false);
         }
 
-        @Override public Vec3 getBrightnessDependentFogColor(Vec3 fogColor, float brightness) {
+        @Override
+        public Vec3 getBrightnessDependentFogColor(Vec3 fogColor, float brightness) {
             double light = 0.86D + 0.14D * Mth.clamp((double) brightness, 0.0D, 1.0D);
             return new Vec3(
                     Mth.clamp(fogColor.x * 1.06D * light, 0.0D, 1.0D),
@@ -60,22 +63,22 @@ public final class VenusDimensionClient {
                     Mth.clamp(fogColor.z * 0.78D * light, 0.0D, 1.0D));
         }
 
-        @Override public boolean isFoggyAt(int x, int y) {
-            // 金星の濃い大気らしく、常に厚めの距離霧を使う。
+        @Override
+        public boolean isFoggyAt(int x, int y) {
             return true;
         }
 
-        @Override public boolean renderClouds(ClientLevel level, int ticks, float partialTick, PoseStack poseStack,
-                                              double camX, double camY, double camZ,
-                                              Matrix4f modelViewMatrix, Matrix4f projectionMatrix) {
-            // 地球型の白い雲は表示しない。背景の黄橙色の霞が雲層を兼ねる。
+        @Override
+        public boolean renderClouds(ClientLevel level, int ticks, float partialTick, PoseStack poseStack,
+                                    double camX, double camY, double camZ,
+                                    Matrix4f modelViewMatrix, Matrix4f projectionMatrix) {
             return true;
         }
 
-        @Override public void adjustLightmapColors(ClientLevel level, float partialTicks, float skyDarken,
-                                                   float blockLightRedFlicker, float skyLight,
-                                                   int pixelX, int pixelY, Vector3f colors) {
-            // pixelYは0..15の生の空光レベル。固定時刻18000でも、屋外だけ暖色の拡散光を与える。
+        @Override
+        public void adjustLightmapColors(ClientLevel level, float partialTicks, float skyDarken,
+                                         float blockLightRedFlicker, float skyLight,
+                                         int pixelX, int pixelY, Vector3f colors) {
             float exposedToSky = Mth.clamp(pixelY / 15.0F, 0.0F, 1.0F);
             if (exposedToSky <= 0.0F) return;
 

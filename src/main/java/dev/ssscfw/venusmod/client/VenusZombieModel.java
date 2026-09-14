@@ -5,34 +5,25 @@ import net.minecraft.client.model.ZombieModel;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.util.Mth;
 
-public final class VenusZombieModel extends ZombieModel<VenusZombie> {
+/** SlashBladeのVMD/フォールバック姿勢を通常金星ゾンビと将軍で共有するモデル。 */
+public final class VenusZombieModel<T extends VenusZombie> extends ZombieModel<T> {
     public VenusZombieModel(ModelPart root) {
         super(root);
     }
 
     private static boolean isBladeWielderForRender(VenusZombie zombie) {
-        // Prefer the synced Venus flag, but also trust the actually synced held item.
-        // This keeps animation/rendering correct even if entity NBT and SynchedEntityData
-        // arrive on different client ticks after spawning/loading.
         return zombie.isSlashBladeWielder() || zombie.hasSlashBladeEquipped();
     }
 
     @Override
-    public boolean isAggressive(VenusZombie zombie) {
-        // AbstractZombieModel always calls animateZombieArms when this returns true,
-        // even with attackTime == 0. Blade wielders use SlashBlade VMD/fallback poses
-        // instead, so suppress the vanilla zombie-arm animation entirely for them.
+    public boolean isAggressive(T zombie) {
         return !isBladeWielderForRender(zombie) && super.isAggressive(zombie);
     }
 
     @Override
-    public void setupAnim(VenusZombie zombie, float limbSwing, float limbSwingAmount,
+    public void setupAnim(T zombie, float limbSwing, float limbSwingAmount,
                           float ageInTicks, float netHeadYaw, float headPitch) {
         boolean bladeWielder = isBladeWielderForRender(zombie);
-
-        // A blade-wielding Venus zombie must not inherit HumanoidModel's normal melee
-        // swing either. SlashBlade's VMD (or our fallback blade pose) is applied after
-        // vanilla locomotion/head setup instead.
         if (bladeWielder) {
             this.attackTime = 0.0F;
         }
@@ -78,8 +69,7 @@ public final class VenusZombieModel extends ZombieModel<VenusZombie> {
             return;
         }
 
-        // Ready stance while holding the blade. This also serves as the fallback when
-        // PlayerAnimator is absent or SlashBlade changes its optional animation API.
+        body.xRot = 0.0F;
         body.yRot = 0.06F;
         rightArm.xRot = -0.88F;
         rightArm.yRot = -0.42F;
