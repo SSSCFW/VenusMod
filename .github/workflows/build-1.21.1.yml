@@ -1,6 +1,8 @@
 name: Build 1.21.1 NeoForge
 
 on:
+  push:
+    branches: [feature/venus-hostile-mobs]
   workflow_dispatch:
     inputs:
       server_smoke_test:
