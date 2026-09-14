@@ -4,6 +4,13 @@
 - 日本語の仕様・コメント、英語のクラス/変数名を使用する。
 - 実装済み、検査済み、ゲーム内検証済みを区別し、未実行のテストを成功と記載しない。
 
+## GitHub運用
+
+- 作業ブランチは既存の `feature/venus-hostile-mobs` のみを使用する。検証用・一時用・アセット用などの追加ブランチを作成しない。
+- GitHub Actions は既存の `.github/workflows/build-1.21.1.yml`（表示名 `Build 1.21.1 NeoForge`）のみを使用する。別のworkflowファイルを追加しない。
+- 一時コミットが必要でも新規ブランチを作らず、`feature/venus-hostile-mobs` 上で通常のコミットとして行う。
+- `main` はリポジトリのデフォルトブランチとして既存のまま扱い、通常の開発作業では直接変更しない。
+
 ## 機械の隣接面消失を再発させない
 
 1. 新規Create機械は必ず `VenusMachineBlock` を継承する。`KineticBlock` の直接継承は禁止。
