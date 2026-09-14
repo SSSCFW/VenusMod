@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    "venusmod:nickel_ore",
+    "venusmod:deepslate_nickel_ore",
+    "venusmod:sulfur_ore"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "venusmod:venus_general_keep/start",
+  "fallback": "minecraft:empty",
+  "elements": [{
+    "weight": 1,
+    "element": {
+      "element_type": "minecraft:single_pool_element",
+      "location": "venusmod:venus_general_keep",
+      "processors": "minecraft:empty",
+      "projection": "rigid"
+    }
+  }]
+}

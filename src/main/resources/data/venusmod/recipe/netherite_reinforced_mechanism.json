@@ -1,0 +1,23 @@
+{
+  "neoforge:conditions": [
+    { "type": "neoforge:mod_loaded", "modid": "create" },
+    { "type": "neoforge:mod_loaded", "modid": "slashblade" }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "SBS",
+    "BNB",
+    "SPS"
+  ],
+  "key": {
+    "S": { "item": "create:sturdy_sheet" },
+    "B": { "item": "create:brass_sheet" },
+    "N": { "item": "minecraft:netherite_ingot" },
+    "P": { "item": "create:precision_mechanism" }
+  },
+  "result": {
+    "count": 1,
+    "id": "venusmod:netherite_reinforced_mechanism"
+  }
+}

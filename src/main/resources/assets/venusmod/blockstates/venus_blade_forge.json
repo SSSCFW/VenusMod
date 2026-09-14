@@ -1,0 +1,8 @@
+{
+  "multipart": [
+    {"when":{"facing":"north"},"apply":{"model":"venusmod:block/venus_blade_forge"}},
+    {"when":{"facing":"east"},"apply":{"model":"venusmod:block/venus_blade_forge","y":90}},
+    {"when":{"facing":"south"},"apply":{"model":"venusmod:block/venus_blade_forge","y":180}},
+    {"when":{"facing":"west"},"apply":{"model":"venusmod:block/venus_blade_forge","y":270}}
+  ]
+}

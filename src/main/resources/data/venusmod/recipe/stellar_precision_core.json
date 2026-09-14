@@ -1,0 +1,22 @@
+{
+  "neoforge:conditions": [
+    { "type": "neoforge:mod_loaded", "modid": "create" },
+    { "type": "neoforge:mod_loaded", "modid": "slashblade" }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "PGP",
+    "GNG",
+    "PGP"
+  ],
+  "key": {
+    "P": { "item": "create:precision_mechanism" },
+    "G": { "item": "minecraft:gold_block" },
+    "N": { "item": "minecraft:nether_star" }
+  },
+  "result": {
+    "count": 1,
+    "id": "venusmod:stellar_precision_core"
+  }
+}

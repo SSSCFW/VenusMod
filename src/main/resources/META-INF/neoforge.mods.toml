@@ -26,3 +26,14 @@ type="required"
 versionRange="${minecraft_version_range}"
 ordering="NONE"
 side="BOTH"
+
+# Optional integration, but when Create is present this feature targets Create 6.0.10 only.
+[[dependencies.${mod_id}]]
+modId="create"
+type="optional"
+versionRange="[6.0.10,6.0.11)"
+ordering="AFTER"
+side="BOTH"
+
+[[mixins]]
+config="venusmod.mixins.json"

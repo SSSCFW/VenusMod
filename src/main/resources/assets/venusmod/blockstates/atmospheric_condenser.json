@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": {"model": "venusmod:block/atmospheric_condenser", "y": 0},
+    "facing=east": {"model": "venusmod:block/atmospheric_condenser", "y": 90},
+    "facing=south": {"model": "venusmod:block/atmospheric_condenser", "y": 180},
+    "facing=west": {"model": "venusmod:block/atmospheric_condenser", "y": 270}
+  }
+}

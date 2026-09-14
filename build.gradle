@@ -13,6 +13,12 @@ base {
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
+minecraft {
+    accessTransformers {
+        file('src/main/resources/META-INF/accesstransformer.cfg')
+    }
+}
+
 sourceSets {
     main {
         resources {
@@ -23,6 +29,10 @@ sourceSets {
 }
 
 repositories {
+    // Optional Create integration compile dependencies.
+    maven { url = 'https://maven.createmod.net' }
+    maven { url = 'https://maven.ithundxr.dev/snapshots' }
+    maven { url = 'https://raw.githubusercontent.com/Fuzss/modresources/main/maven' }
 }
 
 runs {
@@ -53,6 +63,15 @@ configurations {
 
 dependencies {
     implementation "net.neoforged:neoforge:${neo_version}"
+
+    // Compile against Create without forcing it into VenusMod's runtime classpath.
+    // Create's official 1.21.1 setup uses the slim jar with dependencies supplied separately.
+    compileOnly("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") {
+        transitive = false
+    }
+    compileOnly "com.tterrag.registrate:Registrate:${registrate_version}"
+    compileOnly "net.createmod.ponder:ponder-neoforge:${ponder_version}+mc${minecraft_version}"
+    compileOnly "dev.engine-room.flywheel:flywheel-neoforge-api-${minecraft_version}:${flywheel_version}"
 }
 
 tasks.withType(ProcessResources).configureEach {
@@ -83,3 +102,27 @@ publishing {
         }
     }
 }
+
+// オリジナルPNG/NBTをJavaだけで生成。Pythonや手作業のアセット配置は不要。
+def generatedVenusAssets = layout.buildDirectory.dir('generated/venusAssets')
+def compileVenusAssetGenerator = tasks.register('compileVenusAssetGenerator', JavaCompile) {
+    source = fileTree('tools/java') { include '**/*.java' }
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('classes/venusAssetGenerator')
+    javaCompiler = javaToolchains.compilerFor { languageVersion = JavaLanguageVersion.of(21) }
+    options.release = 21
+}
+def generateVenusAssets = tasks.register('generateVenusAssets', JavaExec) {
+    dependsOn compileVenusAssetGenerator
+    classpath(compileVenusAssetGenerator.flatMap { it.destinationDirectory })
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'VenusAssetGenerator'
+    systemProperty 'java.awt.headless', 'true'
+    args generatedVenusAssets.get().asFile.absolutePath
+    inputs.files(fileTree('tools/java') { include '**/*.java' })
+    outputs.dir generatedVenusAssets
+}
+sourceSets.main.resources.srcDir generatedVenusAssets
+tasks.named('processResources') { dependsOn generateVenusAssets }
+
+apply from: 'gradle/venus-verification.gradle'

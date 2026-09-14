@@ -1,0 +1,7 @@
+{
+  "parent": "venusmod:block/blade_machine_common",
+  "textures": {
+    "accent": "minecraft:block/copper_block",
+    "deck": "minecraft:block/polished_deepslate"
+  }
+}

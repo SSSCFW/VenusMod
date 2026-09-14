@@ -1,0 +1,13 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:book",
+    "minecraft:enchanted_book",
+    { "id": "#slashblade:proudsouls", "required": false },
+    { "id": "slashblade:slashblade_wood", "required": false },
+    { "id": "slashblade:slashblade_bamboo", "required": false },
+    { "id": "slashblade:slashblade_silverbamboo", "required": false },
+    { "id": "slashblade:slashblade_white", "required": false },
+    { "id": "slashblade:slashblade", "required": false }
+  ]
+}

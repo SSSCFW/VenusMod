@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "venusmod:block/metal_separator" },
+    "facing=east":  { "model": "venusmod:block/metal_separator", "y": 90 },
+    "facing=south": { "model": "venusmod:block/metal_separator", "y": 180 },
+    "facing=west":  { "model": "venusmod:block/metal_separator", "y": 270 }
+  }
+}

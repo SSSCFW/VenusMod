@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    "D D",
+    "DCD",
+    " D "
+  ],
+  "key": {
+    "D": { "item": "minecraft:diamond" },
+    "C": { "item": "minecraft:chest" }
+  },
+  "result": {
+    "count": 1,
+    "id": "venusmod:diamond_hopper"
+  }
+}

@@ -1,14 +1,53 @@
 package dev.ssscfw.venusmod;
 
+import dev.ssscfw.venusmod.compat.create.VenusCreateCompat;
+import dev.ssscfw.venusmod.event.BladeUpgradeEvents;
+import dev.ssscfw.venusmod.event.VenusCombatEvents;
+import dev.ssscfw.venusmod.event.VenusEnchantmentEvents;
+import dev.ssscfw.venusmod.registry.ModBlockEntities;
+import dev.ssscfw.venusmod.registry.ModBlocks;
+import dev.ssscfw.venusmod.registry.ModCreativeTabs;
+import dev.ssscfw.venusmod.registry.ModEntities;
+import dev.ssscfw.venusmod.registry.ModItems;
+import dev.ssscfw.venusmod.world.VenusDimensionContent;
+import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.common.NeoForge;
 
 @Mod(VenusMod.MOD_ID)
 public final class VenusMod {
     public static final String MOD_ID = "venusmod";
 
     public VenusMod(IEventBus modBus, ModContainer modContainer) {
-        // Register items, blocks, entities, configs, payloads, and mod-bus listeners here.
+        ModBlocks.BLOCKS.register(modBus);
+        ModBlockEntities.BLOCK_ENTITY_TYPES.register(modBus);
+        ModEntities.ENTITY_TYPES.register(modBus);
+        ModItems.ITEMS.register(modBus);
+        ModCreativeTabs.CREATIVE_MODE_TABS.register(modBus);
+        VenusDimensionContent.register(modBus);
+        dev.ssscfw.venusmod.registry.VenusPhase2.register(modBus, modContainer);
+
+        modBus.addListener(ModEntities::registerAttributes);
+        modBus.addListener(ModItems::addCreativeTabContents);
+        modBus.addListener(ModBlockEntities::registerCapabilities);
+
+        // Create itself is optional. General kinetic machines are available whenever
+        // Create is loaded; SlashBlade-specific content is hidden/recipe-gated separately.
+        if (ModList.get().isLoaded("create")) {
+            VenusCreateCompat.register(modBus);
+        }
+
+        NeoForge.EVENT_BUS.addListener(VenusCombatEvents::onLivingIncomingDamage);
+        NeoForge.EVENT_BUS.addListener(VenusEnchantmentEvents::onIncomingDamage);
+        NeoForge.EVENT_BUS.addListener(VenusEnchantmentEvents::onDamagePost);
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, VenusEnchantmentEvents::onAnvilUpdate);
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, VenusEnchantmentEvents::onLivingDeath);
+        NeoForge.EVENT_BUS.addListener(VenusEnchantmentEvents::onPlayerClone);
+        NeoForge.EVENT_BUS.addListener(BladeUpgradeEvents::onIncomingDamage);
+        NeoForge.EVENT_BUS.addListener(BladeUpgradeEvents::onDamagePost);
+        NeoForge.EVENT_BUS.addListener(BladeUpgradeEvents::onPlayerTick);
     }
 }

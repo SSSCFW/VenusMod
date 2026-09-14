@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "venusmod:block/blade_repair_station" },
+    "facing=east":  { "model": "venusmod:block/blade_repair_station", "y": 90 },
+    "facing=south": { "model": "venusmod:block/blade_repair_station", "y": 180 },
+    "facing=west":  { "model": "venusmod:block/blade_repair_station", "y": 270 }
+  }
+}

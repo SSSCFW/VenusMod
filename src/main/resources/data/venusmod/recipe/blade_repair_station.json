@@ -1,0 +1,30 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "create"
+    },
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "slashblade"
+    }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    "MSM",
+    "PAP",
+    "MHM"
+  ],
+  "key": {
+    "M": { "item": "venusmod:netherite_reinforced_mechanism" },
+    "S": { "item": "venusmod:stellar_precision_core" },
+    "P": { "item": "create:precision_mechanism" },
+    "A": { "item": "minecraft:anvil" },
+    "H": { "item": "create:shaft" }
+  },
+  "result": {
+    "count": 1,
+    "id": "venusmod:blade_repair_station"
+  }
+}

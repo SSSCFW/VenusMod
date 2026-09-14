@@ -1,0 +1,11 @@
+{
+  "variants": {
+    "axis=x": {
+      "model": "venusmod:block/venus_portal"
+    },
+    "axis=z": {
+      "model": "venusmod:block/venus_portal",
+      "y": 90
+    }
+  }
+}

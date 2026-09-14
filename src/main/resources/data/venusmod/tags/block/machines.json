@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    {"id":"venusmod:blade_repair_station","required":false},
+    {"id":"venusmod:blade_breaker","required":false},
+    {"id":"venusmod:metal_separator","required":false},
+    {"id":"venusmod:atmospheric_condenser","required":false},
+    {"id":"venusmod:venus_blade_forge","required":false}
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "type":"minecraft:entity",
+  "pools":[
+    {"rolls":1,"entries":[{"type":"minecraft:item","name":"venusmod:venus_soul_stone"}]},
+    {"rolls":1,"entries":[{"type":"minecraft:item","name":"venusmod:pressure_alloy_ingot","functions":[{"function":"minecraft:set_count","count":{"type":"minecraft:uniform","min":3,"max":6}}]}]}
+  ]
+}

@@ -1,0 +1,88 @@
+import groovy.json.JsonSlurper
+
+// 本番Mod依存は増やさず、CIのCreateあり/なしを同一コードで確認する。
+def withCreate = providers.gradleProperty('venusTestCreate').orElse('false').get().toBoolean()
+if (withCreate) {
+    dependencies {
+        localRuntime("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") { transitive = false }
+        localRuntime "com.tterrag.registrate:Registrate:${registrate_version}"
+        localRuntime "net.createmod.ponder:ponder-neoforge:${ponder_version}+mc${minecraft_version}"
+        localRuntime "dev.engine-room.flywheel:flywheel-neoforge-${minecraft_version}:${flywheel_version}"
+    }
+}
+runs {
+    gameTestServer {
+        systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        systemProperty 'venusmod.requireCreateTests', withCreate.toString()
+    }
+}
+def verificationAssets = layout.buildDirectory.dir('generated/verificationAssets')
+tasks.register('generateVerificationAssets', JavaExec) {
+    dependsOn tasks.named('compileVenusAssetGenerator')
+    classpath tasks.named('compileVenusAssetGenerator').flatMap { it.destinationDirectory }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'VerificationAssets'
+    args verificationAssets.get().asFile.absolutePath
+    outputs.dir verificationAssets
+    inputs.file('tools/java/VerificationAssets.java')
+}
+sourceSets.main.resources.srcDir verificationAssets
+tasks.named('processResources') { dependsOn 'generateVerificationAssets' }
+
+tasks.register('verifyMachineRendering') {
+    description = 'Reject unsafe machine inheritance, cullfaces and out-of-block geometry.'
+    group = 'verification'
+    // プロジェクト参照を持つためconfiguration cacheの対象外にする。
+    notCompatibleWithConfigurationCache('Validation inspects project source/model files')
+    doLast {
+        def sources = fileTree('src/main/java/dev/ssscfw/venusmod') { include '**/*.java' }
+        def unsafe = sources.findAll { it.name != 'VenusMachineBlock.java' && it.text =~ /extends\s+(?:[\w.]+\.)?KineticBlock\b/ }
+        if (!unsafe.empty) throw new GradleException("Machines must extend VenusMachineBlock: ${unsafe}")
+        def slurper = new JsonSlurper()
+        def root = file('src/main/resources')
+        def tags = slurper.parse(new File(root, 'data/venusmod/tags/block/machines.json'))
+        def resolve
+        resolve = { String name, Set seen ->
+            if (!seen.add(name)) throw new GradleException("Cyclic model parent: ${name}")
+            def parts = name.split(':', 2)
+            def model = slurper.parse(new File(root, "assets/${parts[0]}/models/${parts[1]}.json"))
+            if (model.elements != null) return model.elements
+            if (model.parent?.startsWith('venusmod:')) return resolve(model.parent, seen)
+            throw new GradleException("Machine ${name} has no verifiable geometry")
+        }
+        int checked = 0
+        tags.values.each { entry ->
+            def id = entry instanceof Map ? entry.id : entry
+            def elements = resolve(id.replace(':', ':block/'), new HashSet())
+            elements.each { element ->
+                if (element.rotation) throw new GradleException("Rotated machine geometry requires a new bounds regression test: ${id}")
+                for (int axis = 0; axis < 3; axis++) {
+                    if (!(0 <= element.from[axis] && element.from[axis] < element.to[axis] && element.to[axis] <= 16))
+                        throw new GradleException("Machine geometry must stay inside [0,16]: ${id} ${element}")
+                }
+                element.faces.each { face, data ->
+                    if (data.cullface != null) throw new GradleException("Do not cull partial machine faces: ${id}/${face}")
+                }
+                checked++
+            }
+        }
+        println "Verified ${tags.values.size()} machine models, ${checked} cuboids, safe machine inheritance."
+    }
+}
+tasks.named('check') { dependsOn 'verifyMachineRendering' }
+
+// 第二段階の素材・装備・レシピ・鉱石配置を生成する。
+def phase2Assets = layout.buildDirectory.dir('generated/phase2Assets')
+tasks.register('generatePhase2Assets', JavaExec) {
+    dependsOn tasks.named('compileVenusAssetGenerator')
+    classpath tasks.named('compileVenusAssetGenerator').flatMap { it.destinationDirectory }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'Phase2AssetGenerator'
+    systemProperty 'java.awt.headless', 'true'
+    args phase2Assets.get().asFile.absolutePath
+    outputs.dir phase2Assets
+    inputs.file('tools/java/Phase2AssetGenerator.java')
+}
+sourceSets.main.resources.srcDir phase2Assets
+tasks.named('processResources') { dependsOn 'generatePhase2Assets' }
+runs.server.systemProperty 'venusmod.verifyWorldgen', providers.gradleProperty('venusWorldgenSmoke').orElse('false').get()

@@ -1,0 +1,15 @@
+{
+  "structures": [
+    {
+      "structure": "venusmod:venus_citadel",
+      "weight": 1
+    }
+  ],
+  "placement": {
+    "type": "minecraft:random_spread",
+    "spacing": 40,
+    "separation": 12,
+    "salt": 29451637,
+    "spread_type": "linear"
+  }
+}
