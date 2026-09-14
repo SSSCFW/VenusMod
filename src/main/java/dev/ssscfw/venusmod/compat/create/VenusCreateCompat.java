@@ -52,6 +52,14 @@ public final class VenusCreateCompat {
                             .requiresCorrectToolForDrops()
                             .sound(SoundType.METAL)));
 
+    /** Player-selected, capped SlashBlade upgrade forge. */
+    public static final DeferredHolder<Block, VenusBladeForgeBlock> VENUS_BLADE_FORGE =
+            BLOCKS.register("venus_blade_forge", () -> new VenusBladeForgeBlock(
+                    BlockBehaviour.Properties.of()
+                            .mapColor(MapColor.METAL)
+                            .strength(5.0F)
+                            .sound(SoundType.METAL)));
+
     /** Late-game intermediate for the automatic repair station. */
     public static final DeferredHolder<Item, Item> STELLAR_PRECISION_CORE =
             ITEMS.register("stellar_precision_core", () -> new Item(new Item.Properties()));
@@ -71,6 +79,10 @@ public final class VenusCreateCompat {
     public static final DeferredHolder<Item, BlockItem> METAL_SEPARATOR_ITEM =
             ITEMS.register("metal_separator",
                     () -> new BlockItem(METAL_SEPARATOR.get(), new Item.Properties()));
+
+    public static final DeferredHolder<Item, BlockItem> VENUS_BLADE_FORGE_ITEM =
+            ITEMS.register("venus_blade_forge",
+                    () -> new BlockItem(VENUS_BLADE_FORGE.get(), new Item.Properties()));
 
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<BladeRepairStationBlockEntity>>
             BLADE_REPAIR_STATION_BE = BLOCK_ENTITY_TYPES.register(
@@ -92,6 +104,13 @@ public final class VenusCreateCompat {
                     () -> BlockEntityType.Builder.of(
                             MetalSeparatorBlockEntity::new,
                             METAL_SEPARATOR.get()).build(null));
+
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<VenusBladeForgeBlockEntity>>
+            VENUS_BLADE_FORGE_BE = BLOCK_ENTITY_TYPES.register(
+                    "venus_blade_forge",
+                    () -> BlockEntityType.Builder.of(
+                            VenusBladeForgeBlockEntity::new,
+                            VENUS_BLADE_FORGE.get()).build(null));
 
     private VenusCreateCompat() {
     }
@@ -133,15 +152,16 @@ public final class VenusCreateCompat {
             event.accept(NETHERITE_REINFORCED_MECHANISM.get());
             event.accept(BLADE_REPAIR_STATION_ITEM.get());
             event.accept(BLADE_BREAKER_ITEM.get());
+            event.accept(VENUS_BLADE_FORGE_ITEM.get());
         }
     }
 
     private static void commonSetup(FMLCommonSetupEvent event) {
         event.enqueueWork(() -> {
-            // Comparable to Create's millstone; the breaker is intentionally heavier.
             BlockStressValues.IMPACTS.register(BLADE_REPAIR_STATION.get(), () -> 4.0D);
             BlockStressValues.IMPACTS.register(BLADE_BREAKER.get(), () -> 8.0D);
             BlockStressValues.IMPACTS.register(METAL_SEPARATOR.get(), () -> 6.0D);
+            BlockStressValues.IMPACTS.register(VENUS_BLADE_FORGE.get(), () -> 16.0D);
         });
     }
 }

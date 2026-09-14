@@ -74,6 +74,16 @@ def main():
     pool = data('worldgen/template_pool', 'venus_citadel/start')
     assert pool['elements'][0]['element']['location'] == 'venusmod:venus_citadel'
     assert data('tags/worldgen/biome/has_structure', 'venus_citadel')['values'] == ['venusmod:venus_wastes']
+    forge_recipe = documents['data/venusmod/recipe/venus_blade_forge.json']
+    assert {condition['modid'] for condition in forge_recipe['neoforge:conditions']} == {'create','slashblade'}
+    assert forge_recipe['result']['id'] == 'venusmod:venus_blade_forge'
+    machine_values = documents['data/venusmod/tags/block/machines.json']['values']
+    assert {'id':'venusmod:venus_blade_forge','required':False} in machine_values
+    forge_model = documents['assets/venusmod/models/block/venus_blade_forge.json']
+    assert forge_model['ambientocclusion'] is False
+    for element in forge_model['elements']:
+        assert all(0 <= value <= 16 for value in element['from'] + element['to'])
+        assert all('cullface' not in face for face in element['faces'].values())
     for name, size in [('block/venus_portal',(16,256)),('item/venus_core',(16,16))]:
         content = (assets/f'assets/venusmod/textures/{name}.png').read_bytes()
         assert content[:8] == b'\x89PNG\r\n\x1a\n'
@@ -112,7 +122,6 @@ def main():
             assert block['nbt']['LootTable'] == 'venusmod:chests/venus_citadel'
         if name(pos) == 'minecraft:spawner':
             assert block['nbt']['SpawnData']['entity']['id'].startswith('venusmod:venus_')
-    # 扉が開いていると仮定して床上を探索。レバーの電力伝搬・AI経路は実機検証が別途必要。
     allowed = {'minecraft:air','minecraft:iron_door','minecraft:lever'}
     def walkable(x,z):
         return 0 <= x < 31 and 4 <= z < 51 and name((x,4,z)) in allowed and name((x,5,z)) in allowed and name((x,3,z)) != 'minecraft:air'

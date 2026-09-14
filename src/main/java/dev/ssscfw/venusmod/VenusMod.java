@@ -1,6 +1,7 @@
 package dev.ssscfw.venusmod;
 
 import dev.ssscfw.venusmod.compat.create.VenusCreateCompat;
+import dev.ssscfw.venusmod.event.BladeUpgradeEvents;
 import dev.ssscfw.venusmod.event.VenusCombatEvents;
 import dev.ssscfw.venusmod.event.VenusEnchantmentEvents;
 import dev.ssscfw.venusmod.registry.ModBlockEntities;
@@ -45,5 +46,8 @@ public final class VenusMod {
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, VenusEnchantmentEvents::onAnvilUpdate);
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, VenusEnchantmentEvents::onLivingDeath);
         NeoForge.EVENT_BUS.addListener(VenusEnchantmentEvents::onPlayerClone);
+        NeoForge.EVENT_BUS.addListener(BladeUpgradeEvents::onIncomingDamage);
+        NeoForge.EVENT_BUS.addListener(BladeUpgradeEvents::onDamagePost);
+        NeoForge.EVENT_BUS.addListener(BladeUpgradeEvents::onPlayerTick);
     }
 }

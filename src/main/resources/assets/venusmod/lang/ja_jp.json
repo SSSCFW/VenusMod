@@ -76,5 +76,21 @@
   "bossbar.venusmod.general_posture_broken": "金星将軍 - 姿勢崩壊",
   "bossbar.venusmod.aphrodite_core": "アフロディーテ・コア - 圧力コア残存 %s/3",
   "bossbar.venusmod.aphrodite_core_shielded": "アフロディーテ・コア - 圧力シールド展開中",
-  "bossbar.venusmod.aphrodite_shield": "圧力シールド - 回転入力 %s%%"
+  "bossbar.venusmod.aphrodite_shield": "圧力シールド - 回転入力 %s%%",
+  "block.venusmod.venus_blade_forge": "金星刀鍛錬機",
+  "upgrade.venusmod.blade_power": "斬撃威力",
+  "upgrade.venusmod.summoned_sword": "幻影剣威力",
+  "upgrade.venusmod.concentration": "集中ランク獲得",
+  "upgrade.venusmod.durability": "耐久効率",
+  "upgrade.venusmod.venus_slayer": "金星特効",
+  "message.venusmod.blade_upgrade_max": "%s は最大Lv%sです",
+  "message.venusmod.blade_upgrade_rpm": "金星刀鍛錬機には%s RPM以上が必要です",
+  "message.venusmod.blade_upgrade_requires_core": "強化には金星核を所持している必要があります（消費しません）",
+  "message.venusmod.blade_upgrade_requires_soul_stone": "この段階の強化には金星魂石を所持している必要があります（消費しません）",
+  "message.venusmod.blade_upgrade_missing": "%s があと%s個必要です",
+  "message.venusmod.blade_upgrade_success": "%s を Lv%s/%s に強化しました",
+  "message.venusmod.blade_upgrade_status": "%s Lv%s/%s → Lv%s | 耐圧合金%s ニッケル%s ヴェネサイト%s 硫黄%s | %s",
+  "message.venusmod.blade_upgrade_status_max": "%s Lv%s/%s | 最大レベル",
+  "message.venusmod.blade_upgrade_soul_required": "金星魂石所持必須",
+  "message.venusmod.blade_upgrade_soul_not_required": "金星魂石不要"
 }

@@ -1,0 +1,8 @@
+{
+  "neoforge:conditions":[{"type":"neoforge:mod_loaded","modid":"create"},{"type":"neoforge:mod_loaded","modid":"slashblade"}],
+  "type":"minecraft:crafting_shaped",
+  "category":"redstone",
+  "pattern":["PVP","MSM","RCR"],
+  "key":{"P":{"item":"venusmod:pressure_alloy_ingot"},"V":{"item":"venusmod:venesite"},"M":{"item":"venusmod:netherite_reinforced_mechanism"},"S":{"item":"venusmod:stellar_precision_core"},"R":{"item":"create:precision_mechanism"},"C":{"item":"create:shaft"}},
+  "result":{"count":1,"id":"venusmod:venus_blade_forge"}
+}

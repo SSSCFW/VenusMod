@@ -76,5 +76,21 @@
   "bossbar.venusmod.general_posture_broken": "Venus General - Posture Broken",
   "bossbar.venusmod.aphrodite_core": "Aphrodite Core - Pressure Cores %s/3",
   "bossbar.venusmod.aphrodite_core_shielded": "Aphrodite Core - Pressure Shield Active",
-  "bossbar.venusmod.aphrodite_shield": "Pressure Shield - Rotation Input %s%%"
+  "bossbar.venusmod.aphrodite_shield": "Pressure Shield - Rotation Input %s%%",
+  "block.venusmod.venus_blade_forge": "Venus Blade Forge",
+  "upgrade.venusmod.blade_power": "Blade Power",
+  "upgrade.venusmod.summoned_sword": "Summoned Sword Power",
+  "upgrade.venusmod.concentration": "Concentration Gain",
+  "upgrade.venusmod.durability": "Durability Efficiency",
+  "upgrade.venusmod.venus_slayer": "Venus Slayer",
+  "message.venusmod.blade_upgrade_max": "%s is already at maximum Lv%s",
+  "message.venusmod.blade_upgrade_rpm": "The Venus Blade Forge requires at least %s RPM",
+  "message.venusmod.blade_upgrade_requires_core": "You must carry a Venus Core to upgrade (not consumed)",
+  "message.venusmod.blade_upgrade_requires_soul_stone": "This upgrade tier requires carrying a Venus Soul Stone (not consumed)",
+  "message.venusmod.blade_upgrade_missing": "Need %s x%s more",
+  "message.venusmod.blade_upgrade_success": "Upgraded %s to Lv%s/%s",
+  "message.venusmod.blade_upgrade_status": "%s Lv%s/%s → Lv%s | Pressure Alloy %s Nickel %s Venesite %s Sulfur %s | %s",
+  "message.venusmod.blade_upgrade_status_max": "%s Lv%s/%s | MAX",
+  "message.venusmod.blade_upgrade_soul_required": "Venus Soul Stone required",
+  "message.venusmod.blade_upgrade_soul_not_required": "No Soul Stone required"
 }

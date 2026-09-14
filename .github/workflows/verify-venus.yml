@@ -35,6 +35,8 @@ jobs:
           java -cp build/standalone-tests PortalRectangleTest
           javac -d build/standalone-tests src/main/java/dev/ssscfw/venusmod/environment/ExposureRules.java src/main/java/dev/ssscfw/venusmod/compat/create/CondenserProcess.java tests/Phase2RulesTest.java
           java -cp build/standalone-tests Phase2RulesTest
+          javac -d build/standalone-tests src/main/java/dev/ssscfw/venusmod/upgrade/BladeUpgradeRules.java tests/BladeUpgradeRulesTest.java
+          java -cp build/standalone-tests BladeUpgradeRulesTest
       - name: Resource and generated structure regression
         run: python3 tools/validate_venus_resources.py
       - name: Minecraft codec and neighbour-face GameTests
