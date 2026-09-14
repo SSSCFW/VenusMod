@@ -1,6 +1,8 @@
 name: Build 1.21.1 NeoForge
 
 on:
+  push:
+    branches: [feature/venus-hostile-mobs]
   workflow_dispatch:
     inputs:
       server_smoke_test:
@@ -13,7 +15,35 @@ permissions:
   contents: write
 
 jobs:
+  cleanup-temp-branches:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete temporary branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          branches=(
+            tmp-armor-asset-commit
+            tmp-armor-asset-commit-2
+            tmp-armor-do-not-use
+            tmp-armor-do-not-use-2
+            tmp-armor-do-not-use-3
+            tmp-armor-finalize
+          )
+          for branch in "${branches[@]}"; do
+            if gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$branch" >/dev/null 2>&1; then
+              echo "Deleting $branch"
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$branch"
+            else
+              echo "$branch already absent"
+            fi
+          done
+
   build:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
