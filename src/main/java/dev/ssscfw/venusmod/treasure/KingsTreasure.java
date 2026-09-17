@@ -1,6 +1,8 @@
 package dev.ssscfw.venusmod.treasure;
 
 import dev.ssscfw.venusmod.VenusMod;
+import dev.ssscfw.venusmod.compat.SlashBladeTreasuryCompat;
+import dev.ssscfw.venusmod.treasury.KingsTreasuryMenu;
 import dev.ssscfw.venusmod.treasury.KingsTreasurySavedData;
 import dev.ssscfw.venusmod.treasury.TreasuryEntry;
 import java.util.ArrayList;
@@ -24,6 +26,7 @@ import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.damagesource.DamageType;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
@@ -52,7 +55,7 @@ public final class KingsTreasure {
     public static final DeferredItem<TreasureItem> ITEM = ITEMS.register("kings_treasure", TreasureItem::new);
     public static final DeferredHolder<EntityType<?>, EntityType<RoyalBladeEntity>> BLADE = ENTITIES.register(
             "royal_blade", () -> EntityType.Builder.<RoyalBladeEntity>of(RoyalBladeEntity::new, MobCategory.MISC)
-                    .sized(0.35F, 0.35F).clientTrackingRange(12).updateInterval(1).noSave().noSummon()
+                    .sized(0.35F, 0.35F).clientTrackingRange(32).updateInterval(1).noSave().noSummon()
                     .build("venusmod:royal_blade"));
     public static final ResourceKey<DamageType> DAMAGE_TYPE = ResourceKey.create(Registries.DAMAGE_TYPE,
             ResourceLocation.fromNamespaceAndPath(VenusMod.MOD_ID, "royal_blade"));
@@ -148,7 +151,7 @@ public final class KingsTreasure {
                 SoundSource.PLAYERS, 0.65F, 1.5F);
         String modeName = mode == TreasureRules.VolleyMode.PARALLEL ? "平行" : "中程度収束";
         player.displayClientMessage(Component.literal("王の財宝：" + blades.size() + "/" + limit
-                + "本展開（" + modeName + "） / 左クリックで一斉射出（射出時に消費）"), true);
+                + "本展開（" + modeName + "） / 左クリックで一斉射出（射出後に耐久1消費して返却）"), true);
     }
 
     private static void fire(ServerPlayer player) {
@@ -181,6 +184,30 @@ public final class KingsTreasure {
                 SoundSource.PLAYERS, 1.0F, 0.75F);
     }
 
+    /** 射出を終えた刀を耐久1消費した状態でUUID紐づけの宝物庫へ戻す。 */
+    static void returnSpentBlade(ServerPlayer player, ItemStack original) {
+        if (original == null || original.isEmpty()) return;
+
+        ItemStack returned = SlashBladeTreasuryCompat.damageOnePoint(original);
+        if (returned.isEmpty()) return;
+
+        KingsTreasurySavedData storage = KingsTreasurySavedData.get(player.serverLevel());
+        int accepted = storage.insert(player.getUUID(), returned, 1);
+        if (accepted == 1) {
+            if (player.containerMenu instanceof KingsTreasuryMenu menu) menu.refreshFromStorage();
+            return;
+        }
+
+        // 通常は射出時に元の刀を消費しているため容量は戻せる。
+        // 万一その間に上限へ達しても刀を消失させず、所有者の足元へ返す。
+        ItemEntity fallback = new ItemEntity(
+                player.serverLevel(), player.getX(), player.getY() + 0.5D, player.getZ(),
+                returned.copyWithCount(1));
+        fallback.setTarget(player.getUUID());
+        fallback.setNoPickUpDelay();
+        player.serverLevel().addFreshEntity(fallback);
+    }
+
     private static Vec3 stableDirection(Vec3 direction) {
         return direction.lengthSqr() < 1.0E-8D ? new Vec3(0.0D, 0.0D, 1.0D) : direction.normalize();
     }
@@ -196,12 +223,15 @@ public final class KingsTreasure {
     private static void tick(PlayerTickEvent.Post event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         Formation formation = FORMATIONS.get(player.getUUID());
-        if (formation != null && (!isHeld(player) || !player.isAlive() || player.isSpectator()
-                || !formation.dimension().equals(player.level().dimension())
-                || formation.wave().expired(now(player))
-                || formation.blades().stream().allMatch(RoyalBladeEntity::isRemoved))) {
-            cancel(player.getUUID());
-        }
+        if (formation == null) return;
+
+        boolean keep = TreasureRules.keepPrepared(
+                player.isAlive(),
+                player.isSpectator(),
+                formation.dimension().equals(player.level().dimension()),
+                formation.wave().expired(now(player)),
+                formation.blades().stream().allMatch(RoyalBladeEntity::isRemoved));
+        if (!keep) cancel(player.getUUID());
     }
 
     private static void cancel(UUID owner) {
@@ -262,7 +292,7 @@ public final class KingsTreasure {
             lines.add(Component.literal("右クリック：平行展開 / Shift＋右クリック：中程度収束展開"));
             lines.add(Component.literal("左クリック：一斉射出 / 展開中Shift＋右クリック：収納"));
             lines.add(Component.literal("F：最大本数 8→12→24→32→48→96→120"));
-            lines.add(Component.literal("射出時に宝物庫から消費・クールタイムなし・地形破壊なし"));
+            lines.add(Component.literal("射出後に耐久1消費して宝物庫へ返却・クールタイムなし・地形破壊なし"));
         }
     }
 }
