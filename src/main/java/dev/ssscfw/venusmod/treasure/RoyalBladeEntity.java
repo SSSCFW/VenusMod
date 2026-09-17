@@ -1,5 +1,6 @@
 package dev.ssscfw.venusmod.treasure;
 
+import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
@@ -7,6 +8,7 @@ import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.damagesource.DamageSource;
@@ -35,8 +37,11 @@ public final class RoyalBladeEntity extends Projectile {
             SynchedEntityData.defineId(RoyalBladeEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Vector3f> AIM_DIRECTION =
             SynchedEntityData.defineId(RoyalBladeEntity.class, EntityDataSerializers.VECTOR3);
+    private static final double FAR_PARTICLE_RANGE_SQR = 512.0D * 512.0D;
+
     private int formationSlot;
     private int flightTicks;
+    private boolean returnedToTreasury;
 
     public RoyalBladeEntity(EntityType<? extends RoyalBladeEntity> type, Level level) {
         super(type, level);
@@ -144,18 +149,18 @@ public final class RoyalBladeEntity extends Projectile {
     @Override public void tick() {
         super.tick();
         if (level().isClientSide) {
-            if (launched()) {
-                Vec3 velocity = getDeltaMovement();
-                setPos(position().add(velocity));
-                if ((tickCount & 1) == 0) {
-                    level().addParticle(ParticleTypes.END_ROD, getX(), getY(), getZ(), 0, 0, 0);
-                }
-            }
+            if (launched()) setPos(position().add(getDeltaMovement()));
             return;
         }
-        if (!(getOwner() instanceof LivingEntity owner) || !owner.isAlive() || owner.isRemoved()
-                || owner.level() != level() || owner.isSpectator()) {
+
+        Entity rawOwner = getOwner();
+        if (!(rawOwner instanceof LivingEntity owner)) {
             discard();
+            return;
+        }
+        if (!owner.isAlive() || owner.isRemoved() || owner.level() != level() || owner.isSpectator()) {
+            if (launched()) finishFlight(owner);
+            else discard();
             return;
         }
         if (!launched()) {
@@ -163,9 +168,10 @@ public final class RoyalBladeEntity extends Projectile {
             return;
         }
         if (++flightTicks >= TreasureRules.FLIGHT_TICKS) {
-            discard();
+            finishFlight(owner);
             return;
         }
+
         Vec3 start = position();
         Vec3 end = start.add(getDeltaMovement());
         HitResult block = level().clip(new ClipContext(
@@ -181,6 +187,10 @@ public final class RoyalBladeEntity extends Projectile {
             burst(owner, entity == null ? null : entity.getEntity());
         } else {
             setPos(end);
+            if ((flightTicks & 1) == 0 && level() instanceof ServerLevel server) {
+                sendFarParticles(server, ParticleTypes.END_ROD,
+                        getX(), getY(), getZ(), 1, 0, 0, 0, 0);
+            }
         }
     }
 
@@ -196,8 +206,8 @@ public final class RoyalBladeEntity extends Projectile {
     private void burst(LivingEntity owner, Entity directTarget) {
         if (!(level() instanceof ServerLevel level) || isRemoved()) return;
         Vec3 center = position().subtract(getDeltaMovement().normalize().scale(0.03));
-        discard();
-        level.sendParticles(ParticleTypes.EXPLOSION, center.x, center.y, center.z, 1, 0, 0, 0, 0);
+        sendFarParticles(level, ParticleTypes.EXPLOSION,
+                center.x, center.y, center.z, 1, 0, 0, 0, 0);
         level.playSound(null, center.x, center.y, center.z, SoundEvents.GENERIC_EXPLODE,
                 SoundSource.PLAYERS, 0.35F, 1.35F);
         DamageSource source = new DamageSource(level.registryAccess().registryOrThrow(Registries.DAMAGE_TYPE)
@@ -221,6 +231,28 @@ public final class RoyalBladeEntity extends Projectile {
                 target.invulnerableTime = 0;
                 target.hurt(source, damage);
             }
+        }
+        finishFlight(owner);
+    }
+
+    /** 射出終了時に1回だけ耐久を消費して宝物庫へ返す。 */
+    private void finishFlight(LivingEntity owner) {
+        if (!returnedToTreasury && owner instanceof ServerPlayer player) {
+            returnedToTreasury = true;
+            KingsTreasure.returnSpentBlade(player, blade());
+        }
+        discard();
+    }
+
+    /** force=trueで通常の32ブロック制限を越えて同ディメンションのプレイヤーへ送る。 */
+    private static <T extends ParticleOptions> void sendFarParticles(
+            ServerLevel level, T particle,
+            double x, double y, double z, int count,
+            double xOffset, double yOffset, double zOffset, double speed) {
+        for (ServerPlayer viewer : level.getServer().getPlayerList().getPlayers()) {
+            if (viewer.level() != level || viewer.distanceToSqr(x, y, z) > FAR_PARTICLE_RANGE_SQR) continue;
+            level.sendParticles(viewer, particle, true,
+                    x, y, z, count, xOffset, yOffset, zOffset, speed);
         }
     }
 
