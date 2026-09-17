@@ -40,6 +40,7 @@ public final class RoyalBladeEntity extends Projectile {
     private static final double FAR_PARTICLE_RANGE_SQR = 512.0D * 512.0D;
 
     private int formationSlot;
+    private int formationSize = TreasureRules.MAX_BLADES;
     private int flightTicks;
     private boolean returnedToTreasury;
 
@@ -69,9 +70,14 @@ public final class RoyalBladeEntity extends Projectile {
     }
 
     public void stage(LivingEntity owner, ItemStack template, int slot, Vec3 summonDirection) {
+        stage(owner, template, slot, summonDirection, TreasureRules.MAX_BLADES);
+    }
+
+    public void stage(LivingEntity owner, ItemStack template, int slot, Vec3 summonDirection, int totalBlades) {
         setOwner(owner);
         entityData.set(BLADE, template.copyWithCount(1));
-        formationSlot = Math.max(0, Math.min(TreasureRules.MAX_BLADES - 1, slot));
+        formationSize = Math.max(1, Math.min(TreasureRules.MAX_BLADES, totalBlades));
+        formationSlot = Math.max(0, Math.min(formationSize - 1, slot));
         setNoGravity(true);
         setDeltaMovement(Vec3.ZERO);
         Vec3 direction = safeDirection(summonDirection, owner.getLookAngle());
@@ -115,7 +121,7 @@ public final class RoyalBladeEntity extends Projectile {
         }
         Vec3 forward = horizontal.normalize();
         Vec3 right = new Vec3(forward.z, 0.0D, -forward.x);
-        TreasureRules.FormationOffset offset = TreasureRules.formationOffset(formationSlot);
+        TreasureRules.FormationOffset offset = TreasureRules.formationOffset(formationSlot, formationSize);
         Vec3 summonPosition = owner.getEyePosition()
                 .subtract(forward.scale(offset.back()))
                 .add(right.scale(offset.right()))
@@ -129,10 +135,7 @@ public final class RoyalBladeEntity extends Projectile {
                 (float) normalized.x, (float) normalized.y, (float) normalized.z));
     }
 
-    /**
-     * 当たり判定やバニラのEntity補間用の回転値も維持する。
-     * 王の財宝の描画はこのyaw/pitchではなくAIM_DIRECTIONを直接使用する。
-     */
+    /** 当たり判定用の回転値。描画はAIM_DIRECTIONを直接使用する。 */
     private void setAimRotation(Vec3 direction) {
         Vec3 normalized = safeDirection(direction, new Vec3(0.0D, 0.0D, 1.0D));
         double horizontal = Math.sqrt(normalized.x * normalized.x + normalized.z * normalized.z);
@@ -152,7 +155,6 @@ public final class RoyalBladeEntity extends Projectile {
             if (launched()) setPos(position().add(getDeltaMovement()));
             return;
         }
-
         Entity rawOwner = getOwner();
         if (!(rawOwner instanceof LivingEntity owner)) {
             discard();
@@ -171,7 +173,6 @@ public final class RoyalBladeEntity extends Projectile {
             finishFlight(owner);
             return;
         }
-
         Vec3 start = position();
         Vec3 end = start.add(getDeltaMovement());
         HitResult block = level().clip(new ClipContext(
@@ -196,9 +197,7 @@ public final class RoyalBladeEntity extends Projectile {
 
     public static boolean canDamage(LivingEntity owner, Entity candidate) {
         if (!(candidate instanceof LivingEntity target) || target == owner || !target.isAlive()
-                || target.isSpectator() || !target.isAttackable() || owner.isAlliedTo(target)) {
-            return false;
-        }
+                || target.isSpectator() || !target.isAttackable() || owner.isAlliedTo(target)) return false;
         if (target instanceof OwnableEntity pet && owner.getUUID().equals(pet.getOwnerUUID())) return false;
         return !(owner instanceof Player player && target instanceof Player other) || player.canHarmPlayer(other);
     }
@@ -208,8 +207,9 @@ public final class RoyalBladeEntity extends Projectile {
         Vec3 center = position().subtract(getDeltaMovement().normalize().scale(0.03));
         sendFarParticles(level, ParticleTypes.EXPLOSION,
                 center.x, center.y, center.z, 1, 0, 0, 0, 0);
+        // 音源位置と距離減衰を維持して音量/可聴距離を拡大する（通常16×32≒512ブロック）。
         level.playSound(null, center.x, center.y, center.z, SoundEvents.GENERIC_EXPLODE,
-                SoundSource.PLAYERS, 0.35F, 1.35F);
+                SoundSource.PLAYERS, TreasureRules.EXPLOSION_VOLUME, 1.35F);
         DamageSource source = new DamageSource(level.registryAccess().registryOrThrow(Registries.DAMAGE_TYPE)
                 .getHolderOrThrow(KingsTreasure.DAMAGE_TYPE), this, owner);
         double radius = TreasureRules.BLAST_RADIUS;
@@ -221,11 +221,8 @@ public final class RoyalBladeEntity extends Projectile {
             if (!direct && distance >= radius) continue;
             if (!direct && level.clip(new ClipContext(
                     center, target.getEyePosition(), ClipContext.Block.COLLIDER,
-                    ClipContext.Fluid.NONE, this)).getType() != HitResult.Type.MISS) {
-                continue;
-            }
-            float damage = direct
-                    ? TreasureRules.DAMAGE
+                    ClipContext.Fluid.NONE, this)).getType() != HitResult.Type.MISS) continue;
+            float damage = direct ? TreasureRules.DAMAGE
                     : (float) (TreasureRules.DAMAGE * 0.5 * (1 - distance / radius));
             if (damage > 0) {
                 target.invulnerableTime = 0;

@@ -4,7 +4,6 @@ import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.compat.SlashBladeTreasuryCompat;
 import dev.ssscfw.venusmod.treasury.KingsTreasuryMenu;
 import dev.ssscfw.venusmod.treasury.KingsTreasurySavedData;
-import dev.ssscfw.venusmod.treasury.TreasuryEntry;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -98,13 +97,11 @@ public final class KingsTreasure {
             fire(player);
             return;
         }
-
         Formation existing = FORMATIONS.get(player.getUUID());
         if (existing != null) {
             if (player.isShiftKeyDown()) cancel(player.getUUID());
             return;
         }
-
         prepare(player, TreasureRules.VolleyMode.forSummon(player.isShiftKeyDown()));
     }
 
@@ -116,25 +113,21 @@ public final class KingsTreasure {
 
     private static void prepare(ServerPlayer player, TreasureRules.VolleyMode mode) {
         if (FORMATIONS.containsKey(player.getUUID())) return;
-
         KingsTreasurySavedData storage = KingsTreasurySavedData.get(player.serverLevel());
         int limit = storage.volleyLimit(player.getUUID());
-        List<TreasuryEntry> entries = storage.page(player.getUUID(), 0, TreasureRules.MAX_BLADES);
-        List<Integer> selected = TreasureRules.select(
-                entries.stream().mapToInt(TreasuryEntry::count).toArray(), limit);
+        List<ItemStack> selected = storage.selectForVolley(player.getUUID(), limit, player.getRandom()::nextInt);
         if (selected.isEmpty()) {
-            player.displayClientMessage(Component.literal("王の宝物庫に抜刀剣が入っていません。"), true);
+            player.displayClientMessage(Component.literal("射出可能な抜刀剣がありません（お気に入り・折れた刀は除外）。"), true);
             return;
         }
-
         Vec3 aimDirection = stableDirection(player.getLookAngle());
         Vec3 aimOrigin = player.getEyePosition();
         List<RoyalBladeEntity> blades = new ArrayList<>();
         List<ItemStack> costs = new ArrayList<>();
         for (int slot = 0; slot < selected.size(); slot++) {
-            ItemStack template = entries.get(selected.get(slot)).template();
+            ItemStack template = selected.get(slot);
             RoyalBladeEntity blade = new RoyalBladeEntity(BLADE.get(), player.level());
-            blade.stage(player, template, slot, aimDirection);
+            blade.stage(player, template, slot, aimDirection, selected.size());
             if (player.serverLevel().addFreshEntity(blade)) {
                 blades.add(blade);
                 costs.add(template.copyWithCount(1));
@@ -143,7 +136,12 @@ public final class KingsTreasure {
             }
         }
         if (blades.isEmpty()) return;
-
+        if (blades.size() != selected.size()) {
+            // 他Mod等が一部の生成を拒否した場合も、実際に生成できた本数で左右対称に並べ直す。
+            for (int i = 0; i < blades.size(); i++) {
+                blades.get(i).stage(player, costs.get(i), i, aimDirection, blades.size());
+            }
+        }
         FORMATIONS.put(player.getUUID(), new Formation(
                 new TreasureRules.Wave(now(player)), player.level().dimension(),
                 List.copyOf(blades), copyStacks(costs), mode, aimOrigin, aimDirection));
@@ -168,13 +166,11 @@ public final class KingsTreasure {
             player.displayClientMessage(Component.literal("展開した刀が失われたため射出を中止しました。"), true);
             return;
         }
-
         if (!KingsTreasurySavedData.get(player.serverLevel()).consumeAll(player.getUUID(), formation.costs())) {
             formation.close();
-            player.displayClientMessage(Component.literal("王の宝物庫の刀が不足しているため射出を中止しました。"), true);
+            player.displayClientMessage(Component.literal("刀が不足、またはお気に入り・破損状態に変わったため射出を中止しました。"), true);
             return;
         }
-
         Vec3 focusPoint = formation.aimOrigin().add(
                 formation.aimDirection().scale(TreasureRules.CONVERGENCE_DISTANCE));
         for (RoyalBladeEntity blade : formation.blades()) {
@@ -187,18 +183,14 @@ public final class KingsTreasure {
     /** 射出を終えた刀を耐久1消費した状態でUUID紐づけの宝物庫へ戻す。 */
     static void returnSpentBlade(ServerPlayer player, ItemStack original) {
         if (original == null || original.isEmpty()) return;
-
         ItemStack returned = SlashBladeTreasuryCompat.damageOnePoint(original);
         if (returned.isEmpty()) return;
-
         KingsTreasurySavedData storage = KingsTreasurySavedData.get(player.serverLevel());
         int accepted = storage.insert(player.getUUID(), returned, 1);
         if (accepted == 1) {
             if (player.containerMenu instanceof KingsTreasuryMenu menu) menu.refreshFromStorage();
             return;
         }
-
-        // 通常は射出時に元の刀を消費しているため容量は戻せる。
         // 万一その間に上限へ達しても刀を消失させず、所有者の足元へ返す。
         ItemEntity fallback = new ItemEntity(
                 player.serverLevel(), player.getX(), player.getY() + 0.5D, player.getZ(),
@@ -224,7 +216,6 @@ public final class KingsTreasure {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         Formation formation = FORMATIONS.get(player.getUUID());
         if (formation == null) return;
-
         boolean keep = TreasureRules.keepPrepared(
                 player.isAlive(),
                 player.isSpectator(),
@@ -291,7 +282,8 @@ public final class KingsTreasure {
                                               List<Component> lines, TooltipFlag flag) {
             lines.add(Component.literal("右クリック：平行展開 / Shift＋右クリック：中程度収束展開"));
             lines.add(Component.literal("左クリック：一斉射出 / 展開中Shift＋右クリック：収納"));
-            lines.add(Component.literal("F：最大本数 8→12→24→32→48→96→120"));
+            lines.add(Component.literal("F：最大本数 8→24→48→80→120（半円の完成段数）"));
+            lines.add(Component.literal("お気に入り・折れた刀は射出対象外 / 優先度は宝物庫の左側で設定"));
             lines.add(Component.literal("射出後に耐久1消費して宝物庫へ返却・クールタイムなし・地形破壊なし"));
         }
     }

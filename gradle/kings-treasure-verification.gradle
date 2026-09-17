@@ -3,6 +3,11 @@ def compileTreasureChecks = tasks.register('compileKingsTreasureChecks', JavaCom
     source = files(
             'src/main/java/dev/ssscfw/venusmod/treasure/TreasureRules.java',
             'src/main/java/dev/ssscfw/venusmod/treasury/GiveCaptureRules.java',
+            'src/main/java/dev/ssscfw/venusmod/treasury/VolleyPriority.java',
+            'src/main/java/dev/ssscfw/venusmod/treasury/TreasuryVolleyRules.java',
+            'src/main/java/dev/ssscfw/venusmod/upgrade/ForgeScreenLayout.java',
+            'tools/tests/TreasuryVolleyRulesChecks.java',
+            'tools/tests/ForgeScreenLayoutChecks.java',
             'tools/tests/TreasureRulesChecks.java',
             'tools/tests/TreasureRulesLimitChecks.java',
             'tools/tests/GiveCaptureRulesChecks.java')
@@ -30,7 +35,21 @@ tasks.register('verifyTreasuryGiveCapture', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
     mainClass = 'GiveCaptureRulesChecks'
 }
+tasks.register('verifyTreasuryVolleySelection', JavaExec) {
+    dependsOn compileTreasureChecks
+    classpath compileTreasureChecks.flatMap { it.destinationDirectory }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'TreasuryVolleyRulesChecks'
+}
+tasks.register('verifyForgeScreenLayout', JavaExec) {
+    dependsOn compileTreasureChecks
+    classpath compileTreasureChecks.flatMap { it.destinationDirectory }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'ForgeScreenLayoutChecks'
+}
 tasks.named('check') {
+    dependsOn 'verifyTreasuryVolleySelection'
+    dependsOn 'verifyForgeScreenLayout'
     dependsOn 'verifyKingsTreasureRules'
     dependsOn 'verifyKingsTreasureLimits'
     dependsOn 'verifyTreasuryGiveCapture'
@@ -159,3 +178,44 @@ tasks.register('generateKingsTreasureAssets', JavaExec) {
 }
 sourceSets.main.resources.srcDir assets
 tasks.named('processResources') { dependsOn 'generateKingsTreasureAssets' }
+
+// 実ロジックのJava検査に加え、GUIから保存/選択処理への接続漏れを検出する。
+tasks.register('verifyTreasurySelectionWiring') {
+    group = 'verification'
+    notCompatibleWithConfigurationCache('Validation inspects project source files')
+    doLast {
+        def root = 'src/main/java/dev/ssscfw/venusmod/'
+        def saved = file(root + 'treasury/KingsTreasurySavedData.java').text
+        def menu = file(root + 'treasury/KingsTreasuryMenu.java').text
+        def screen = file(root + 'client/KingsTreasuryScreen.java').text
+        def treasure = file(root + 'treasure/KingsTreasure.java').text
+        def entity = file(root + 'treasure/RoyalBladeEntity.java').text
+        def forge = file(root + 'compat/create/client/VenusBladeForgeScreen.java').text
+        def forgeMenu = file(root + 'compat/create/VenusBladeForgeMenu.java').text
+        if (!saved.contains('entryTag.putBoolean("Favorite", entry.favorite)')
+                || !saved.contains('entryTag.getBoolean("Favorite")')
+                || !saved.contains('playerTag.putString("VolleyPriority"')
+                || !saved.contains('VolleyPriority.fromId(playerTag.getString("VolleyPriority"))'))
+            throw new GradleException('Favorite and priority must survive SavedData reload.')
+        if (!saved.contains('!entry.favorite && SlashBladeTreasuryCompat.canLaunch(entry.template)'))
+            throw new GradleException('Immediately before firing, protect favorite and broken blades.')
+        if (!treasure.contains('storage.selectForVolley(') || !saved.contains('TreasuryVolleyRules.select('))
+            throw new GradleException('Volley selection must use the tested whole-treasury selection rule.')
+        if (!menu.contains('clickType == ClickType.PICKUP && button == 1') || !menu.contains('storage.toggleFavorite(')
+                || !menu.contains('DATA_FAVORITES_START') || !menu.contains('storage.setVolleyPriority('))
+            throw new GradleException('Treasury right click and priority controls must update server state.')
+        if (!screen.contains('menu.isFavorite(index)') || !screen.contains('0xFF205B2D')
+                || !screen.contains('SIDEBAR_WIDTH') || !screen.contains('BUTTON_PRIORITY_START'))
+            throw new GradleException('Treasury screen must show protected slots and left priority buttons.')
+        if (!entity.contains('TreasureRules.formationOffset(formationSlot, formationSize)')
+                || !treasure.contains('blade.stage(player, template, slot, aimDirection, selected.size())'))
+            throw new GradleException('Partial formations must use the actual number of selected blades.')
+        if (!entity.contains('SoundSource.PLAYERS, TreasureRules.EXPLOSION_VOLUME'))
+            throw new GradleException('Royal blade explosion sound must keep the extended volume.')
+        if (!forge.contains('ForgeScreenLayout.nameWidth(countWidth)')
+                || !forge.contains('font.plainSubstrByWidth') || !forgeMenu.contains('ForgeScreenLayout.INVENTORY_Y'))
+            throw new GradleException('Forge text widths and menu slot layout must stay coordinated.')
+        println 'Verified treasury favorite/priority/formation/forge layout wiring.'
+    }
+}
+tasks.named('check') { dependsOn 'verifyTreasurySelectionWiring' }

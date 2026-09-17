@@ -17,55 +17,50 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
-/**
- * 王の宝物庫の54枠ページ式メニュー。宝物庫側のSlotは表示用で、入出庫はサーバー側のクリック処理がSavedDataへ反映する。
- */
+/** 54枠ページ式メニュー。表示スロットの入出庫・お気に入りはサーバーでSavedDataへ反映する。 */
 public final class KingsTreasuryMenu extends AbstractContainerMenu {
     public static final int TREASURY_SLOTS = TreasuryRules.PAGE_SIZE;
+    public static final int IMAGE_HEIGHT = 236;
     public static final int BUTTON_PREVIOUS = 0;
     public static final int BUTTON_NEXT = 1;
+    public static final int BUTTON_PRIORITY_START = 2;
 
     private static final int DATA_COUNTS_START = 0;
     private static final int DATA_PAGE = TREASURY_SLOTS;
     private static final int DATA_PAGE_COUNT = TREASURY_SLOTS + 1;
     private static final int DATA_TOTAL = TREASURY_SLOTS + 2;
     private static final int DATA_AUTO = TREASURY_SLOTS + 3;
-    private static final int DATA_SIZE = TREASURY_SLOTS + 4;
+    private static final int DATA_FAVORITES_START = TREASURY_SLOTS + 4;
+    private static final int DATA_PRIORITY = DATA_FAVORITES_START + TREASURY_SLOTS;
+    private static final int DATA_SIZE = DATA_PRIORITY + 1;
 
     private final SimpleContainer display = new SimpleContainer(TREASURY_SLOTS);
     private final ContainerData data = new SimpleContainerData(DATA_SIZE);
     @Nullable private final KingsTreasurySavedData storage;
     @Nullable private final UUID ownerId;
 
-    /** クライアント用。同期済みの表示コンテナとDataSlotだけを使う。 */
     public KingsTreasuryMenu(int containerId, Inventory inventory) {
         this(containerId, inventory, null);
     }
 
-    /** サーバー用。 */
     public KingsTreasuryMenu(int containerId, Inventory inventory, @Nullable ServerPlayer owner) {
         super(ModMenus.KING_TREASURY.get(), containerId);
         this.storage = owner == null ? null : KingsTreasurySavedData.get(owner.serverLevel());
         this.ownerId = owner == null ? null : owner.getUUID();
-
         for (int row = 0; row < 6; row++) {
             for (int column = 0; column < 9; column++) {
                 int slotIndex = column + row * 9;
-                // Client/server双方のclicked()で仮想スロットを先に横取りするため、
-                // 通常SlotとしておきGUI側がクリックを送信できるようにする。
-                addSlot(new Slot(display, slotIndex, 8 + column * 18, 18 + row * 18));
+                addSlot(new Slot(display, slotIndex, 8 + column * 18, 32 + row * 18));
             }
         }
-
         for (int row = 0; row < 3; row++) {
             for (int column = 0; column < 9; column++) {
-                addSlot(new Slot(inventory, column + row * 9 + 9, 8 + column * 18, 140 + row * 18));
+                addSlot(new Slot(inventory, column + row * 9 + 9, 8 + column * 18, 154 + row * 18));
             }
         }
         for (int column = 0; column < 9; column++) {
-            addSlot(new Slot(inventory, column, 8 + column * 18, 198));
+            addSlot(new Slot(inventory, column, 8 + column * 18, 212));
         }
-
         addDataSlots(data);
         if (storage != null) refreshFromStorage();
     }
@@ -74,6 +69,11 @@ public final class KingsTreasuryMenu extends AbstractContainerMenu {
         return treasurySlot >= 0 && treasurySlot < TREASURY_SLOTS ? data.get(DATA_COUNTS_START + treasurySlot) : 0;
     }
 
+    public boolean isFavorite(int treasurySlot) {
+        return treasurySlot >= 0 && treasurySlot < TREASURY_SLOTS && data.get(DATA_FAVORITES_START + treasurySlot) != 0;
+    }
+
+    public VolleyPriority getVolleyPriority() { return VolleyPriority.fromOrdinal(data.get(DATA_PRIORITY)); }
     public int getPage() { return Math.max(0, data.get(DATA_PAGE)); }
     public int getPageCount() { return Math.max(1, data.get(DATA_PAGE_COUNT)); }
     public int getTotalCount() { return Math.max(0, data.get(DATA_TOTAL)); }
@@ -81,7 +81,7 @@ public final class KingsTreasuryMenu extends AbstractContainerMenu {
 
     @Override
     public boolean clickMenuButton(Player player, int id) {
-        if (storage == null || ownerId == null) return false;
+        if (storage == null || ownerId == null || !ownerId.equals(player.getUUID()) || !stillValid(player)) return false;
         int page = getPage();
         if (id == BUTTON_PREVIOUS && page > 0) {
             data.set(DATA_PAGE, page - 1);
@@ -93,20 +93,34 @@ public final class KingsTreasuryMenu extends AbstractContainerMenu {
             refreshFromStorage();
             return true;
         }
+        int priority = id - BUTTON_PRIORITY_START;
+        if (priority >= 0 && priority < VolleyPriority.values().length) {
+            storage.setVolleyPriority(ownerId, VolleyPriority.fromOrdinal(priority));
+            refreshFromStorage();
+            return true;
+        }
         return false;
     }
 
     @Override
     public void clicked(int slotId, int button, ClickType clickType, Player player) {
         if (slotId >= 0 && slotId < TREASURY_SLOTS) {
-            // 仮想スロットはクライアント予測で中身を変更しない。サーバーからの同期だけを受ける。
-            if (player.level().isClientSide || storage == null || ownerId == null) return;
+            // 仮想スロットはクライアント予測で変更せず、サーバーからの同期だけを受ける。
+            if (player.level().isClientSide || storage == null || ownerId == null
+                    || !ownerId.equals(player.getUUID()) || !stillValid(player)) return;
+            if (clickType == ClickType.PICKUP && button == 1) {
+                if (getCarried().isEmpty()) {
+                    int index = getPage() * TREASURY_SLOTS + slotId;
+                    storage.toggleFavorite(ownerId, index, display.getItem(slotId));
+                    refreshFromStorage();
+                }
+                return;
+            }
             if (clickType == ClickType.QUICK_MOVE) {
                 quickMoveStack(player, slotId);
                 return;
             }
             if (clickType != ClickType.PICKUP || button != 0) return;
-
             ItemStack carried = getCarried();
             if (!carried.isEmpty()) {
                 if (!SlashBladeEnchantmentCompat.isBlade(carried)) return;
@@ -118,7 +132,6 @@ public final class KingsTreasuryMenu extends AbstractContainerMenu {
                 }
                 return;
             }
-
             int globalIndex = getPage() * TREASURY_SLOTS + slotId;
             ItemStack extracted = storage.extractOne(ownerId, globalIndex);
             if (!extracted.isEmpty()) {
@@ -135,29 +148,27 @@ public final class KingsTreasuryMenu extends AbstractContainerMenu {
         if (slotId < 0 || slotId >= slots.size()) return ItemStack.EMPTY;
         Slot slot = slots.get(slotId);
         if (!slot.hasItem()) return ItemStack.EMPTY;
-
         if (slotId < TREASURY_SLOTS) {
-            if (storage == null || ownerId == null || player.level().isClientSide) return ItemStack.EMPTY;
+            if (storage == null || ownerId == null || player.level().isClientSide
+                    || !ownerId.equals(player.getUUID()) || !stillValid(player)) return ItemStack.EMPTY;
             int globalIndex = getPage() * TREASURY_SLOTS + slotId;
+            boolean favorite = isFavorite(slotId);
             ItemStack extracted = storage.extractOne(ownerId, globalIndex);
             if (extracted.isEmpty()) return ItemStack.EMPTY;
             ItemStack result = extracted.copy();
             if (!player.getInventory().add(extracted)) {
-                // 取り出し先が満杯なら同じ刀を確実に戻す。
-                storage.insert(ownerId, result, 1);
+                storage.restoreOne(ownerId, result, favorite);
                 refreshFromStorage();
                 return ItemStack.EMPTY;
             }
             refreshFromStorage();
             return result;
         }
-
         ItemStack stack = slot.getItem();
         ItemStack original = stack.copy();
         if (SlashBladeEnchantmentCompat.isBlade(stack)) {
-            // Client側は予測移動せず、サーバーのSavedData処理結果を待つ。
-            if (player.level().isClientSide) return ItemStack.EMPTY;
-            if (storage == null || ownerId == null) return ItemStack.EMPTY;
+            if (player.level().isClientSide || storage == null || ownerId == null
+                    || !ownerId.equals(player.getUUID()) || !stillValid(player)) return ItemStack.EMPTY;
             int accepted = storage.insert(ownerId, stack, stack.getCount());
             if (accepted > 0) {
                 stack.shrink(accepted);
@@ -168,15 +179,12 @@ public final class KingsTreasuryMenu extends AbstractContainerMenu {
             }
             return ItemStack.EMPTY;
         }
-
         int playerStart = TREASURY_SLOTS;
         int hotbarStart = playerStart + 27;
         int playerEnd = hotbarStart + 9;
         if (slotId < hotbarStart) {
             if (!moveItemStackTo(stack, hotbarStart, playerEnd, false)) return ItemStack.EMPTY;
-        } else if (!moveItemStackTo(stack, playerStart, hotbarStart, false)) {
-            return ItemStack.EMPTY;
-        }
+        } else if (!moveItemStackTo(stack, playerStart, hotbarStart, false)) return ItemStack.EMPTY;
         if (stack.isEmpty()) slot.set(ItemStack.EMPTY);
         else slot.setChanged();
         return original;
@@ -195,7 +203,7 @@ public final class KingsTreasuryMenu extends AbstractContainerMenu {
         data.set(DATA_PAGE_COUNT, pageCount);
         data.set(DATA_TOTAL, storage.totalCount(ownerId));
         data.set(DATA_AUTO, storage.autoCollect(ownerId) ? 1 : 0);
-
+        data.set(DATA_PRIORITY, storage.volleyPriority(ownerId).ordinal());
         List<TreasuryEntry> entries = storage.page(ownerId, page, TREASURY_SLOTS);
         display.clearContent();
         for (int i = 0; i < TREASURY_SLOTS; i++) {
@@ -203,8 +211,10 @@ public final class KingsTreasuryMenu extends AbstractContainerMenu {
                 TreasuryEntry entry = entries.get(i);
                 display.setItem(i, entry.template());
                 data.set(DATA_COUNTS_START + i, entry.count());
+                data.set(DATA_FAVORITES_START + i, entry.favorite() ? 1 : 0);
             } else {
                 data.set(DATA_COUNTS_START + i, 0);
+                data.set(DATA_FAVORITES_START + i, 0);
             }
         }
         broadcastChanges();

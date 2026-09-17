@@ -8,7 +8,9 @@ import java.util.function.BiPredicate;
 public final class TreasureRules {
     public static final int MAX_BLADES = 120;
     public static final int DEFAULT_VOLLEY_LIMIT = 24;
-    private static final int[] VOLLEY_LIMITS = {8, 12, 24, 32, 48, 96, 120};
+    // 8・16・24・32・40本の半円を1段ずつ完成させる累積本数。
+    private static final int[] VOLLEY_LIMITS = {8, 24, 48, 80, 120};
+    public static final float EXPLOSION_VOLUME = 32.0F;
     public static final int PREPARE_TICKS = 20 * 60;
     public static final int FLIGHT_TICKS = 80;
     public static final double SPEED = 2.8;
@@ -42,7 +44,13 @@ public final class TreasureRules {
         for (int allowed : VOLLEY_LIMITS) {
             if (value == allowed) return value;
         }
-        return DEFAULT_VOLLEY_LIMIT;
+        // 旧12/32/96設定は近い下側の完結段へ移行する。不正値は従来どおり24本。
+        return switch (value) {
+            case 12 -> 8;
+            case 32 -> 24;
+            case 96 -> 80;
+            default -> DEFAULT_VOLLEY_LIMIT;
+        };
     }
 
     public static int nextVolleyLimit(int current) {
@@ -79,31 +87,33 @@ public final class TreasureRules {
 
     public record FormationOffset(double right, double up, double back) {}
 
-    /**
-     * 最初の24本は従来の8本×3段配置を維持する。
-     * 25本目以降は16本ずつ外側の半円へ増設し、120本でも極端に遠くなりすぎないようにする。
-     */
+    /** 全段がある場合の互換入口。 */
     public static FormationOffset formationOffset(int slot) {
-        int safeSlot = Math.max(0, Math.min(MAX_BLADES - 1, slot));
-        if (safeSlot < 24) {
-            int row = safeSlot / 8;
-            double angle = Math.PI * ((safeSlot % 8) + 0.5) / 8.0;
-            double radius = 2.20 + row * 1.25;
-            return new FormationOffset(
-                    Math.cos(angle) * radius,
-                    Math.sin(angle) * radius + 0.35,
-                    1.85 + row * 0.30);
-        }
+        return formationOffset(slot, MAX_BLADES);
+    }
 
-        int extra = safeSlot - 24;
-        int row = extra / 16;
-        int column = extra % 16;
-        double angle = Math.PI * (column + 0.5) / 16.0;
-        double radius = 5.95 + row * 1.25;
+    /**
+     * 同心半円を8/16/24/32/40本で構成し、外周でも刀間隔をほぼ一定にする。
+     * 在庫不足の場合も最後の段を実本数で等角配置し、片側だけに刀を残さない。
+     */
+    public static FormationOffset formationOffset(int slot, int totalBlades) {
+        int total = Math.max(1, Math.min(MAX_BLADES, totalBlades));
+        int safeSlot = Math.max(0, Math.min(total - 1, slot));
+        int row = 0;
+        int start = 0;
+        int capacity = 8;
+        while (safeSlot >= start + capacity) {
+            start += capacity;
+            row++;
+            capacity = 8 * (row + 1);
+        }
+        int countInRow = Math.min(capacity, total - start);
+        double angle = Math.PI * (safeSlot - start + 0.5D) / countInRow;
+        double radius = 2.8D * (row + 1);
         return new FormationOffset(
                 Math.cos(angle) * radius,
-                Math.sin(angle) * radius + 0.35,
-                2.75 + row * 0.35);
+                Math.sin(angle) * radius + 0.35D,
+                1.85D + row * 0.35D);
     }
 
     /**

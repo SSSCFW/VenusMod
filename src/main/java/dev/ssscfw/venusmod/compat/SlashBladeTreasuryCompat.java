@@ -19,6 +19,24 @@ public final class SlashBladeTreasuryCompat {
 
     private SlashBladeTreasuryCompat() {}
 
+    public static boolean canLaunch(ItemStack stack) {
+        return remainingDurability(stack) > 0;
+    }
+
+    /** 折れた刀・API未対応は-1で除外する。正常な刀は残り耐久ポイントを返す。 */
+    public static int remainingDurability(ItemStack stack) {
+        if (stack == null || stack.isEmpty() || !SlashBladeEnchantmentCompat.isBlade(stack) || !resolve()) return -1;
+        try {
+            Object state = getBladeState(stack);
+            if (state == null || (boolean) isBrokenMethod.invoke(state)) return -1;
+            int damage = Math.max(0, ((Number) getDamageMethod.invoke(state)).intValue());
+            return Math.max(0, stack.getMaxDamage() - damage);
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException ignored) {
+            // 状態を判断できない刀は保護する。破損判定失敗を「正常」とは扱わない。
+            return -1;
+        }
+    }
+
     public static ItemStack damageOnePoint(ItemStack original) {
         ItemStack result = original == null ? ItemStack.EMPTY : original.copyWithCount(1);
         if (result.isEmpty() || !SlashBladeEnchantmentCompat.isBlade(result) || !resolve()) return result;

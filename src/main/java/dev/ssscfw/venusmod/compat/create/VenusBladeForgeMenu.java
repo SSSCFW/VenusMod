@@ -4,6 +4,7 @@ import dev.ssscfw.venusmod.compat.SlashBladeEnchantmentCompat;
 import dev.ssscfw.venusmod.upgrade.BladeUpgradeData;
 import dev.ssscfw.venusmod.upgrade.BladeUpgradeRules;
 import dev.ssscfw.venusmod.upgrade.BladeUpgradeType;
+import dev.ssscfw.venusmod.upgrade.ForgeScreenLayout;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -42,7 +43,7 @@ public final class VenusBladeForgeMenu extends AbstractContainerMenu {
         this.forge = forge;
 
         IItemHandler bladeHandler = forge == null ? new ItemStackHandler(1) : forge.getBladeHandler();
-        addSlot(new SlotItemHandler(bladeHandler, 0, 18, 42) {
+        addSlot(new SlotItemHandler(bladeHandler, 0, ForgeScreenLayout.BLADE_X, ForgeScreenLayout.BLADE_Y) {
             @Override public boolean mayPlace(ItemStack stack) {
                 return SlashBladeEnchantmentCompat.isBlade(stack);
             }
@@ -52,11 +53,11 @@ public final class VenusBladeForgeMenu extends AbstractContainerMenu {
         for (int row = 0; row < 3; row++) {
             for (int column = 0; column < 9; column++) {
                 addSlot(new Slot(inventory, column + row * 9 + 9,
-                        34 + column * 18, 132 + row * 18));
+                        ForgeScreenLayout.INVENTORY_X + column * 18, ForgeScreenLayout.INVENTORY_Y + row * 18));
             }
         }
         for (int column = 0; column < 9; column++) {
-            addSlot(new Slot(inventory, column, 34 + column * 18, 190));
+            addSlot(new Slot(inventory, column, ForgeScreenLayout.INVENTORY_X + column * 18, ForgeScreenLayout.HOTBAR_Y));
         }
 
         data = forge == null ? new SimpleContainerData(DATA_SIZE) : new ContainerData() {
