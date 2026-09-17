@@ -1,6 +1,7 @@
 package dev.ssscfw.venusmod.registry;
 
 import dev.ssscfw.venusmod.VenusMod;
+import dev.ssscfw.venusmod.treasure.KingsTreasure;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
@@ -31,6 +32,7 @@ public final class ModCreativeTabs {
                         output.accept(ModItems.NICKEL_INGOT.get());
                         output.accept(ModItems.NICKEL_NUGGET.get());
                         output.accept(ModItems.KING_TREASURY.get());
+                        output.accept(KingsTreasure.ITEM.get());
                         output.accept(ModItems.VENUS_ZOMBIE_SPAWN_EGG.get());
                         output.accept(ModItems.VENUS_SLASHBLADE_ZOMBIE_SPAWN_EGG.get());
                         output.accept(ModItems.VENUS_SKELETON_SPAWN_EGG.get());

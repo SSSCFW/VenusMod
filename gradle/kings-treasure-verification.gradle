@@ -1,0 +1,30 @@
+// 王の財宝の状態機械は、Minecraft非依存のJava検査を通常のcheckへ組み込む。
+def compileTreasureChecks = tasks.register('compileKingsTreasureChecks', JavaCompile) {
+    source = files('src/main/java/dev/ssscfw/venusmod/treasure/TreasureRules.java', 'tools/tests/TreasureRulesChecks.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('classes/kingsTreasureChecks')
+    javaCompiler = javaToolchains.compilerFor { languageVersion = JavaLanguageVersion.of(21) }
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+tasks.register('verifyKingsTreasureRules', JavaExec) {
+    dependsOn compileTreasureChecks
+    classpath compileTreasureChecks.flatMap { it.destinationDirectory }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'TreasureRulesChecks'
+}
+tasks.named('check') { dependsOn 'verifyKingsTreasureRules' }
+
+def assets = layout.buildDirectory.dir('generated/kingsTreasureAssets')
+tasks.register('generateKingsTreasureAssets', JavaExec) {
+    dependsOn 'compileVenusAssetGenerator'
+    classpath tasks.named('compileVenusAssetGenerator').flatMap { it.destinationDirectory }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'KingsTreasureAssets'
+    systemProperty 'java.awt.headless', 'true'
+    args assets.get().asFile.absolutePath
+    inputs.file('tools/java/KingsTreasureAssets.java')
+    outputs.dir assets
+}
+sourceSets.main.resources.srcDir assets
+tasks.named('processResources') { dependsOn 'generateKingsTreasureAssets' }

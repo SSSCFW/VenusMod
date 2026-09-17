@@ -12,6 +12,7 @@ import dev.ssscfw.venusmod.registry.ModEntities;
 import dev.ssscfw.venusmod.registry.ModItems;
 import dev.ssscfw.venusmod.registry.ModMenus;
 import dev.ssscfw.venusmod.world.VenusDimensionContent;
+import dev.ssscfw.venusmod.treasure.KingsTreasure;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -32,6 +33,7 @@ public final class VenusMod {
         ModCreativeTabs.CREATIVE_MODE_TABS.register(modBus);
         VenusDimensionContent.register(modBus);
         dev.ssscfw.venusmod.registry.VenusPhase2.register(modBus, modContainer);
+        KingsTreasure.register(modBus);
 
         modBus.addListener(ModEntities::registerAttributes);
         modBus.addListener(ModItems::addCreativeTabContents);

@@ -127,3 +127,4 @@ tasks.named('processResources') { dependsOn generateVenusAssets }
 
 apply from: 'gradle/venus-verification.gradle'
 apply from: 'gradle/treasury-verification.gradle'
+apply from: 'gradle/kings-treasure-verification.gradle'
