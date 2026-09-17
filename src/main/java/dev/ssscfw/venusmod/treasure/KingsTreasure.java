@@ -25,15 +25,12 @@ import net.minecraft.world.damagesource.DamageType;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Rarity;
 import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.common.NeoForge;
@@ -89,12 +86,22 @@ public final class KingsTreasure {
     /** クライアントからは操作だけ受け取り、所有者・在庫・照準・期限はサーバーで決定する。 */
     public static void request(ServerPlayer player, boolean fire) {
         if (!player.isAlive() || player.isSpectator() || !isHeld(player)) return;
-        if (fire) fire(player);
-        else if (player.isShiftKeyDown()) cancel(player.getUUID());
-        else prepare(player);
+        if (fire) {
+            fire(player);
+            return;
+        }
+
+        Formation existing = FORMATIONS.get(player.getUUID());
+        if (existing != null) {
+            // 展開済みのShift+右クリックは従来どおり収納。通常右クリックは何もしない。
+            if (player.isShiftKeyDown()) cancel(player.getUUID());
+            return;
+        }
+
+        prepare(player, TreasureRules.VolleyMode.forSummon(player.isShiftKeyDown()));
     }
 
-    private static void prepare(ServerPlayer player) {
+    private static void prepare(ServerPlayer player, TreasureRules.VolleyMode mode) {
         if (FORMATIONS.containsKey(player.getUUID()) || player.getCooldowns().isOnCooldown(ITEM.get())) return;
         player.getCooldowns().addCooldown(ITEM.get(), 10);
         List<TreasuryEntry> entries = KingsTreasurySavedData.get(player.serverLevel())
@@ -104,12 +111,15 @@ public final class KingsTreasure {
             player.displayClientMessage(Component.literal("王の宝物庫に抜刀剣が入っていません。"), true);
             return;
         }
+
+        Vec3 aimDirection = stableDirection(player.getLookAngle());
+        Vec3 aimOrigin = player.getEyePosition();
         List<RoyalBladeEntity> blades = new ArrayList<>();
         List<ItemStack> costs = new ArrayList<>();
         for (int slot = 0; slot < selected.size(); slot++) {
             ItemStack template = entries.get(selected.get(slot)).template();
             RoyalBladeEntity blade = new RoyalBladeEntity(BLADE.get(), player.level());
-            blade.stage(player, template, slot);
+            blade.stage(player, template, slot, aimDirection);
             if (player.serverLevel().addFreshEntity(blade)) {
                 blades.add(blade);
                 costs.add(template.copyWithCount(1));
@@ -118,13 +128,15 @@ public final class KingsTreasure {
             }
         }
         if (blades.isEmpty()) return;
+
         FORMATIONS.put(player.getUUID(), new Formation(
                 new TreasureRules.Wave(now(player)), player.level().dimension(),
-                List.copyOf(blades), copyStacks(costs)));
+                List.copyOf(blades), copyStacks(costs), mode, aimOrigin, aimDirection));
         player.level().playSound(null, player.blockPosition(), SoundEvents.BEACON_ACTIVATE,
                 SoundSource.PLAYERS, 0.65F, 1.5F);
+        String modeName = mode == TreasureRules.VolleyMode.PARALLEL ? "平行" : "中程度収束";
         player.displayClientMessage(Component.literal("王の財宝：" + blades.size()
-                + "本展開 / 左クリックで一斉射出（射出時に消費） / Shift＋右クリックで収納"), true);
+                + "本展開（" + modeName + "） / 左クリックで一斉射出（射出時に消費）"), true);
     }
 
     private static void fire(ServerPlayer player) {
@@ -148,20 +160,19 @@ public final class KingsTreasure {
             return;
         }
 
-        Vec3 start = player.getEyePosition();
-        Vec3 delta = player.getLookAngle().scale(TreasureRules.RANGE);
-        Vec3 target = player.level().clip(new ClipContext(start, start.add(delta),
-                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player)).getLocation();
-        EntityHitResult entityHit = ProjectileUtil.getEntityHitResult(player.level(), player, start, target,
-                player.getBoundingBox().expandTowards(delta).inflate(1),
-                entity -> RoyalBladeEntity.canDamage(player, entity));
-        if (entityHit != null) target = entityHit.getLocation();
+        // 射出方向は召喚時に固定した向きだけを使う。発射時にプレイヤーが振り向いても変わらない。
+        Vec3 focusPoint = formation.aimOrigin().add(
+                formation.aimDirection().scale(TreasureRules.CONVERGENCE_DISTANCE));
         for (RoyalBladeEntity blade : formation.blades()) {
-            blade.launch(target);
+            blade.launch(formation.aimDirection(), focusPoint, formation.mode().convergence());
         }
         player.getCooldowns().addCooldown(ITEM.get(), TreasureRules.COOLDOWN_TICKS);
         player.level().playSound(null, player.blockPosition(), SoundEvents.TRIDENT_THROW.value(),
                 SoundSource.PLAYERS, 1.0F, 0.75F);
+    }
+
+    private static Vec3 stableDirection(Vec3 direction) {
+        return direction.lengthSqr() < 1.0E-8D ? new Vec3(0.0D, 0.0D, 1.0D) : direction.normalize();
     }
 
     private static long now(ServerPlayer player) {
@@ -201,7 +212,8 @@ public final class KingsTreasure {
     }
 
     private record Formation(TreasureRules.Wave wave, ResourceKey<Level> dimension,
-                             List<RoyalBladeEntity> blades, List<ItemStack> costs) {
+                             List<RoyalBladeEntity> blades, List<ItemStack> costs,
+                             TreasureRules.VolleyMode mode, Vec3 aimOrigin, Vec3 aimDirection) {
         void close() {
             wave.cancel();
             blades.forEach(RoyalBladeEntity::discard);
@@ -229,8 +241,8 @@ public final class KingsTreasure {
         }
         @Override public void appendHoverText(ItemStack stack, TooltipContext context,
                                               List<Component> lines, TooltipFlag flag) {
-            lines.add(Component.literal("右クリック：展開 / 左クリック：一斉射出"));
-            lines.add(Component.literal("Shift＋右クリック：収納 / 60秒で自動収納"));
+            lines.add(Component.literal("右クリック：平行展開 / Shift＋右クリック：中程度収束展開"));
+            lines.add(Component.literal("左クリック：一斉射出 / 展開中Shift＋右クリック：収納"));
             lines.add(Component.literal("最大24本・射出時に宝物庫から消費・地形破壊なし"));
         }
     }
