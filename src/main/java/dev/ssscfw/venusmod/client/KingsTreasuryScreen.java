@@ -62,7 +62,7 @@ public final class KingsTreasuryScreen extends AbstractContainerScreen<KingsTrea
 
     @Override
     protected void renderLabels(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-        guiGraphics.drawString(font, title, 8, 6, 0xFFFFE2৭A, false);
+        guiGraphics.drawString(font, title, 8, 6, 0xFFFFE27A, false);
         guiGraphics.drawCenteredString(font,
                 Component.translatable("gui.venusmod.king_treasury.page", menu.getPage() + 1, menu.getPageCount()),
                 91, 6, 0xFFF4D36C);
