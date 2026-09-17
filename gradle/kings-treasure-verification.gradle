@@ -59,6 +59,40 @@ tasks.register('verifyKingsTreasureRenderDirection') {
 }
 tasks.named('check') { dependsOn 'verifyKingsTreasureRenderDirection' }
 
+// /give自動回収・F切替・翻訳・クールタイムなしの契約を固定する。
+tasks.register('verifyKingsTreasureInteractionContracts') {
+    group = 'verification'
+    description = 'Verify treasury collection, translations, F limit cycling, and no cooldown.'
+    notCompatibleWithConfigurationCache('Validation inspects project source files')
+    doLast {
+        def treasure = file('src/main/java/dev/ssscfw/venusmod/treasure/KingsTreasure.java').text
+        def client = file('src/main/java/dev/ssscfw/venusmod/client/KingsTreasureClient.java').text
+        def events = file('src/main/java/dev/ssscfw/venusmod/event/KingsTreasuryEvents.java').text
+        def mod = file('src/main/java/dev/ssscfw/venusmod/VenusMod.java').text
+        def saved = file('src/main/java/dev/ssscfw/venusmod/treasury/KingsTreasurySavedData.java').text
+        def ja = new groovy.json.JsonSlurper().parse(file('src/main/resources/assets/venusmod/lang/ja_jp.json'))
+        def en = new groovy.json.JsonSlurper().parse(file('src/main/resources/assets/venusmod/lang/en_us.json'))
+
+        if (treasure.contains('addCooldown(') || treasure.contains('isOnCooldown('))
+            throw new GradleException("King's Treasure must not use item cooldowns.")
+        if (!client.contains('keySwapOffhand.consumeClick()') || !client.contains('LimitAction'))
+            throw new GradleException('F/swap-offhand key must cycle the volley limit while holding King\'s Treasure.')
+        if (!events.contains('onPlayerTick(PlayerTickEvent.Post') || !events.contains('storage.autoCollect(player.getUUID())'))
+            throw new GradleException('/give inventory auto-collection must run only while auto-collect is enabled.')
+        if (!mod.contains('KingsTreasuryEvents::onPlayerTick'))
+            throw new GradleException('KingsTreasuryEvents inventory scan must be registered.')
+        if (!saved.contains('"VolleyLimit"') || !saved.contains('cycleVolleyLimit'))
+            throw new GradleException('Volley limit must be persisted per player.')
+        if (ja['item.venusmod.king_treasury'] != '王の宝物庫')
+            throw new GradleException('Japanese King Treasury item translation is missing.')
+        if (!en.containsKey('item.venusmod.king_treasury'))
+            throw new GradleException('English King Treasury item translation is missing.')
+
+        println "Verified King's Treasure interaction contracts."
+    }
+}
+tasks.named('check') { dependsOn 'verifyKingsTreasureInteractionContracts' }
+
 def assets = layout.buildDirectory.dir('generated/kingsTreasureAssets')
 tasks.register('generateKingsTreasureAssets', JavaExec) {
     dependsOn 'compileVenusAssetGenerator'
