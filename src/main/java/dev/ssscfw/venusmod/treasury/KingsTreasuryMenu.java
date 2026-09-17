@@ -18,7 +18,7 @@ import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * 王の宝物庫の54枠ページ式メニュー。宝物庫側のSlotは表示専用で、入出庫はサーバー側のクリック処理がSavedDataへ反映する。
+ * 王の宝物庫の54枠ページ式メニュー。宝物庫側のSlotは表示用で、入出庫はサーバー側のクリック処理がSavedDataへ反映する。
  */
 public final class KingsTreasuryMenu extends AbstractContainerMenu {
     public static final int TREASURY_SLOTS = TreasuryRules.PAGE_SIZE;
@@ -51,10 +51,9 @@ public final class KingsTreasuryMenu extends AbstractContainerMenu {
         for (int row = 0; row < 6; row++) {
             for (int column = 0; column < 9; column++) {
                 int slotIndex = column + row * 9;
-                addSlot(new Slot(display, slotIndex, 8 + column * 18, 18 + row * 18) {
-                    @Override public boolean mayPlace(ItemStack stack) { return false; }
-                    @Override public boolean mayPickup(Player player) { return false; }
-                });
+                // Client/server双方のclicked()で仮想スロットを先に横取りするため、
+                // 通常SlotとしておきGUI側がクリックを送信できるようにする。
+                addSlot(new Slot(display, slotIndex, 8 + column * 18, 18 + row * 18));
             }
         }
 
@@ -100,6 +99,7 @@ public final class KingsTreasuryMenu extends AbstractContainerMenu {
     @Override
     public void clicked(int slotId, int button, ClickType clickType, Player player) {
         if (slotId >= 0 && slotId < TREASURY_SLOTS) {
+            // 仮想スロットはクライアント予測で中身を変更しない。サーバーからの同期だけを受ける。
             if (player.level().isClientSide || storage == null || ownerId == null) return;
             if (clickType == ClickType.QUICK_MOVE) {
                 quickMoveStack(player, slotId);
@@ -143,6 +143,7 @@ public final class KingsTreasuryMenu extends AbstractContainerMenu {
             if (extracted.isEmpty()) return ItemStack.EMPTY;
             ItemStack result = extracted.copy();
             if (!player.getInventory().add(extracted)) {
+                // 取り出し先が満杯なら同じ刀を確実に戻す。
                 storage.insert(ownerId, result, 1);
                 refreshFromStorage();
                 return ItemStack.EMPTY;
@@ -153,7 +154,10 @@ public final class KingsTreasuryMenu extends AbstractContainerMenu {
 
         ItemStack stack = slot.getItem();
         ItemStack original = stack.copy();
-        if (SlashBladeEnchantmentCompat.isBlade(stack) && storage != null && ownerId != null && !player.level().isClientSide) {
+        if (SlashBladeEnchantmentCompat.isBlade(stack)) {
+            // Client側は予測移動せず、サーバーのSavedData処理結果を待つ。
+            if (player.level().isClientSide) return ItemStack.EMPTY;
+            if (storage == null || ownerId == null) return ItemStack.EMPTY;
             int accepted = storage.insert(ownerId, stack, stack.getCount());
             if (accepted > 0) {
                 stack.shrink(accepted);
