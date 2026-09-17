@@ -80,6 +80,35 @@ public final class KingsTreasurySavedData extends SavedData {
         return result;
     }
 
+    /**
+     * 要求された刀を全て確保できる場合だけ一括で消費する。
+     * 1本でも不足している場合は何も変更しないため、展開中のGUI操作でも部分消費にならない。
+     */
+    public boolean consumeAll(UUID playerId, List<ItemStack> requested) {
+        if (requested == null || requested.isEmpty()) return false;
+        PlayerTreasury treasury = players.get(playerId);
+        if (treasury == null || treasury.entries.isEmpty()) return false;
+
+        List<ItemStack> templates = new ArrayList<>(treasury.entries.size());
+        int[] counts = new int[treasury.entries.size()];
+        for (int i = 0; i < treasury.entries.size(); i++) {
+            StoredEntry entry = treasury.entries.get(i);
+            templates.add(entry.template);
+            counts[i] = entry.count;
+        }
+
+        int[] consumption = dev.ssscfw.venusmod.treasure.TreasureRules.planConsumption(
+                templates, counts, requested, ItemStack::isSameItemSameComponents);
+        if (consumption == null) return false;
+
+        for (int i = 0; i < consumption.length; i++) {
+            treasury.entries.get(i).count -= consumption[i];
+        }
+        treasury.entries.removeIf(entry -> entry.count <= 0);
+        setDirty();
+        return true;
+    }
+
     public List<TreasuryEntry> page(UUID playerId, int page, int pageSize) {
         PlayerTreasury treasury = players.get(playerId);
         if (treasury == null || pageSize <= 0) return List.of();

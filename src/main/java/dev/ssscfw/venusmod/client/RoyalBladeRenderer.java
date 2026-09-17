@@ -9,17 +9,15 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
-import net.minecraft.client.renderer.entity.ItemRenderer;
-import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.ItemDisplayContext;
 import org.joml.Matrix4f;
 
-/** 刀本来のItemRendererと自前の発光円環を組み合わせる。Botaniaの画像/モデルは使用しない。 */
+/** SlashBladeの刀身OBJと自前の発光円環だけを描画し、鞘・アイコン表示は使わない。 */
 public final class RoyalBladeRenderer extends EntityRenderer<RoyalBladeEntity> {
-    private final ItemRenderer items;
-    public RoyalBladeRenderer(EntityRendererProvider.Context context) { super(context); items = context.getItemRenderer(); }
+    public RoyalBladeRenderer(EntityRendererProvider.Context context) {
+        super(context);
+    }
 
     @Override public void render(RoyalBladeEntity blade, float yaw, float partialTick, PoseStack pose,
                                  MultiBufferSource buffers, int light) {
@@ -41,9 +39,8 @@ public final class RoyalBladeRenderer extends EntityRenderer<RoyalBladeEntity> {
         pose.translate(0, 0, -0.35);
         pose.mulPose(Axis.XP.rotationDegrees(-90));
         pose.mulPose(Axis.ZP.rotationDegrees(45));
-        pose.scale(1.5F, 1.5F, 1.5F);
-        items.renderStatic(blade.blade(), ItemDisplayContext.FIXED, LightTexture.FULL_BRIGHT,
-                OverlayTexture.NO_OVERLAY, pose, buffers, blade.level(), blade.getId());
+        SlashBladeNakedRenderCompat.render(
+                blade.blade(), pose, buffers, LightTexture.FULL_BRIGHT);
         pose.popPose();
         super.render(blade, yaw, partialTick, pose, buffers, light);
     }
@@ -58,9 +55,16 @@ public final class RoyalBladeRenderer extends EntityRenderer<RoyalBladeEntity> {
             vertex(vertices, matrix, inner, b, alpha);
         }
     }
+
     private static void vertex(VertexConsumer consumer, Matrix4f matrix, float radius, double angle, int alpha) {
-        consumer.addVertex(matrix, (float) Math.cos(angle) * radius, (float) Math.sin(angle) * radius, 0.15F)
+        consumer.addVertex(matrix,
+                        (float) Math.cos(angle) * radius,
+                        (float) Math.sin(angle) * radius,
+                        0.15F)
                 .setColor(255, 196, 48, alpha);
     }
-    @Override public ResourceLocation getTextureLocation(RoyalBladeEntity entity) { return TextureAtlas.LOCATION_BLOCKS; }
+
+    @Override public ResourceLocation getTextureLocation(RoyalBladeEntity entity) {
+        return TextureAtlas.LOCATION_BLOCKS;
+    }
 }

@@ -21,15 +21,17 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
-/** 実サーバー上の衝突・非破壊性・任意依存を検査する。描画の合格とは区別する。 */
+/** 実サーバー上の衝突・非破壊性・多段命中を検査する。描画の合格とは区別する。 */
 @GameTestHolder(VenusMod.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class KingsTreasureGameTests {
     @GameTest(template = "test/empty")
     public static void recipeAndOptionalDependencies(GameTestHelper helper) {
         helper.assertTrue(helper.getLevel().getRecipeManager().byKey(
-                ResourceLocation.fromNamespaceAndPath(VenusMod.MOD_ID, "kings_treasure")).isPresent(), "王の財宝レシピが未登録");
-        helper.assertTrue(KingsTreasure.ITEM.get().getDefaultInstance().getMaxStackSize() == 1, "キーは単独スタック");
+                ResourceLocation.fromNamespaceAndPath(VenusMod.MOD_ID, "kings_treasure")).isPresent(),
+                "王の財宝レシピが未登録");
+        helper.assertTrue(KingsTreasure.ITEM.get().getDefaultInstance().getMaxStackSize() == 1,
+                "キーは単独スタック");
         helper.succeed();
     }
 
@@ -41,13 +43,43 @@ public final class KingsTreasureGameTests {
         original.setDamageValue(7);
         RoyalBladeEntity blade = new RoyalBladeEntity(KingsTreasure.BLADE.get(), helper.getLevel());
         blade.stage(owner, original, 0);
-        helper.assertTrue(ItemStack.isSameItemSameComponents(original, blade.blade()), "全コンポーネントを引き継ぐ");
+        helper.assertTrue(ItemStack.isSameItemSameComponents(original, blade.blade()),
+                "全コンポーネントを引き継ぐ");
         original.setDamageValue(11);
         helper.assertTrue(blade.blade().getDamageValue() == 7, "原本から独立したコピー");
         helper.assertTrue(!blade.save(new CompoundTag()), "投影をワールド保存しない");
         helper.assertTrue(!RoyalBladeEntity.canDamage(owner, owner), "所有者への攻撃拒否");
         blade.discard();
-        helper.assertTrue(original.getCount() == 1 && original.getDamageValue() == 11, "収納時に原本を変更しない");
+        helper.assertTrue(original.getCount() == 1 && original.getDamageValue() == 11,
+                "収納時に原本を変更しない");
+        helper.succeed();
+    }
+
+    @GameTest(template = "test/empty", timeoutTicks = 20)
+    public static void stagedBladeStaysAtSummonPosition(GameTestHelper helper) {
+        Cow owner = cow(helper, new BlockPos(2, 2, 2));
+        RoyalBladeEntity blade = new RoyalBladeEntity(KingsTreasure.BLADE.get(), helper.getLevel());
+        blade.stage(owner, new ItemStack(Items.DIAMOND_SWORD), 0);
+        Vec3 staged = blade.position();
+        helper.getLevel().addFreshEntity(blade);
+        owner.setPos(owner.getX() + 5.0D, owner.getY(), owner.getZ() + 2.0D);
+        owner.setYRot(owner.getYRot() + 90.0F);
+        helper.runAfterDelay(2, () -> {
+            helper.assertTrue(blade.position().distanceToSqr(staged) < 1.0E-6D,
+                    "展開した刀は召喚座標からプレイヤーを追従しない");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "test/empty")
+    public static void stagedBladeSpacingIsExpanded(GameTestHelper helper) {
+        Cow owner = cow(helper, new BlockPos(2, 2, 2));
+        RoyalBladeEntity first = new RoyalBladeEntity(KingsTreasure.BLADE.get(), helper.getLevel());
+        RoyalBladeEntity second = new RoyalBladeEntity(KingsTreasure.BLADE.get(), helper.getLevel());
+        first.stage(owner, new ItemStack(Items.DIAMOND_SWORD), 0);
+        second.stage(owner, new ItemStack(Items.DIAMOND_SWORD), 1);
+        helper.assertTrue(first.position().distanceTo(second.position()) > 0.80D,
+                "隣接する刀の間隔が狭すぎる");
         helper.succeed();
     }
 
@@ -57,7 +89,8 @@ public final class KingsTreasureGameTests {
         Cow target = cow(helper, new BlockPos(4, 2, 2));
         helper.setBlock(new BlockPos(4, 1, 2), Blocks.TNT);
         Vec3 dropPos = target.position();
-        ItemEntity drop = new ItemEntity(helper.getLevel(), dropPos.x, dropPos.y, dropPos.z, new ItemStack(Items.DIAMOND));
+        ItemEntity drop = new ItemEntity(helper.getLevel(), dropPos.x, dropPos.y, dropPos.z,
+                new ItemStack(Items.DIAMOND));
         drop.setNoGravity(true);
         helper.getLevel().addFreshEntity(drop);
         RoyalBladeEntity blade = shoot(helper, owner, target.getBoundingBox().getCenter());
@@ -67,6 +100,19 @@ public final class KingsTreasureGameTests {
             helper.assertTrue(owner.getHealth() == owner.getMaxHealth(), "所有者を傷つけない");
             helper.assertBlockPresent(Blocks.TNT, new BlockPos(4, 1, 2));
             helper.assertTrue(drop.isAlive() && drop.getItem().is(Items.DIAMOND), "ドロップを破壊しない");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "test/empty", timeoutTicks = 40)
+    public static void simultaneousBladesIgnoreInvulnerabilityFrames(GameTestHelper helper) {
+        Cow owner = cow(helper, new BlockPos(1, 2, 2));
+        Cow target = cow(helper, new BlockPos(4, 2, 2));
+        shoot(helper, owner, target.getBoundingBox().getCenter());
+        shoot(helper, owner, target.getBoundingBox().getCenter());
+        helper.runAfterDelay(6, () -> {
+            helper.assertTrue(!target.isAlive() || target.getHealth() <= 0.0F,
+                    "2本同時命中が無敵時間で1ヒットに潰れている");
             helper.succeed();
         });
     }
@@ -101,6 +147,7 @@ public final class KingsTreasureGameTests {
         cow.setNoGravity(true);
         return cow;
     }
+
     private static RoyalBladeEntity shoot(GameTestHelper helper, Cow owner, Vec3 target) {
         RoyalBladeEntity blade = new RoyalBladeEntity(KingsTreasure.BLADE.get(), helper.getLevel());
         blade.stage(owner, new ItemStack(Items.DIAMOND_SWORD), 0);

@@ -20,7 +20,26 @@ public final class TreasureRulesChecks {
         check(TreasureRules.select(full).getLast() == 23, "多種の刀を優先");
         int[] counts = {2, 1};
         TreasureRules.select(counts);
-        check(java.util.Arrays.equals(counts, new int[]{2, 1}), "原本を消費しない");
+        check(java.util.Arrays.equals(counts, new int[]{2, 1}), "選択で原本を変更しない");
+
+        int[] consumeCounts = {2, 1};
+        int[] plan = TreasureRules.planConsumption(
+                List.of("A", "B"), consumeCounts, List.of("A", "B", "A"), String::equals);
+        check(java.util.Arrays.equals(plan, new int[]{2, 1}), "同一刀を必要本数だけ計画する");
+        check(java.util.Arrays.equals(consumeCounts, new int[]{2, 1}), "消費計画時に原本カウントを変更しない");
+        check(TreasureRules.planConsumption(
+                List.of("A", "B"), new int[]{1, 1}, List.of("A", "A"), String::equals) == null,
+                "1本でも不足なら全体を拒否する");
+        check(java.util.Arrays.equals(TreasureRules.planConsumption(
+                List.of("A", "A"), new int[]{1, 2}, List.of("A", "A", "A"), String::equals),
+                new int[]{1, 2}), "同一論理刀が複数スタックに分かれていても消費できる");
+
+        var p0 = TreasureRules.formationOffset(0);
+        var p1 = TreasureRules.formationOffset(1);
+        double adjacent = Math.hypot(p0.right() - p1.right(), p0.up() - p1.up());
+        check(adjacent > 0.80D, "同じ段の刀間隔を広げる");
+        check(TreasureRules.formationOffset(8).back() > p0.back(), "後段を少し後ろへずらす");
+
         TreasureRules.Wave wave = new TreasureRules.Wave(100);
         check(!wave.expired(1299), "1分未満で収納しない");
         check(wave.expired(1300), "1200tickちょうどで期限切れ");

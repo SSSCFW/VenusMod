@@ -96,7 +96,6 @@ public final class KingsTreasure {
 
     private static void prepare(ServerPlayer player) {
         if (FORMATIONS.containsKey(player.getUUID()) || player.getCooldowns().isOnCooldown(ITEM.get())) return;
-        // 空の宝物庫への要求も制限する。再右クリックでは1分の期限を延長しない。
         player.getCooldowns().addCooldown(ITEM.get(), 10);
         List<TreasuryEntry> entries = KingsTreasurySavedData.get(player.serverLevel())
                 .page(player.getUUID(), 0, TreasureRules.MAX_BLADES);
@@ -106,20 +105,26 @@ public final class KingsTreasure {
             return;
         }
         List<RoyalBladeEntity> blades = new ArrayList<>();
+        List<ItemStack> costs = new ArrayList<>();
         for (int slot = 0; slot < selected.size(); slot++) {
+            ItemStack template = entries.get(selected.get(slot)).template();
             RoyalBladeEntity blade = new RoyalBladeEntity(BLADE.get(), player.level());
-            // 原本を取り出さない。表示・攻撃用のコピーからItemEntityを生成する処理も持たない。
-            blade.stage(player, entries.get(selected.get(slot)).template(), slot);
-            if (player.serverLevel().addFreshEntity(blade)) blades.add(blade);
-            else blade.discard();
+            blade.stage(player, template, slot);
+            if (player.serverLevel().addFreshEntity(blade)) {
+                blades.add(blade);
+                costs.add(template.copyWithCount(1));
+            } else {
+                blade.discard();
+            }
         }
         if (blades.isEmpty()) return;
-        FORMATIONS.put(player.getUUID(), new Formation(new TreasureRules.Wave(now(player)),
-                player.level().dimension(), List.copyOf(blades)));
+        FORMATIONS.put(player.getUUID(), new Formation(
+                new TreasureRules.Wave(now(player)), player.level().dimension(),
+                List.copyOf(blades), copyStacks(costs)));
         player.level().playSound(null, player.blockPosition(), SoundEvents.BEACON_ACTIVATE,
                 SoundSource.PLAYERS, 0.65F, 1.5F);
         player.displayClientMessage(Component.literal("王の財宝：" + blades.size()
-                + "本展開 / 左クリックで一斉射出 / Shift＋右クリックで収納"), true);
+                + "本展開 / 左クリックで一斉射出（射出時に消費） / Shift＋右クリックで収納"), true);
     }
 
     private static void fire(ServerPlayer player) {
@@ -129,6 +134,20 @@ public final class KingsTreasure {
             formation.close();
             return;
         }
+        if (formation.blades().size() != formation.costs().size()
+                || formation.blades().stream().anyMatch(
+                        blade -> blade.isRemoved() || blade.level() != player.level())) {
+            formation.close();
+            player.displayClientMessage(Component.literal("展開した刀が失われたため射出を中止しました。"), true);
+            return;
+        }
+
+        if (!KingsTreasurySavedData.get(player.serverLevel()).consumeAll(player.getUUID(), formation.costs())) {
+            formation.close();
+            player.displayClientMessage(Component.literal("王の宝物庫の刀が不足しているため射出を中止しました。"), true);
+            return;
+        }
+
         Vec3 start = player.getEyePosition();
         Vec3 delta = player.getLookAngle().scale(TreasureRules.RANGE);
         Vec3 target = player.level().clip(new ClipContext(start, start.add(delta),
@@ -138,14 +157,20 @@ public final class KingsTreasure {
                 entity -> RoyalBladeEntity.canDamage(player, entity));
         if (entityHit != null) target = entityHit.getLocation();
         for (RoyalBladeEntity blade : formation.blades()) {
-            if (!blade.isRemoved() && blade.level() == player.level()) blade.launch(target);
+            blade.launch(target);
         }
         player.getCooldowns().addCooldown(ITEM.get(), TreasureRules.COOLDOWN_TICKS);
         player.level().playSound(null, player.blockPosition(), SoundEvents.TRIDENT_THROW.value(),
                 SoundSource.PLAYERS, 1.0F, 0.75F);
     }
 
-    private static long now(ServerPlayer player) { return player.serverLevel().getServer().overworld().getGameTime(); }
+    private static long now(ServerPlayer player) {
+        return player.serverLevel().getServer().overworld().getGameTime();
+    }
+
+    private static List<ItemStack> copyStacks(List<ItemStack> stacks) {
+        return stacks.stream().map(stack -> stack.copyWithCount(1)).toList();
+    }
 
     private static void tick(PlayerTickEvent.Post event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
@@ -175,12 +200,17 @@ public final class KingsTreasure {
         if (event.getTabKey() == CreativeModeTabs.COMBAT) event.accept(ITEM);
     }
 
-    private record Formation(TreasureRules.Wave wave, ResourceKey<Level> dimension, List<RoyalBladeEntity> blades) {
-        void close() { wave.cancel(); blades.forEach(RoyalBladeEntity::discard); }
+    private record Formation(TreasureRules.Wave wave, ResourceKey<Level> dimension,
+                             List<RoyalBladeEntity> blades, List<ItemStack> costs) {
+        void close() {
+            wave.cancel();
+            blades.forEach(RoyalBladeEntity::discard);
+        }
     }
 
     public record Action(boolean fire) implements CustomPacketPayload {
-        public static final Type<Action> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(VenusMod.MOD_ID, "kings_treasure_action"));
+        public static final Type<Action> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(VenusMod.MOD_ID, "kings_treasure_action"));
         public static final StreamCodec<RegistryFriendlyByteBuf, Action> CODEC =
                 StreamCodec.composite(ByteBufCodecs.BOOL, Action::fire, Action::new);
         @Override public Type<Action> type() { return TYPE; }
@@ -197,10 +227,11 @@ public final class KingsTreasure {
             if (player instanceof ServerPlayer serverPlayer) request(serverPlayer, false);
             return InteractionResultHolder.sidedSuccess(player.getItemInHand(hand), level.isClientSide);
         }
-        @Override public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> lines, TooltipFlag flag) {
+        @Override public void appendHoverText(ItemStack stack, TooltipContext context,
+                                              List<Component> lines, TooltipFlag flag) {
             lines.add(Component.literal("右クリック：展開 / 左クリック：一斉射出"));
             lines.add(Component.literal("Shift＋右クリック：収納 / 60秒で自動収納"));
-            lines.add(Component.literal("最大24本・刀は消費しません・地形破壊なし"));
+            lines.add(Component.literal("最大24本・射出時に宝物庫から消費・地形破壊なし"));
         }
     }
 }

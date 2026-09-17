@@ -2,8 +2,9 @@ package dev.ssscfw.venusmod.treasure;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiPredicate;
 
-/** 宝物庫の本数と射出状態だけを扱う、Minecraft非依存の規則。 */
+/** 宝物庫の本数・配置・射出状態だけを扱う、Minecraft非依存の規則。 */
 public final class TreasureRules {
     public static final int MAX_BLADES = 24;
     public static final int PREPARE_TICKS = 20 * 60;
@@ -30,6 +31,46 @@ public final class TreasureRules {
             if (!added) break;
         }
         return List.copyOf(result);
+    }
+
+    public record FormationOffset(double right, double up, double back) {}
+
+    /** 8本×3段の半円。旧配置より約1.5倍広げて刀同士の重なりを減らす。 */
+    public static FormationOffset formationOffset(int slot) {
+        int safeSlot = Math.max(0, Math.min(MAX_BLADES - 1, slot));
+        int row = safeSlot / 8;
+        double angle = Math.PI * ((safeSlot % 8) + 0.5) / 8.0;
+        double radius = 2.20 + row * 1.25;
+        return new FormationOffset(
+                Math.cos(angle) * radius,
+                Math.sin(angle) * radius + 0.35,
+                1.85 + row * 0.30);
+    }
+
+    /**
+     * 要求されたキーを全て確保できる場合だけ各在庫スロットの消費数を返す。
+     * 不足時はnullを返し、availableCounts自体は一切変更しない。
+     */
+    public static <T> int[] planConsumption(List<T> availableKeys, int[] availableCounts,
+                                            List<T> requestedKeys, BiPredicate<T, T> same) {
+        if (availableKeys == null || availableCounts == null || requestedKeys == null || same == null
+                || availableKeys.size() != availableCounts.length) {
+            return null;
+        }
+        int[] remaining = availableCounts.clone();
+        int[] consumed = new int[availableCounts.length];
+        for (T requested : requestedKeys) {
+            boolean found = false;
+            for (int i = 0; i < availableKeys.size(); i++) {
+                if (remaining[i] <= 0 || !same.test(availableKeys.get(i), requested)) continue;
+                remaining[i]--;
+                consumed[i]++;
+                found = true;
+                break;
+            }
+            if (!found) return null;
+        }
+        return consumed;
     }
 
     public static boolean validAge(long created, long now) {
