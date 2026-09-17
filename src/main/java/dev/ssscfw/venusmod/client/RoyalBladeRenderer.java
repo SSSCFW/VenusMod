@@ -23,6 +23,7 @@ public final class RoyalBladeRenderer extends EntityRenderer<RoyalBladeEntity> {
                                  MultiBufferSource buffers, int light) {
         if (blade.blade().isEmpty()) return;
         pose.pushPose();
+        // Entityの+Zを召喚時に固定した射出方向へ向ける。
         pose.mulPose(Axis.YP.rotationDegrees(180 - blade.getYRot()));
         pose.mulPose(Axis.XP.rotationDegrees(-blade.getXRot()));
         if (!blade.launched()) {
@@ -36,23 +37,39 @@ public final class RoyalBladeRenderer extends EntityRenderer<RoyalBladeEntity> {
             ring(vertices, pose.last().pose(), 0.43F, 0.45F, 130);
             pose.popPose();
         }
+
         pose.translate(0, 0, -0.35);
-        pose.mulPose(Axis.XP.rotationDegrees(-90));
-        pose.mulPose(Axis.ZP.rotationDegrees(45));
+        // SlashBlade標準OBJの刀身は負のX方向へ先端が伸びる。
+        // +90° Y回転で負XをEntityの+Z（射出方向）へ合わせる。
+        pose.mulPose(Axis.YP.rotationDegrees(90.0F));
         SlashBladeNakedRenderCompat.render(
                 blade.blade(), pose, buffers, LightTexture.FULL_BRIGHT);
         pose.popPose();
         super.render(blade, yaw, partialTick, pose, buffers, light);
     }
 
+    /** 表裏両方の頂点順を出し、リングを正面・背面どちらから見ても表示する。 */
     private static void ring(VertexConsumer vertices, Matrix4f matrix, float inner, float outer, int alpha) {
         for (int segment = 0; segment < 48; segment++) {
             double a = segment * Math.PI * 2 / 48;
             double b = (segment + 1) * Math.PI * 2 / 48;
+            quad(vertices, matrix, inner, outer, a, b, alpha, false);
+            quad(vertices, matrix, inner, outer, a, b, alpha, true);
+        }
+    }
+
+    private static void quad(VertexConsumer vertices, Matrix4f matrix, float inner, float outer,
+                             double a, double b, int alpha, boolean reverse) {
+        if (!reverse) {
             vertex(vertices, matrix, inner, a, alpha);
             vertex(vertices, matrix, outer, a, alpha);
             vertex(vertices, matrix, outer, b, alpha);
             vertex(vertices, matrix, inner, b, alpha);
+        } else {
+            vertex(vertices, matrix, inner, b, alpha);
+            vertex(vertices, matrix, outer, b, alpha);
+            vertex(vertices, matrix, outer, a, alpha);
+            vertex(vertices, matrix, inner, a, alpha);
         }
     }
 
