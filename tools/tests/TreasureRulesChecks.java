@@ -52,6 +52,23 @@ public final class TreasureRulesChecks {
         check(TreasureRules.CONVERGENCE_DISTANCE >= 20.0D,
                 "収束焦点を近づけすぎない");
 
+        check(TreasureRules.keepPrepared(true, false, true, false, false),
+                "王の財宝を持っていなくても展開状態を維持できる条件");
+        check(!TreasureRules.keepPrepared(false, false, true, false, false), "死亡時は解除");
+        check(!TreasureRules.keepPrepared(true, true, true, false, false), "観戦時は解除");
+        check(!TreasureRules.keepPrepared(true, false, false, false, false), "ディメンション変更時は解除");
+        check(!TreasureRules.keepPrepared(true, false, true, true, false), "期限切れ時は解除");
+        check(!TreasureRules.keepPrepared(true, false, true, false, true), "全投影消失時は解除");
+
+        var fresh = TreasureRules.useOneDurability(0, 40, false);
+        check(fresh.damage() == 1 && !fresh.broken(), "射出で耐久を1消費");
+        var middle = TreasureRules.useOneDurability(10, 40, false);
+        check(middle.damage() == 11 && !middle.broken(), "既存ダメージから1だけ増加");
+        var last = TreasureRules.useOneDurability(39, 40, false);
+        check(last.damage() == 39 && last.broken(), "最後の1耐久で消失せず折れ状態へ移行");
+        var broken = TreasureRules.useOneDurability(39, 40, true);
+        check(broken.damage() == 39 && broken.broken(), "既に折れた刀をさらに壊さない");
+
         TreasureRules.Wave wave = new TreasureRules.Wave(100);
         check(!wave.expired(1299), "1分未満で収納しない");
         check(wave.expired(1300), "1200tickちょうどで期限切れ");
