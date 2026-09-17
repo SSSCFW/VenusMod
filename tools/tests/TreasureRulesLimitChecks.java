@@ -40,7 +40,7 @@ public final class TreasureRulesLimitChecks {
                 start += size;
             }
         }
-        check(TreasureRules.EXPLOSION_VOLUME == 32.0F, "爆発音の遠距離係数");
+        check(TreasureRules.EXPLOSION_VOLUME == 2.0F, "爆発音量は2F");
         System.out.println("TreasureRulesLimitChecks: " + checks + " passed");
     }
 }

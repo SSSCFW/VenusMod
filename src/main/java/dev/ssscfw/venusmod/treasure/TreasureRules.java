@@ -10,7 +10,7 @@ public final class TreasureRules {
     public static final int DEFAULT_VOLLEY_LIMIT = 24;
     // 8・16・24・32・40本の半円を1段ずつ完成させる累積本数。
     private static final int[] VOLLEY_LIMITS = {8, 24, 48, 80, 120};
-    public static final float EXPLOSION_VOLUME = 32.0F;
+    public static final float EXPLOSION_VOLUME = 2.0F;
     public static final int PREPARE_TICKS = 20 * 60;
     public static final int FLIGHT_TICKS = 80;
     public static final double SPEED = 2.8;
