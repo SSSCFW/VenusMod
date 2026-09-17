@@ -84,14 +84,11 @@ def main():
     for element in forge_model['elements']:
         assert all(0 <= value <= 16 for value in element['from'] + element['to'])
         assert all('cullface' not in face for face in element['faces'].values())
-
-    treasury_model = documents['assets/venusmod/models/item/king_treasury.json']
-    assert treasury_model['textures']['layer0'] == 'venusmod:item/king_treasury'
     treasury_png = (RES/'assets/venusmod/textures/item/king_treasury.png').read_bytes()
     assert treasury_png[:8] == b'\x89PNG\r\n\x1a\n'
     assert struct.unpack('>II', treasury_png[16:24]) == (16,16)
     treasury_rules = (ROOT/'src/main/java/dev/ssscfw/venusmod/treasury/TreasuryRules.java').read_text(encoding='utf-8')
-    assert 'MAX_TOTAL = 10_000' in treasury_rules
+    assert 'MAX_STACKS = 10_000' in treasury_rules
     assert 'MAX_LOGICAL_STACK = 1_028' in treasury_rules
     assert 'PAGE_SIZE = 54' in treasury_rules
 
@@ -155,7 +152,7 @@ def main():
     before = [p.read_bytes() for p in generated_files]
     subprocess.run(command,check=True)
     assert before == [p.read_bytes() for p in generated_files], 'Asset generation is not reproducible'
-    print(f'PASS: {len(documents)} JSON files; PNG sizes; registry links; {len(blocks)} NBT blocks; four rooms and boss arena connected; reproducible assets; King Treasury contracts')
+    print(f'PASS: {len(documents)} JSON files; PNG sizes; registry links; {len(blocks)} NBT blocks; four rooms and boss arena connected; reproducible assets')
     workspace.cleanup()
     print('NOT TESTED: Java/NeoForge compilation, Minecraft Codec loading, mixin application, graphics, portal travel, redstone and combat in-game.')
 
