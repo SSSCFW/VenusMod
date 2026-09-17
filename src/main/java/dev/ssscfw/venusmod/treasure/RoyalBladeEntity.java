@@ -47,38 +47,73 @@ public final class RoyalBladeEntity extends Projectile {
     public boolean launched() { return entityData.get(LAUNCHED); }
 
     public void stage(LivingEntity owner, ItemStack template, int slot) {
+        stage(owner, template, slot, owner.getLookAngle());
+    }
+
+    public void stage(LivingEntity owner, ItemStack template, int slot, Vec3 summonDirection) {
         setOwner(owner);
         entityData.set(BLADE, template.copyWithCount(1));
         formationSlot = Math.max(0, Math.min(TreasureRules.MAX_BLADES - 1, slot));
         setNoGravity(true);
         setDeltaMovement(Vec3.ZERO);
-        placeAtSummon(owner);
+        Vec3 direction = safeDirection(summonDirection, owner.getLookAngle());
+        placeAtSummon(owner, direction);
+        setAimRotation(direction);
     }
 
+    /** 既存GameTest等で一点へ直接飛ばすための互換入口。 */
     public void launch(Vec3 target) {
+        Vec3 toTarget = target.subtract(position());
+        launch(toTarget, target, 1.0D);
+    }
+
+    /**
+     * 平行方向と収束焦点を混ぜて射出する。convergence=0なら完全平行、1なら焦点へ完全収束。
+     * 王の財宝本体は0または中程度値だけを渡す。
+     */
+    public void launch(Vec3 parallelDirection, Vec3 focusPoint, double convergence) {
         if (launched() || isRemoved()) return;
-        Vec3 direction = target.subtract(position()).normalize();
-        if (direction.lengthSqr() < 1.0E-6) {
-            direction = getOwner() == null ? new Vec3(0, 0, 1) : getOwner().getLookAngle();
-        }
+        Vec3 parallel = safeDirection(
+                parallelDirection, getOwner() == null ? Vec3.ZERO : getOwner().getLookAngle());
+        Vec3 towardFocus = focusPoint == null ? parallel : focusPoint.subtract(position());
+        towardFocus = safeDirection(towardFocus, parallel);
+        double factor = Math.max(0.0D, Math.min(1.0D, convergence));
+        Vec3 direction = parallel.scale(1.0D - factor).add(towardFocus.scale(factor));
+        direction = safeDirection(direction, parallel);
         entityData.set(LAUNCHED, true);
         shoot(direction.x, direction.y, direction.z, (float) TreasureRules.SPEED, 0);
+        setAimRotation(direction);
         flightTicks = 0;
     }
 
     /** 展開した瞬間だけ所有者の姿勢から座標を決め、以後はプレイヤーを追従しない。 */
-    private void placeAtSummon(LivingEntity owner) {
-        double yaw = Math.toRadians(owner.getYRot());
-        Vec3 forward = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
-        Vec3 right = new Vec3(Math.cos(yaw), 0, Math.sin(yaw));
+    private void placeAtSummon(LivingEntity owner, Vec3 summonDirection) {
+        Vec3 horizontal = new Vec3(summonDirection.x, 0.0D, summonDirection.z);
+        if (horizontal.lengthSqr() < 1.0E-8D) {
+            double yaw = Math.toRadians(owner.getYRot());
+            horizontal = new Vec3(-Math.sin(yaw), 0.0D, Math.cos(yaw));
+        }
+        Vec3 forward = horizontal.normalize();
+        Vec3 right = new Vec3(forward.z, 0.0D, -forward.x);
         TreasureRules.FormationOffset offset = TreasureRules.formationOffset(formationSlot);
         Vec3 summonPosition = owner.getEyePosition()
                 .subtract(forward.scale(offset.back()))
                 .add(right.scale(offset.right()))
                 .add(0, offset.up(), 0);
         setPos(summonPosition);
-        setYRot(owner.getYRot());
-        setXRot(owner.getXRot());
+    }
+
+    private void setAimRotation(Vec3 direction) {
+        Vec3 normalized = safeDirection(direction, new Vec3(0.0D, 0.0D, 1.0D));
+        double horizontal = Math.sqrt(normalized.x * normalized.x + normalized.z * normalized.z);
+        setYRot((float) Math.toDegrees(Math.atan2(-normalized.x, normalized.z)));
+        setXRot((float) Math.toDegrees(-Math.atan2(normalized.y, horizontal)));
+    }
+
+    private static Vec3 safeDirection(Vec3 direction, Vec3 fallback) {
+        if (direction != null && direction.lengthSqr() >= 1.0E-8D) return direction.normalize();
+        if (fallback != null && fallback.lengthSqr() >= 1.0E-8D) return fallback.normalize();
+        return new Vec3(0.0D, 0.0D, 1.0D);
     }
 
     @Override public void tick() {
