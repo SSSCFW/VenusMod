@@ -126,3 +126,4 @@ sourceSets.main.resources.srcDir generatedVenusAssets
 tasks.named('processResources') { dependsOn generateVenusAssets }
 
 apply from: 'gradle/venus-verification.gradle'
+apply from: 'gradle/treasury-verification.gradle'
