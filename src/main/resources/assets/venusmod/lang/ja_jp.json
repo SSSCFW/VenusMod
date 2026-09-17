@@ -16,7 +16,6 @@
   "item.venusmod.raw_nickel": "ニッケル原石",
   "item.venusmod.nickel_ingot": "ニッケルインゴット",
   "item.venusmod.nickel_nugget": "ニッケル塊",
-  "item.venusmod.king_treasury": "王の宝物庫",
   "block.venusmod.nickel_ore": "ニッケル鉱石",
   "block.venusmod.deepslate_nickel_ore": "深層ニッケル鉱石",
   "block.venusmod.diamond_hopper": "ダイヤモンドホッパー",
@@ -99,7 +98,7 @@
   "message.venusmod.king_treasury_auto_on": "王の宝物庫: 刀の自動回収 ON",
   "message.venusmod.king_treasury_auto_off": "王の宝物庫: 刀の自動回収 OFF",
   "gui.venusmod.king_treasury.page": "%s / %s ページ",
-  "gui.venusmod.king_treasury.total": "収蔵 %s / 10000",
+  "gui.venusmod.king_treasury.total": "収蔵スタック %s / 10000",
   "gui.venusmod.king_treasury.auto_on": "自動回収: ON",
   "gui.venusmod.king_treasury.auto_off": "自動回収: OFF"
 }
