@@ -14,7 +14,7 @@ def compileTreasuryRulesTest = tasks.register('compileTreasuryRulesTest', JavaCo
 
 tasks.register('verifyTreasuryRules', JavaExec) {
     dependsOn compileTreasuryRulesTest
-    classpath treasuryTestClasses
+    classpath(compileTreasuryRulesTest.flatMap { it.destinationDirectory })
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
     mainClass = 'TreasuryRulesTest'
 }
