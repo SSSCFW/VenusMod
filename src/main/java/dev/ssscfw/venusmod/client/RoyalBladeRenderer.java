@@ -11,10 +11,16 @@ import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 /** SlashBladeの刀身OBJと自前の発光円環だけを描画し、鞘・アイコン表示は使わない。 */
 public final class RoyalBladeRenderer extends EntityRenderer<RoyalBladeEntity> {
+    /** SlashBlade標準OBJの刀身先端はローカル-X方向。 */
+    private static final Vector3f MODEL_TIP = new Vector3f(-1.0F, 0.0F, 0.0F);
+
     public RoyalBladeRenderer(EntityRendererProvider.Context context) {
         super(context);
     }
@@ -22,27 +28,36 @@ public final class RoyalBladeRenderer extends EntityRenderer<RoyalBladeEntity> {
     @Override public void render(RoyalBladeEntity blade, float yaw, float partialTick, PoseStack pose,
                                  MultiBufferSource buffers, int light) {
         if (blade.blade().isEmpty()) return;
+
+        Vec3 syncedDirection = blade.aimDirection();
+        Vector3f target = new Vector3f(
+                (float) syncedDirection.x, (float) syncedDirection.y, (float) syncedDirection.z);
+        if (target.lengthSquared() < 1.0E-8F) {
+            target.set(0.0F, 0.0F, 1.0F);
+        } else {
+            target.normalize();
+        }
+
         pose.pushPose();
-        // Minecraftの視線ベクトルは yaw=0 で +Z、正pitchで下向き。
-        // ローカル+ZをEntityに保存した召喚時/射出時の向きへそのまま合わせる。
-        pose.mulPose(Axis.YP.rotationDegrees(-blade.getYRot()));
-        pose.mulPose(Axis.XP.rotationDegrees(blade.getXRot()));
+        // yaw/pitchの符号規約へ変換し直さず、OBJの先端軸(-X)を同期済みの実方向へ直接合わせる。
+        Quaternionf alignment = new Quaternionf().rotationTo(MODEL_TIP, target);
+        pose.mulPose(alignment);
+
         if (!blade.launched()) {
             float age = blade.tickCount + partialTick;
             float scale = Math.min(1.0F, age / 8.0F);
             pose.pushPose();
             pose.scale(scale, scale, scale);
-            pose.mulPose(Axis.ZP.rotationDegrees(age * 1.5F));
+            // リングは刀身軸(-X)に直交するYZ平面。刀身と同じ軸の周りだけ回転させる。
+            pose.mulPose(Axis.XP.rotationDegrees(age * 1.5F));
             VertexConsumer vertices = buffers.getBuffer(RenderType.lightning());
             ring(vertices, pose.last().pose(), 0.56F, 0.64F, 190);
             ring(vertices, pose.last().pose(), 0.43F, 0.45F, 130);
             pose.popPose();
         }
 
-        pose.translate(0, 0, -0.35);
-        // SlashBlade標準OBJの刀身は負のX方向へ先端が伸びる。
-        // +90° Y回転で負Xをローカル+Z（射出方向）へ合わせる。
-        pose.mulPose(Axis.YP.rotationDegrees(90.0F));
+        // 旧実装の-Z 0.35移動と同じ見た目になるよう、-Xが前方の座標系では+Xへ退避する。
+        pose.translate(0.35F, 0.0F, 0.0F);
         SlashBladeNakedRenderCompat.render(
                 blade.blade(), pose, buffers, LightTexture.FULL_BRIGHT);
         pose.popPose();
@@ -76,9 +91,9 @@ public final class RoyalBladeRenderer extends EntityRenderer<RoyalBladeEntity> {
 
     private static void vertex(VertexConsumer consumer, Matrix4f matrix, float radius, double angle, int alpha) {
         consumer.addVertex(matrix,
+                        -0.15F,
                         (float) Math.cos(angle) * radius,
-                        (float) Math.sin(angle) * radius,
-                        0.15F)
+                        (float) Math.sin(angle) * radius)
                 .setColor(255, 196, 48, alpha);
     }
 

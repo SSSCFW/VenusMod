@@ -25,6 +25,7 @@ import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.EventHooks;
+import org.joml.Vector3f;
 
 /** 拾得・保存できない刀の投影。SlashBladeのクラスには直接リンクしない。 */
 public final class RoyalBladeEntity extends Projectile {
@@ -32,6 +33,8 @@ public final class RoyalBladeEntity extends Projectile {
             SynchedEntityData.defineId(RoyalBladeEntity.class, EntityDataSerializers.ITEM_STACK);
     private static final EntityDataAccessor<Boolean> LAUNCHED =
             SynchedEntityData.defineId(RoyalBladeEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Vector3f> AIM_DIRECTION =
+            SynchedEntityData.defineId(RoyalBladeEntity.class, EntityDataSerializers.VECTOR3);
     private int formationSlot;
     private int flightTicks;
 
@@ -42,9 +45,19 @@ public final class RoyalBladeEntity extends Projectile {
     @Override protected void defineSynchedData(SynchedEntityData.Builder builder) {
         builder.define(BLADE, ItemStack.EMPTY);
         builder.define(LAUNCHED, false);
+        builder.define(AIM_DIRECTION, new Vector3f(0.0F, 0.0F, 1.0F));
     }
+
     public ItemStack blade() { return entityData.get(BLADE); }
     public boolean launched() { return entityData.get(LAUNCHED); }
+
+    /** クライアント描画でも同じ向きを使うため、yaw/pitchではなく実方向を直接同期する。 */
+    public Vec3 aimDirection() {
+        Vector3f direction = entityData.get(AIM_DIRECTION);
+        return safeDirection(
+                new Vec3(direction.x(), direction.y(), direction.z()),
+                new Vec3(0.0D, 0.0D, 1.0D));
+    }
 
     public void stage(LivingEntity owner, ItemStack template, int slot) {
         stage(owner, template, slot, owner.getLookAngle());
@@ -57,6 +70,7 @@ public final class RoyalBladeEntity extends Projectile {
         setNoGravity(true);
         setDeltaMovement(Vec3.ZERO);
         Vec3 direction = safeDirection(summonDirection, owner.getLookAngle());
+        setAimDirection(direction);
         placeAtSummon(owner, direction);
         setAimRotation(direction);
     }
@@ -81,6 +95,7 @@ public final class RoyalBladeEntity extends Projectile {
         Vec3 direction = parallel.scale(1.0D - factor).add(towardFocus.scale(factor));
         direction = safeDirection(direction, parallel);
         entityData.set(LAUNCHED, true);
+        setAimDirection(direction);
         shoot(direction.x, direction.y, direction.z, (float) TreasureRules.SPEED, 0);
         setAimRotation(direction);
         flightTicks = 0;
@@ -103,6 +118,16 @@ public final class RoyalBladeEntity extends Projectile {
         setPos(summonPosition);
     }
 
+    private void setAimDirection(Vec3 direction) {
+        Vec3 normalized = safeDirection(direction, new Vec3(0.0D, 0.0D, 1.0D));
+        entityData.set(AIM_DIRECTION, new Vector3f(
+                (float) normalized.x, (float) normalized.y, (float) normalized.z));
+    }
+
+    /**
+     * 当たり判定やバニラのEntity補間用の回転値も維持する。
+     * 王の財宝の描画はこのyaw/pitchではなくAIM_DIRECTIONを直接使用する。
+     */
     private void setAimRotation(Vec3 direction) {
         Vec3 normalized = safeDirection(direction, new Vec3(0.0D, 0.0D, 1.0D));
         double horizontal = Math.sqrt(normalized.x * normalized.x + normalized.z * normalized.z);
@@ -202,6 +227,7 @@ public final class RoyalBladeEntity extends Projectile {
     @Override protected void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
     }
+
     @Override protected void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
         discard();

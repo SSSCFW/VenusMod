@@ -15,6 +15,38 @@ tasks.register('verifyKingsTreasureRules', JavaExec) {
 }
 tasks.named('check') { dependsOn 'verifyKingsTreasureRules' }
 
+// 過去にyaw/pitch変換だけで刀身方向を合わせようとして90度ずれが再発したため、
+// 実方向Vector3fを同期し、OBJの-X軸から直接rotationToする契約を固定する。
+tasks.register('verifyKingsTreasureRenderDirection') {
+    group = 'verification'
+    description = 'Verify royal blade rendering uses the synced direction vector directly.'
+    notCompatibleWithConfigurationCache('Validation inspects project source files')
+    doLast {
+        def entity = file('src/main/java/dev/ssscfw/venusmod/treasure/RoyalBladeEntity.java').text
+        def renderer = file('src/main/java/dev/ssscfw/venusmod/client/RoyalBladeRenderer.java').text
+
+        if (!entity.contains('EntityDataSerializers.VECTOR3'))
+            throw new GradleException('RoyalBladeEntity must sync the real aim direction with VECTOR3.')
+        if (!entity.contains('public Vec3 aimDirection()'))
+            throw new GradleException('RoyalBladeEntity must expose the synced aim direction.')
+        if (!entity.contains('setAimDirection(direction);'))
+            throw new GradleException('RoyalBladeEntity must update synced aim direction on stage/launch.')
+        if (!renderer.contains('blade.aimDirection()'))
+            throw new GradleException('RoyalBladeRenderer must consume the synced direction vector.')
+        if (!(renderer =~ /rotationTo\s*\(\s*MODEL_TIP\s*,\s*target\s*\)/))
+            throw new GradleException('RoyalBladeRenderer must rotate the OBJ tip axis directly to the target direction.')
+        if (renderer.contains('blade.getYRot()') || renderer.contains('blade.getXRot()'))
+            throw new GradleException('RoyalBladeRenderer must not reconstruct rendering direction from yaw/pitch.')
+        if (!renderer.contains('Axis.XP.rotationDegrees(age * 1.5F)'))
+            throw new GradleException('Royal blade rings must rotate around the blade axis.')
+        if (!(renderer =~ /addVertex\s*\(\s*matrix\s*,\s*-0\.15F\s*,/))
+            throw new GradleException('Royal blade rings must be drawn in the YZ plane, perpendicular to the blade axis.')
+
+        println "Verified King's Treasure direct-vector render direction contract."
+    }
+}
+tasks.named('check') { dependsOn 'verifyKingsTreasureRenderDirection' }
+
 def assets = layout.buildDirectory.dir('generated/kingsTreasureAssets')
 tasks.register('generateKingsTreasureAssets', JavaExec) {
     dependsOn 'compileVenusAssetGenerator'
