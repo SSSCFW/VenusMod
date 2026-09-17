@@ -33,33 +33,33 @@ public final class KingsTreasurySavedData extends SavedData {
         }
 
         PlayerTreasury treasury = treasury(playerId);
-        int total = totalCount(treasury);
-        int remainingTotal = Math.max(0, TreasuryRules.MAX_TOTAL - total);
         int remaining = Math.min(Math.max(0, requested), stack.getCount());
         int acceptedTotal = 0;
 
-        if (remaining <= 0 || remainingTotal <= 0) {
+        if (remaining <= 0) {
             return 0;
         }
 
+        // 既存の完全一致スタックに空きがある場合は、宝物庫が10000スタック使用済みでも追加入庫できる。
+        // 同一スタック内の本数は容量カウントに影響しない。
         for (StoredEntry entry : treasury.entries) {
-            if (remaining <= 0 || remainingTotal <= 0) break;
+            if (remaining <= 0) break;
             if (!ItemStack.isSameItemSameComponents(entry.template, stack)) continue;
 
-            int accepted = TreasuryRules.acceptedIntoStack(entry.count, remaining, remainingTotal);
+            int accepted = TreasuryRules.acceptedIntoStack(entry.count, remaining);
             if (accepted <= 0) continue;
             entry.count += accepted;
             remaining -= accepted;
-            remainingTotal -= accepted;
             acceptedTotal += accepted;
         }
 
-        while (remaining > 0 && remainingTotal > 0) {
-            int accepted = TreasuryRules.acceptedIntoStack(0, remaining, remainingTotal);
+        // 既存スタックで収まりきらない分だけ新しい論理スタックを作る。
+        // 最大10000は「刀の総本数」ではなくこの論理スタック数に対する上限。
+        while (remaining > 0 && TreasuryRules.canCreateStack(treasury.entries.size())) {
+            int accepted = TreasuryRules.acceptedIntoStack(0, remaining);
             if (accepted <= 0) break;
             treasury.entries.add(new StoredEntry(stack.copyWithCount(1), accepted));
             remaining -= accepted;
-            remainingTotal -= accepted;
             acceptedTotal += accepted;
         }
 
@@ -95,9 +95,9 @@ public final class KingsTreasurySavedData extends SavedData {
         return List.copyOf(result);
     }
 
+    /** GUIの「収蔵数」は論理スタック数。×1028でも1として数える。 */
     public int totalCount(UUID playerId) {
-        PlayerTreasury treasury = players.get(playerId);
-        return treasury == null ? 0 : totalCount(treasury);
+        return entryCount(playerId);
     }
 
     public int entryCount(UUID playerId) {
@@ -127,12 +127,6 @@ public final class KingsTreasurySavedData extends SavedData {
         return players.computeIfAbsent(playerId, ignored -> new PlayerTreasury());
     }
 
-    private static int totalCount(PlayerTreasury treasury) {
-        int total = 0;
-        for (StoredEntry entry : treasury.entries) total += entry.count;
-        return Math.min(TreasuryRules.MAX_TOTAL, total);
-    }
-
     private static KingsTreasurySavedData load(CompoundTag tag, HolderLookup.Provider registries) {
         KingsTreasurySavedData data = new KingsTreasurySavedData();
         ListTag playerList = tag.getList("Players", Tag.TAG_COMPOUND);
@@ -144,18 +138,16 @@ public final class KingsTreasurySavedData extends SavedData {
             PlayerTreasury treasury = new PlayerTreasury();
             treasury.autoCollect = playerTag.getBoolean("AutoCollect");
 
-            int total = 0;
             ListTag entries = playerTag.getList("Entries", Tag.TAG_COMPOUND);
-            for (int entryIndex = 0; entryIndex < entries.size() && total < TreasuryRules.MAX_TOTAL; entryIndex++) {
+            for (int entryIndex = 0;
+                 entryIndex < entries.size() && TreasuryRules.canCreateStack(treasury.entries.size());
+                 entryIndex++) {
                 CompoundTag entryTag = entries.getCompound(entryIndex);
                 ItemStack stack = ItemStack.parseOptional(registries, entryTag.getCompound("Stack"));
                 if (stack.isEmpty() || !SlashBladeEnchantmentCompat.isBlade(stack)) continue;
 
                 int count = Math.max(1, Math.min(TreasuryRules.MAX_LOGICAL_STACK, entryTag.getInt("Count")));
-                count = Math.min(count, TreasuryRules.MAX_TOTAL - total);
-                if (count <= 0) break;
                 treasury.entries.add(new StoredEntry(stack.copyWithCount(1), count));
-                total += count;
             }
             data.players.put(playerId, treasury);
         }
