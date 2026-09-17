@@ -1,0 +1,24 @@
+// 王の宝物庫の容量契約だけはMinecraft依存なしで毎回のgradle checkから実行する。
+def treasuryTestClasses = layout.buildDirectory.dir('classes/treasuryRulesTest')
+
+def compileTreasuryRulesTest = tasks.register('compileTreasuryRulesTest', JavaCompile) {
+    source = files(
+            'src/main/java/dev/ssscfw/venusmod/treasury/TreasuryRules.java',
+            'tests/TreasuryRulesTest.java')
+    classpath = files()
+    destinationDirectory = treasuryTestClasses
+    javaCompiler = javaToolchains.compilerFor { languageVersion = JavaLanguageVersion.of(21) }
+    options.release = 21
+    options.encoding = 'UTF-8'
+}
+
+tasks.register('verifyTreasuryRules', JavaExec) {
+    dependsOn compileTreasuryRulesTest
+    classpath treasuryTestClasses
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'TreasuryRulesTest'
+}
+
+tasks.named('check') {
+    dependsOn 'verifyTreasuryRules'
+}
