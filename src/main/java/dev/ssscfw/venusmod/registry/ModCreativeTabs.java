@@ -30,6 +30,7 @@ public final class ModCreativeTabs {
                         output.accept(ModItems.RAW_NICKEL.get());
                         output.accept(ModItems.NICKEL_INGOT.get());
                         output.accept(ModItems.NICKEL_NUGGET.get());
+                        output.accept(ModItems.KING_TREASURY.get());
                         output.accept(ModItems.VENUS_ZOMBIE_SPAWN_EGG.get());
                         output.accept(ModItems.VENUS_SLASHBLADE_ZOMBIE_SPAWN_EGG.get());
                         output.accept(ModItems.VENUS_SKELETON_SPAWN_EGG.get());
