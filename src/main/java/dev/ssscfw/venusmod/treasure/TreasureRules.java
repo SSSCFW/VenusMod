@@ -132,6 +132,29 @@ public final class TreasureRules {
         return consumed;
     }
 
+    public record DurabilityUse(int damage, boolean broken) {}
+
+    /**
+     * 射出1回ぶんの耐久消費。最後の1耐久はアイテム消失ではなくSlashBladeの折れ状態へ移す。
+     * 既に折れている刀はそれ以上壊さず、その状態のまま宝物庫へ戻す。
+     */
+    public static DurabilityUse useOneDurability(int currentDamage, int maxDamage, boolean alreadyBroken) {
+        int max = Math.max(1, maxDamage);
+        int current = Math.max(0, Math.min(currentDamage, max - 1));
+        if (alreadyBroken) return new DurabilityUse(current, true);
+        if (current + 1 >= max) return new DurabilityUse(max - 1, true);
+        return new DurabilityUse(current + 1, false);
+    }
+
+    /**
+     * 展開中の刀は手に持つアイテムとは無関係に維持する。
+     * 死亡・観戦・ディメンション変更・期限切れ・全投影消失だけを解除条件にする。
+     */
+    public static boolean keepPrepared(boolean ownerAlive, boolean ownerSpectator,
+                                       boolean sameDimension, boolean expired, boolean allRemoved) {
+        return ownerAlive && !ownerSpectator && sameDimension && !expired && !allRemoved;
+    }
+
     public static boolean validAge(long created, long now) {
         return now >= created && now - created < PREPARE_TICKS;
     }
