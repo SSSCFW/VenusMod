@@ -18,7 +18,7 @@ public final class TreasureRules {
 
     public enum VolleyMode {
         PARALLEL(0.0D),
-        MEDIUM_CONVERGENCE(0.45D);
+        MEDIUM_CONVERGENCE(0.35D);
 
         private final double convergence;
 
