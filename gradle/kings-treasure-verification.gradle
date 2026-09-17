@@ -68,13 +68,15 @@ tasks.register('verifyKingsTreasureRenderDirection') {
 }
 tasks.named('check') { dependsOn 'verifyKingsTreasureRenderDirection' }
 
-// /giveだけを直接回収し、既存Inventoryを自動吸収しないことも含めた操作契約。
+// /give限定回収・F切替・持ち替え維持・射出後返却・遠距離パーティクルを固定する。
 tasks.register('verifyKingsTreasureInteractionContracts') {
     group = 'verification'
-    description = 'Verify treasury give-only capture, translations, F limit cycling, and no cooldown.'
+    description = 'Verify treasury give-only capture, persistent preparation, blade returns, particles, F cycling, and no cooldown.'
     notCompatibleWithConfigurationCache('Validation inspects project source files')
     doLast {
         def treasure = file('src/main/java/dev/ssscfw/venusmod/treasure/KingsTreasure.java').text
+        def entity = file('src/main/java/dev/ssscfw/venusmod/treasure/RoyalBladeEntity.java').text
+        def durability = file('src/main/java/dev/ssscfw/venusmod/compat/SlashBladeTreasuryCompat.java').text
         def client = file('src/main/java/dev/ssscfw/venusmod/client/KingsTreasureClient.java').text
         def events = file('src/main/java/dev/ssscfw/venusmod/event/KingsTreasuryEvents.java').text
         def mod = file('src/main/java/dev/ssscfw/venusmod/VenusMod.java').text
@@ -104,6 +106,33 @@ tasks.register('verifyKingsTreasureInteractionContracts') {
             throw new GradleException('/give capture must still require treasury auto-collect ON.')
         if (!mod.contains('KingsTreasuryEvents::onCommand') || !mod.contains('KingsTreasuryEvents::onPlayerTick'))
             throw new GradleException('KingsTreasuryEvents command/tick handlers must be registered.')
+
+        if (!treasure.contains('TreasureRules.keepPrepared('))
+            throw new GradleException('Prepared blades must use the held-item-independent lifecycle rule.')
+        int formationTick = treasure.indexOf('private static void tick(PlayerTickEvent.Post')
+        int cancelMethod = treasure.indexOf('private static void cancel(UUID owner)', formationTick)
+        if (formationTick < 0 || cancelMethod < 0)
+            throw new GradleException('King\'s Treasure formation tick handler is missing.')
+        def formationTickBody = treasure.substring(formationTick, cancelMethod)
+        if (formationTickBody.contains('!isHeld(player)'))
+            throw new GradleException('Switching away from King\'s Treasure must not cancel prepared blades.')
+
+        if (!treasure.contains('.clientTrackingRange(32)'))
+            throw new GradleException('Royal blade tracking range must remain extended for distant visuals.')
+        if (!entity.contains('sendParticles(viewer, particle, true'))
+            throw new GradleException('Royal blade particles must use forced long-distance packets.')
+        if (!entity.contains('FAR_PARTICLE_RANGE_SQR'))
+            throw new GradleException('Royal blade particles must keep an explicit far visibility range.')
+
+        if (!entity.contains('finishFlight(owner)') || !entity.contains('KingsTreasure.returnSpentBlade(player, blade())'))
+            throw new GradleException('Every normal fired-blade completion path must return the blade.')
+        if (!treasure.contains('SlashBladeTreasuryCompat.damageOnePoint(original)'))
+            throw new GradleException('Returned blades must lose exactly one durability use.')
+        if (!durability.contains('TreasureRules.useOneDurability(')
+                || !durability.contains('setBrokenMethod.invoke(state, use.broken())'))
+            throw new GradleException('SlashBlade return bridge must preserve broken blades instead of deleting them.')
+        if (!treasure.contains('storage.insert(player.getUUID(), returned, 1)'))
+            throw new GradleException('Spent blades must be reinserted into the owner UUID treasury.')
 
         if (!saved.contains('"VolleyLimit"') || !saved.contains('cycleVolleyLimit'))
             throw new GradleException('Volley limit must be persisted per player.')
