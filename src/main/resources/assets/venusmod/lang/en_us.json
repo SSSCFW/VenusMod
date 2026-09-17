@@ -16,6 +16,7 @@
   "item.venusmod.raw_nickel": "Raw Nickel",
   "item.venusmod.nickel_ingot": "Nickel Ingot",
   "item.venusmod.nickel_nugget": "Nickel Nugget",
+  "item.venusmod.king_treasury": "King Treasury",
   "block.venusmod.nickel_ore": "Nickel Ore",
   "block.venusmod.deepslate_nickel_ore": "Deepslate Nickel Ore",
   "block.venusmod.diamond_hopper": "Diamond Hopper",
@@ -92,5 +93,13 @@
   "message.venusmod.blade_upgrade_status": "%s Lv%s/%s → Lv%s | Pressure Alloy %s Nickel %s Venesite %s Sulfur %s | %s",
   "message.venusmod.blade_upgrade_status_max": "%s Lv%s/%s | MAX",
   "message.venusmod.blade_upgrade_soul_required": "Venus Soul Stone required",
-  "message.venusmod.blade_upgrade_soul_not_required": "No Soul Stone required"
+  "message.venusmod.blade_upgrade_soul_not_required": "No Soul Stone required",
+  "container.venusmod.king_treasury": "King Treasury",
+  "message.venusmod.king_treasury_requires_slashblade": "King Treasury requires SlashBlade Resharped.",
+  "message.venusmod.king_treasury_auto_on": "King Treasury: blade auto-collect ON",
+  "message.venusmod.king_treasury_auto_off": "King Treasury: blade auto-collect OFF",
+  "gui.venusmod.king_treasury.page": "Page %s / %s",
+  "gui.venusmod.king_treasury.total": "Stored %s / 10000",
+  "gui.venusmod.king_treasury.auto_on": "Auto-collect: ON",
+  "gui.venusmod.king_treasury.auto_off": "Auto-collect: OFF"
 }
