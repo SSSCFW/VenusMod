@@ -14,6 +14,26 @@ public final class TreasureRules {
     public static final double RANGE = 80;
     public static final double BLAST_RADIUS = 2.0;
     public static final float DAMAGE = 8.0F;
+    public static final double CONVERGENCE_DISTANCE = 32.0D;
+
+    public enum VolleyMode {
+        PARALLEL(0.0D),
+        MEDIUM_CONVERGENCE(0.45D);
+
+        private final double convergence;
+
+        VolleyMode(double convergence) {
+            this.convergence = convergence;
+        }
+
+        public double convergence() {
+            return convergence;
+        }
+
+        public static VolleyMode forSummon(boolean shiftDown) {
+            return shiftDown ? MEDIUM_CONVERGENCE : PARALLEL;
+        }
+    }
 
     private TreasureRules() {}
 
