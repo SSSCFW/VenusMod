@@ -53,6 +53,9 @@ public final class VenusMod {
         NeoForge.EVENT_BUS.addListener(BladeUpgradeEvents::onDamagePost);
         NeoForge.EVENT_BUS.addListener(BladeUpgradeEvents::onPlayerTick);
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, KingsTreasuryEvents::onItemPickup);
+        NeoForge.EVENT_BUS.addListener(KingsTreasuryEvents::onCommand);
         NeoForge.EVENT_BUS.addListener(KingsTreasuryEvents::onPlayerTick);
+        NeoForge.EVENT_BUS.addListener(KingsTreasuryEvents::onLogout);
+        NeoForge.EVENT_BUS.addListener(KingsTreasuryEvents::onServerStopped);
     }
 }
