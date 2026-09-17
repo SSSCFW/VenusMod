@@ -40,6 +40,18 @@ public final class TreasureRulesChecks {
         check(adjacent > 0.80D, "同じ段の刀間隔を広げる");
         check(TreasureRules.formationOffset(8).back() > p0.back(), "後段を少し後ろへずらす");
 
+        check(TreasureRules.VolleyMode.forSummon(false) == TreasureRules.VolleyMode.PARALLEL,
+                "通常召喚は平行射出");
+        check(TreasureRules.VolleyMode.forSummon(true) == TreasureRules.VolleyMode.MEDIUM_CONVERGENCE,
+                "Shift召喚は中程度収束");
+        check(TreasureRules.VolleyMode.PARALLEL.convergence() == 0.0D,
+                "平行射出は収束しない");
+        check(TreasureRules.VolleyMode.MEDIUM_CONVERGENCE.convergence() >= 0.35D
+                        && TreasureRules.VolleyMode.MEDIUM_CONVERGENCE.convergence() <= 0.65D,
+                "収束率を中程度に保つ");
+        check(TreasureRules.CONVERGENCE_DISTANCE >= 20.0D,
+                "収束焦点を近づけすぎない");
+
         TreasureRules.Wave wave = new TreasureRules.Wave(100);
         check(!wave.expired(1299), "1分未満で収納しない");
         check(wave.expired(1300), "1200tickちょうどで期限切れ");
