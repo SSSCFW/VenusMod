@@ -24,10 +24,7 @@ import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.phys.BlockHitResult;
 
-/**
- * 金星刀鍛錬機。
- * スニーク右クリックで項目を選び、通常右クリックで手に持った刀を1レベルだけ強化する。
- */
+/** 金星刀鍛錬機。右クリックでGUIを開き、刀スロット・強化項目・実行操作をGUI内で完結させる。 */
 public final class VenusBladeForgeBlock extends VenusMachineBlock implements IBE<VenusBladeForgeBlockEntity> {
     public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
     public static final EnumProperty<BladeUpgradeType> UPGRADE = EnumProperty.create("upgrade", BladeUpgradeType.class);
@@ -54,41 +51,36 @@ public final class VenusBladeForgeBlock extends VenusMachineBlock implements IBE
     }
     @Override public IRotate.SpeedLevel getMinimumRequiredSpeedLevel() { return IRotate.SpeedLevel.SLOW; }
 
-    @Override protected ItemInteractionResult useItemOn(ItemStack held, BlockState state, Level level, BlockPos pos,
-                                                        Player player, InteractionHand hand, BlockHitResult hit) {
-        if (!SlashBladeEnchantmentCompat.isBlade(held)) return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
-        if (player.isShiftKeyDown()) {
-            if (!level.isClientSide) cycleSelection(level, pos, state, player, held);
-            return ItemInteractionResult.SUCCESS;
+    @Override
+    protected ItemInteractionResult useItemOn(ItemStack held, BlockState state, Level level, BlockPos pos,
+                                              Player player, InteractionHand hand, BlockHitResult hit) {
+        // 抜刀剣を持っている場合は、その刀をGUIのスロットへ入れられるようGUIを開く。
+        // それ以外のアイテムはCreateのレンチ等の通常操作を阻害しない。
+        if (!SlashBladeEnchantmentCompat.isBlade(held)) {
+            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
-        if (level.isClientSide) return ItemInteractionResult.SUCCESS;
-        VenusBladeForgeBlockEntity forge = getBlockEntity(level, pos);
-        if (forge == null || !(player instanceof ServerPlayer serverPlayer)) return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
-        return forge.tryUpgrade(serverPlayer, held, state.getValue(UPGRADE))
-                ? ItemInteractionResult.SUCCESS : ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+        if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
+            openMenu(level, pos, serverPlayer);
+        }
+        return ItemInteractionResult.SUCCESS;
     }
 
-    @Override protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+    @Override
+    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos,
+                                               Player player, BlockHitResult hit) {
         if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
-            if (player.isShiftKeyDown()) {
-                cycleSelection(level, pos, state, player, player.getMainHandItem());
-            } else {
-                VenusBladeForgeBlockEntity forge = getBlockEntity(level, pos);
-                if (forge != null) forge.showStatus(serverPlayer, player.getMainHandItem(), state.getValue(UPGRADE));
-            }
+            openMenu(level, pos, serverPlayer);
         }
         return InteractionResult.sidedSuccess(level.isClientSide);
     }
 
-    private void cycleSelection(Level level, BlockPos pos, BlockState state, Player player, ItemStack blade) {
-        BladeUpgradeType next = state.getValue(UPGRADE).next();
-        level.setBlock(pos, state.setValue(UPGRADE, next), 3);
-        if (player instanceof ServerPlayer serverPlayer) {
-            VenusBladeForgeBlockEntity forge = getBlockEntity(level, pos);
-            if (forge != null) forge.showStatus(serverPlayer, blade, next);
-        }
+    private void openMenu(Level level, BlockPos pos, ServerPlayer player) {
+        VenusBladeForgeBlockEntity forge = getBlockEntity(level, pos);
+        if (forge != null) player.openMenu(forge);
     }
 
     @Override public Class<VenusBladeForgeBlockEntity> getBlockEntityClass() { return VenusBladeForgeBlockEntity.class; }
-    @Override public BlockEntityType<? extends VenusBladeForgeBlockEntity> getBlockEntityType() { return VenusCreateCompat.VENUS_BLADE_FORGE_BE.get(); }
+    @Override public BlockEntityType<? extends VenusBladeForgeBlockEntity> getBlockEntityType() {
+        return VenusCreateCompat.VENUS_BLADE_FORGE_BE.get();
+    }
 }

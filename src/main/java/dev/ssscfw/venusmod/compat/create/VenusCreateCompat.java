@@ -4,6 +4,8 @@ import com.simibubi.create.api.stress.BlockStressValues;
 import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.registry.ModCreativeTabs;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.world.flag.FeatureFlags;
+import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
@@ -26,6 +28,8 @@ public final class VenusCreateCompat {
     public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(VenusMod.MOD_ID);
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITY_TYPES =
             DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, VenusMod.MOD_ID);
+    public static final DeferredRegister<MenuType<?>> MENU_TYPES =
+            DeferredRegister.create(Registries.MENU, VenusMod.MOD_ID);
 
     public static final DeferredHolder<Block, BladeMachineBlock> BLADE_REPAIR_STATION =
             BLOCKS.register("blade_repair_station", () -> new BladeMachineBlock(
@@ -112,6 +116,11 @@ public final class VenusCreateCompat {
                             VenusBladeForgeBlockEntity::new,
                             VENUS_BLADE_FORGE.get()).build(null));
 
+    public static final DeferredHolder<MenuType<?>, MenuType<VenusBladeForgeMenu>>
+            VENUS_BLADE_FORGE_MENU = MENU_TYPES.register(
+                    "venus_blade_forge",
+                    () -> new MenuType<>(VenusBladeForgeMenu::new, FeatureFlags.DEFAULT_FLAGS));
+
     private VenusCreateCompat() {
     }
 
@@ -119,6 +128,7 @@ public final class VenusCreateCompat {
         BLOCKS.register(modBus);
         ITEMS.register(modBus);
         BLOCK_ENTITY_TYPES.register(modBus);
+        MENU_TYPES.register(modBus);
 
         modBus.addListener(VenusCreateCompat::registerCapabilities);
         modBus.addListener(VenusCreateCompat::addCreativeTabContents);

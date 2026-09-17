@@ -71,6 +71,44 @@ tasks.register('verifyMachineRendering') {
 }
 tasks.named('check') { dependsOn 'verifyMachineRendering' }
 
+// 金星刀鍛錬機が旧「手持ち右クリック強化」へ戻らないようGUI契約を固定する。
+tasks.register('verifyVenusBladeForgeGui') {
+    description = 'Verify Venus Blade Forge keeps its GUI, internal blade slot and screen registration.'
+    group = 'verification'
+    notCompatibleWithConfigurationCache('Validation inspects project source files')
+    doLast {
+        def block = file('src/main/java/dev/ssscfw/venusmod/compat/create/VenusBladeForgeBlock.java')
+        def blockEntity = file('src/main/java/dev/ssscfw/venusmod/compat/create/VenusBladeForgeBlockEntity.java')
+        def menu = file('src/main/java/dev/ssscfw/venusmod/compat/create/VenusBladeForgeMenu.java')
+        def screen = file('src/main/java/dev/ssscfw/venusmod/compat/create/client/VenusBladeForgeScreen.java')
+        def compat = file('src/main/java/dev/ssscfw/venusmod/compat/create/VenusCreateCompat.java')
+        def client = file('src/main/java/dev/ssscfw/venusmod/compat/create/client/VenusCreateClientCompat.java')
+
+        [block, blockEntity, menu, screen, compat, client].each {
+            if (!it.isFile()) throw new GradleException("Missing Venus Blade Forge GUI source: ${it}")
+        }
+        if (!block.text.contains('player.openMenu(forge)'))
+            throw new GradleException('Venus Blade Forge must open its menu on right click.')
+        if (block.text.contains('cycleSelection(') || block.text.contains('tryUpgrade(serverPlayer, held'))
+            throw new GradleException('Legacy direct right-click forge controls must not return.')
+        if (!blockEntity.text.contains('new ItemStackHandler(1)'))
+            throw new GradleException('Venus Blade Forge must persist one internal blade slot.')
+        if (!blockEntity.text.contains('ItemHelper.dropContents(level, worldPosition, bladeInv)'))
+            throw new GradleException('Stored blade must drop when the forge is destroyed.')
+        if (!menu.text.contains('BUTTON_UPGRADE') || !menu.text.contains('SlotItemHandler'))
+            throw new GradleException('Forge menu must expose blade slot and upgrade controls.')
+        if (!screen.text.contains('AbstractContainerScreen<VenusBladeForgeMenu>'))
+            throw new GradleException('Forge screen is not wired to its menu.')
+        if (!compat.text.contains('VENUS_BLADE_FORGE_MENU') || !compat.text.contains('MENU_TYPES.register(modBus)'))
+            throw new GradleException('Create compat must register the forge menu type.')
+        if (!client.text.contains('MenuScreens.register') || !client.text.contains('VenusBladeForgeScreen::new'))
+            throw new GradleException('Client compat must register the forge screen.')
+
+        println 'Verified Venus Blade Forge GUI contract.'
+    }
+}
+tasks.named('check') { dependsOn 'verifyVenusBladeForgeGui' }
+
 // 第二段階の素材・装備・レシピ・鉱石配置を生成する。
 def phase2Assets = layout.buildDirectory.dir('generated/phase2Assets')
 tasks.register('generatePhase2Assets', JavaExec) {
