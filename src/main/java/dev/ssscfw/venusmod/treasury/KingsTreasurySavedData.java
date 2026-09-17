@@ -1,6 +1,7 @@
 package dev.ssscfw.venusmod.treasury;
 
 import dev.ssscfw.venusmod.compat.SlashBladeEnchantmentCompat;
+import dev.ssscfw.venusmod.treasure.TreasureRules;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -40,8 +41,6 @@ public final class KingsTreasurySavedData extends SavedData {
             return 0;
         }
 
-        // 既存の完全一致スタックに空きがある場合は、宝物庫が10000スタック使用済みでも追加入庫できる。
-        // 同一スタック内の本数は容量カウントに影響しない。
         for (StoredEntry entry : treasury.entries) {
             if (remaining <= 0) break;
             if (!ItemStack.isSameItemSameComponents(entry.template, stack)) continue;
@@ -53,8 +52,6 @@ public final class KingsTreasurySavedData extends SavedData {
             acceptedTotal += accepted;
         }
 
-        // 既存スタックで収まりきらない分だけ新しい論理スタックを作る。
-        // 最大10000は「刀の総本数」ではなくこの論理スタック数に対する上限。
         while (remaining > 0 && TreasuryRules.canCreateStack(treasury.entries.size())) {
             int accepted = TreasuryRules.acceptedIntoStack(0, remaining);
             if (accepted <= 0) break;
@@ -80,10 +77,7 @@ public final class KingsTreasurySavedData extends SavedData {
         return result;
     }
 
-    /**
-     * 要求された刀を全て確保できる場合だけ一括で消費する。
-     * 1本でも不足している場合は何も変更しないため、展開中のGUI操作でも部分消費にならない。
-     */
+    /** 要求された刀を全て確保できる場合だけ一括で消費する。 */
     public boolean consumeAll(UUID playerId, List<ItemStack> requested) {
         if (requested == null || requested.isEmpty()) return false;
         PlayerTreasury treasury = players.get(playerId);
@@ -97,7 +91,7 @@ public final class KingsTreasurySavedData extends SavedData {
             counts[i] = entry.count;
         }
 
-        int[] consumption = dev.ssscfw.venusmod.treasure.TreasureRules.planConsumption(
+        int[] consumption = TreasureRules.planConsumption(
                 templates, counts, requested, ItemStack::isSameItemSameComponents);
         if (consumption == null) return false;
 
@@ -124,7 +118,6 @@ public final class KingsTreasurySavedData extends SavedData {
         return List.copyOf(result);
     }
 
-    /** GUIの「収蔵数」は論理スタック数。×1028でも1として数える。 */
     public int totalCount(UUID playerId) {
         return entryCount(playerId);
     }
@@ -152,6 +145,20 @@ public final class KingsTreasurySavedData extends SavedData {
         return treasury.autoCollect;
     }
 
+    public int volleyLimit(UUID playerId) {
+        PlayerTreasury treasury = players.get(playerId);
+        return treasury == null
+                ? TreasureRules.DEFAULT_VOLLEY_LIMIT
+                : TreasureRules.normalizeVolleyLimit(treasury.volleyLimit);
+    }
+
+    public int cycleVolleyLimit(UUID playerId) {
+        PlayerTreasury treasury = treasury(playerId);
+        treasury.volleyLimit = TreasureRules.nextVolleyLimit(treasury.volleyLimit);
+        setDirty();
+        return treasury.volleyLimit;
+    }
+
     private PlayerTreasury treasury(UUID playerId) {
         return players.computeIfAbsent(playerId, ignored -> new PlayerTreasury());
     }
@@ -166,6 +173,9 @@ public final class KingsTreasurySavedData extends SavedData {
             UUID playerId = playerTag.getUUID("Player");
             PlayerTreasury treasury = new PlayerTreasury();
             treasury.autoCollect = playerTag.getBoolean("AutoCollect");
+            if (playerTag.contains("VolleyLimit", Tag.TAG_INT)) {
+                treasury.volleyLimit = TreasureRules.normalizeVolleyLimit(playerTag.getInt("VolleyLimit"));
+            }
 
             ListTag entries = playerTag.getList("Entries", Tag.TAG_COMPOUND);
             for (int entryIndex = 0;
@@ -190,6 +200,7 @@ public final class KingsTreasurySavedData extends SavedData {
             CompoundTag playerTag = new CompoundTag();
             playerTag.putUUID("Player", playerId);
             playerTag.putBoolean("AutoCollect", treasury.autoCollect);
+            playerTag.putInt("VolleyLimit", TreasureRules.normalizeVolleyLimit(treasury.volleyLimit));
             ListTag entries = new ListTag();
             for (StoredEntry entry : treasury.entries) {
                 if (entry.template.isEmpty() || entry.count <= 0) continue;
@@ -208,6 +219,7 @@ public final class KingsTreasurySavedData extends SavedData {
     private static final class PlayerTreasury {
         private final List<StoredEntry> entries = new ArrayList<>();
         private boolean autoCollect;
+        private int volleyLimit = TreasureRules.DEFAULT_VOLLEY_LIMIT;
     }
 
     private static final class StoredEntry {
