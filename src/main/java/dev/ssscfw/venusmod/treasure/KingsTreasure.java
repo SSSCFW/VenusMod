@@ -77,9 +77,14 @@ public final class KingsTreasure {
     }
 
     private static void registerPayloads(RegisterPayloadHandlersEvent event) {
-        event.registrar("1").playToServer(Action.TYPE, Action.CODEC, (payload, context) ->
+        var registrar = event.registrar("1");
+        registrar.playToServer(Action.TYPE, Action.CODEC, (payload, context) ->
                 context.enqueueWork(() -> {
                     if (context.player() instanceof ServerPlayer player) request(player, payload.fire());
+                }));
+        registrar.playToServer(LimitAction.TYPE, LimitAction.CODEC, (payload, context) ->
+                context.enqueueWork(() -> {
+                    if (context.player() instanceof ServerPlayer player && payload.cycle()) cycleLimit(player);
                 }));
     }
 
@@ -93,7 +98,6 @@ public final class KingsTreasure {
 
         Formation existing = FORMATIONS.get(player.getUUID());
         if (existing != null) {
-            // 展開済みのShift+右クリックは従来どおり収納。通常右クリックは何もしない。
             if (player.isShiftKeyDown()) cancel(player.getUUID());
             return;
         }
@@ -101,12 +105,20 @@ public final class KingsTreasure {
         prepare(player, TreasureRules.VolleyMode.forSummon(player.isShiftKeyDown()));
     }
 
+    private static void cycleLimit(ServerPlayer player) {
+        if (!player.isAlive() || player.isSpectator() || !isHeld(player)) return;
+        int limit = KingsTreasurySavedData.get(player.serverLevel()).cycleVolleyLimit(player.getUUID());
+        player.displayClientMessage(Component.translatable("message.venusmod.kings_treasure_limit", limit), true);
+    }
+
     private static void prepare(ServerPlayer player, TreasureRules.VolleyMode mode) {
-        if (FORMATIONS.containsKey(player.getUUID()) || player.getCooldowns().isOnCooldown(ITEM.get())) return;
-        player.getCooldowns().addCooldown(ITEM.get(), 10);
-        List<TreasuryEntry> entries = KingsTreasurySavedData.get(player.serverLevel())
-                .page(player.getUUID(), 0, TreasureRules.MAX_BLADES);
-        List<Integer> selected = TreasureRules.select(entries.stream().mapToInt(TreasuryEntry::count).toArray());
+        if (FORMATIONS.containsKey(player.getUUID())) return;
+
+        KingsTreasurySavedData storage = KingsTreasurySavedData.get(player.serverLevel());
+        int limit = storage.volleyLimit(player.getUUID());
+        List<TreasuryEntry> entries = storage.page(player.getUUID(), 0, TreasureRules.MAX_BLADES);
+        List<Integer> selected = TreasureRules.select(
+                entries.stream().mapToInt(TreasuryEntry::count).toArray(), limit);
         if (selected.isEmpty()) {
             player.displayClientMessage(Component.literal("王の宝物庫に抜刀剣が入っていません。"), true);
             return;
@@ -135,7 +147,7 @@ public final class KingsTreasure {
         player.level().playSound(null, player.blockPosition(), SoundEvents.BEACON_ACTIVATE,
                 SoundSource.PLAYERS, 0.65F, 1.5F);
         String modeName = mode == TreasureRules.VolleyMode.PARALLEL ? "平行" : "中程度収束";
-        player.displayClientMessage(Component.literal("王の財宝：" + blades.size()
+        player.displayClientMessage(Component.literal("王の財宝：" + blades.size() + "/" + limit
                 + "本展開（" + modeName + "） / 左クリックで一斉射出（射出時に消費）"), true);
     }
 
@@ -160,13 +172,11 @@ public final class KingsTreasure {
             return;
         }
 
-        // 射出方向は召喚時に固定した向きだけを使う。発射時にプレイヤーが振り向いても変わらない。
         Vec3 focusPoint = formation.aimOrigin().add(
                 formation.aimDirection().scale(TreasureRules.CONVERGENCE_DISTANCE));
         for (RoyalBladeEntity blade : formation.blades()) {
             blade.launch(formation.aimDirection(), focusPoint, formation.mode().convergence());
         }
-        player.getCooldowns().addCooldown(ITEM.get(), TreasureRules.COOLDOWN_TICKS);
         player.level().playSound(null, player.blockPosition(), SoundEvents.TRIDENT_THROW.value(),
                 SoundSource.PLAYERS, 1.0F, 0.75F);
     }
@@ -228,6 +238,14 @@ public final class KingsTreasure {
         @Override public Type<Action> type() { return TYPE; }
     }
 
+    public record LimitAction(boolean cycle) implements CustomPacketPayload {
+        public static final Type<LimitAction> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(VenusMod.MOD_ID, "kings_treasure_limit"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, LimitAction> CODEC =
+                StreamCodec.composite(ByteBufCodecs.BOOL, LimitAction::cycle, LimitAction::new);
+        @Override public Type<LimitAction> type() { return TYPE; }
+    }
+
     public static final class TreasureItem extends Item {
         public TreasureItem() { super(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)); }
         @Override public Component getName(ItemStack stack) {
@@ -243,7 +261,8 @@ public final class KingsTreasure {
                                               List<Component> lines, TooltipFlag flag) {
             lines.add(Component.literal("右クリック：平行展開 / Shift＋右クリック：中程度収束展開"));
             lines.add(Component.literal("左クリック：一斉射出 / 展開中Shift＋右クリック：収納"));
-            lines.add(Component.literal("最大24本・射出時に宝物庫から消費・地形破壊なし"));
+            lines.add(Component.literal("F：最大本数 8→12→24→32→48→96→120"));
+            lines.add(Component.literal("射出時に宝物庫から消費・クールタイムなし・地形破壊なし"));
         }
     }
 }
