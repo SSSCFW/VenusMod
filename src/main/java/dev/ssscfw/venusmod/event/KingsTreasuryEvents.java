@@ -16,7 +16,7 @@ public final class KingsTreasuryEvents {
     private KingsTreasuryEvents() {}
 
     public static void onItemPickup(ItemEntityPickupEvent.Pre event) {
-        if (!(event.getPlayer() instanceof ServerPlayer player) || event.canPickup().isFalse()) return;
+        if (!(event.getPlayer() instanceof ServerPlayer player) || event.canPickup() == TriState.FALSE) return;
 
         ItemEntity itemEntity = event.getItemEntity();
         if (itemEntity.hasPickUpDelay()) return;
