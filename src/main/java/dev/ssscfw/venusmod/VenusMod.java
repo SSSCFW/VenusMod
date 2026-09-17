@@ -2,6 +2,7 @@ package dev.ssscfw.venusmod;
 
 import dev.ssscfw.venusmod.compat.create.VenusCreateCompat;
 import dev.ssscfw.venusmod.event.BladeUpgradeEvents;
+import dev.ssscfw.venusmod.event.KingsTreasuryEvents;
 import dev.ssscfw.venusmod.event.VenusCombatEvents;
 import dev.ssscfw.venusmod.event.VenusEnchantmentEvents;
 import dev.ssscfw.venusmod.registry.ModBlockEntities;
@@ -9,6 +10,7 @@ import dev.ssscfw.venusmod.registry.ModBlocks;
 import dev.ssscfw.venusmod.registry.ModCreativeTabs;
 import dev.ssscfw.venusmod.registry.ModEntities;
 import dev.ssscfw.venusmod.registry.ModItems;
+import dev.ssscfw.venusmod.registry.ModMenus;
 import dev.ssscfw.venusmod.world.VenusDimensionContent;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
@@ -26,6 +28,7 @@ public final class VenusMod {
         ModBlockEntities.BLOCK_ENTITY_TYPES.register(modBus);
         ModEntities.ENTITY_TYPES.register(modBus);
         ModItems.ITEMS.register(modBus);
+        ModMenus.MENUS.register(modBus);
         ModCreativeTabs.CREATIVE_MODE_TABS.register(modBus);
         VenusDimensionContent.register(modBus);
         dev.ssscfw.venusmod.registry.VenusPhase2.register(modBus, modContainer);
@@ -49,5 +52,6 @@ public final class VenusMod {
         NeoForge.EVENT_BUS.addListener(BladeUpgradeEvents::onIncomingDamage);
         NeoForge.EVENT_BUS.addListener(BladeUpgradeEvents::onDamagePost);
         NeoForge.EVENT_BUS.addListener(BladeUpgradeEvents::onPlayerTick);
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, KingsTreasuryEvents::onItemPickup);
     }
 }
