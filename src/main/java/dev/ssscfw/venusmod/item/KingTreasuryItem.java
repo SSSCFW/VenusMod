@@ -47,7 +47,7 @@ public final class KingTreasuryItem extends Item {
         if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
             serverPlayer.openMenu(new SimpleMenuProvider(
                     (containerId, inventory, menuPlayer) ->
-                            new KingsTreasuryMenu(containerId, inventory, (ServerPlayer) menuPlayer),
+                            new KingsTreasuryMenu(containerId, inventory, serverPlayer),
                     Component.translatable("container.venusmod.king_treasury")));
         }
         return InteractionResultHolder.sidedSuccess(held, level.isClientSide);
