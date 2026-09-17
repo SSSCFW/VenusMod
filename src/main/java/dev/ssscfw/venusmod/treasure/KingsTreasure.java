@@ -141,7 +141,7 @@ public final class KingsTreasure {
             if (!blade.isRemoved() && blade.level() == player.level()) blade.launch(target);
         }
         player.getCooldowns().addCooldown(ITEM.get(), TreasureRules.COOLDOWN_TICKS);
-        player.level().playSound(null, player.blockPosition(), SoundEvents.TRIDENT_THROW,
+        player.level().playSound(null, player.blockPosition(), SoundEvents.TRIDENT_THROW.value(),
                 SoundSource.PLAYERS, 1.0F, 0.75F);
     }
 
