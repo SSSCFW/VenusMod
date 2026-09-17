@@ -6,9 +6,9 @@ import dev.ssscfw.venusmod.treasury.KingsTreasuryMenu;
 import dev.ssscfw.venusmod.treasury.KingsTreasurySavedData;
 import java.util.UUID;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.util.TriState;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
+import net.neoforged.neoforge.common.util.TriState;
 import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
 
 /** 王の宝物庫への自動回収。通常インベントリへ入る前にSavedDataへ確定保存する。 */
