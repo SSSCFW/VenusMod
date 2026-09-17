@@ -23,9 +23,10 @@ public final class RoyalBladeRenderer extends EntityRenderer<RoyalBladeEntity> {
                                  MultiBufferSource buffers, int light) {
         if (blade.blade().isEmpty()) return;
         pose.pushPose();
-        // Entityの+Zを召喚時に固定した射出方向へ向ける。
-        pose.mulPose(Axis.YP.rotationDegrees(180 - blade.getYRot()));
-        pose.mulPose(Axis.XP.rotationDegrees(-blade.getXRot()));
+        // Minecraftの視線ベクトルは yaw=0 で +Z、正pitchで下向き。
+        // ローカル+ZをEntityに保存した召喚時/射出時の向きへそのまま合わせる。
+        pose.mulPose(Axis.YP.rotationDegrees(-blade.getYRot()));
+        pose.mulPose(Axis.XP.rotationDegrees(blade.getXRot()));
         if (!blade.launched()) {
             float age = blade.tickCount + partialTick;
             float scale = Math.min(1.0F, age / 8.0F);
@@ -40,7 +41,7 @@ public final class RoyalBladeRenderer extends EntityRenderer<RoyalBladeEntity> {
 
         pose.translate(0, 0, -0.35);
         // SlashBlade標準OBJの刀身は負のX方向へ先端が伸びる。
-        // +90° Y回転で負XをEntityの+Z（射出方向）へ合わせる。
+        // +90° Y回転で負Xをローカル+Z（射出方向）へ合わせる。
         pose.mulPose(Axis.YP.rotationDegrees(90.0F));
         SlashBladeNakedRenderCompat.render(
                 blade.blade(), pose, buffers, LightTexture.FULL_BRIGHT);
