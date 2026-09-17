@@ -2,11 +2,13 @@ package dev.ssscfw.venusmod.registry;
 
 import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.entity.VenusZombie;
+import dev.ssscfw.venusmod.item.KingTreasuryItem;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Rarity;
 import net.minecraft.world.item.component.CustomData;
 import net.neoforged.neoforge.common.DeferredSpawnEggItem;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
@@ -36,6 +38,10 @@ public final class ModItems {
 
     public static final DeferredItem<Item> NICKEL_NUGGET =
             ITEMS.register("nickel_nugget", () -> new Item(new Item.Properties()));
+
+    public static final DeferredItem<KingTreasuryItem> KING_TREASURY =
+            ITEMS.register("king_treasury",
+                    () -> new KingTreasuryItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
 
     public static final DeferredItem<DeferredSpawnEggItem> VENUS_ZOMBIE_SPAWN_EGG =
             ITEMS.register("venus_zombie_spawn_egg",
