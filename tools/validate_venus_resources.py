@@ -84,6 +84,17 @@ def main():
     for element in forge_model['elements']:
         assert all(0 <= value <= 16 for value in element['from'] + element['to'])
         assert all('cullface' not in face for face in element['faces'].values())
+
+    treasury_model = documents['assets/venusmod/models/item/king_treasury.json']
+    assert treasury_model['textures']['layer0'] == 'venusmod:item/king_treasury'
+    treasury_png = (RES/'assets/venusmod/textures/item/king_treasury.png').read_bytes()
+    assert treasury_png[:8] == b'\x89PNG\r\n\x1a\n'
+    assert struct.unpack('>II', treasury_png[16:24]) == (16,16)
+    treasury_rules = (ROOT/'src/main/java/dev/ssscfw/venusmod/treasury/TreasuryRules.java').read_text(encoding='utf-8')
+    assert 'MAX_TOTAL = 10_000' in treasury_rules
+    assert 'MAX_LOGICAL_STACK = 1_028' in treasury_rules
+    assert 'PAGE_SIZE = 54' in treasury_rules
+
     for name, size in [('block/venus_portal',(16,256)),('item/venus_core',(16,16))]:
         content = (assets/f'assets/venusmod/textures/{name}.png').read_bytes()
         assert content[:8] == b'\x89PNG\r\n\x1a\n'
@@ -93,12 +104,18 @@ def main():
     for lang in ('ja_jp','en_us'):
         d = documents[f'assets/venusmod/lang/{lang}.json']
         for key in ('entity.venusmod.venus_guardian','block.venusmod.venus_portal','item.venusmod.venus_core',
-                    'message.venusmod.dimension_missing','message.venusmod.no_safe_exit','message.venusmod.entity_too_large'):
+                    'message.venusmod.dimension_missing','message.venusmod.no_safe_exit','message.venusmod.entity_too_large',
+                    'item.venusmod.king_treasury','container.venusmod.king_treasury',
+                    'message.venusmod.king_treasury_auto_on','message.venusmod.king_treasury_auto_off',
+                    'gui.venusmod.king_treasury.page','gui.venusmod.king_treasury.total'):
             assert key in d
     assert 'VenusDimensionContent.register(modBus);' in (ROOT/'src/main/java/dev/ssscfw/venusmod/VenusMod.java').read_text(encoding='utf-8')
     assert 'config="venusmod.mixins.json"' in (RES/'META-INF/neoforge.mods.toml').read_text(encoding='utf-8')
     for name in documents['venusmod.mixins.json']['mixins']:
         assert (ROOT/f'src/main/java/dev/ssscfw/venusmod/mixin/{name}.java').is_file()
+
+    workflows = sorted(p.name for p in (ROOT/'.github/workflows').glob('*') if p.is_file())
+    assert workflows == ['build-1.21.1.yml'], f'Unexpected workflow files: {workflows}'
 
     reader = NBTReader(gzip.decompress((assets/'data/venusmod/structure/venus_citadel.nbt').read_bytes()))
     assert reader.number('B') == 10
@@ -138,7 +155,7 @@ def main():
     before = [p.read_bytes() for p in generated_files]
     subprocess.run(command,check=True)
     assert before == [p.read_bytes() for p in generated_files], 'Asset generation is not reproducible'
-    print(f'PASS: {len(documents)} JSON files; PNG sizes; registry links; {len(blocks)} NBT blocks; four rooms and boss arena connected; reproducible assets')
+    print(f'PASS: {len(documents)} JSON files; PNG sizes; registry links; {len(blocks)} NBT blocks; four rooms and boss arena connected; reproducible assets; King Treasury contracts')
     workspace.cleanup()
     print('NOT TESTED: Java/NeoForge compilation, Minecraft Codec loading, mixin application, graphics, portal travel, redstone and combat in-game.')
 
