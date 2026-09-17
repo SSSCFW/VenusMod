@@ -39,8 +39,6 @@ public final class VenusMod {
         modBus.addListener(ModItems::addCreativeTabContents);
         modBus.addListener(ModBlockEntities::registerCapabilities);
 
-        // Create itself is optional. General kinetic machines are available whenever
-        // Create is loaded; SlashBlade-specific content is hidden/recipe-gated separately.
         if (ModList.get().isLoaded("create")) {
             VenusCreateCompat.register(modBus);
         }
@@ -55,5 +53,6 @@ public final class VenusMod {
         NeoForge.EVENT_BUS.addListener(BladeUpgradeEvents::onDamagePost);
         NeoForge.EVENT_BUS.addListener(BladeUpgradeEvents::onPlayerTick);
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, KingsTreasuryEvents::onItemPickup);
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, KingsTreasuryEvents::onPlayerTick);
     }
 }
