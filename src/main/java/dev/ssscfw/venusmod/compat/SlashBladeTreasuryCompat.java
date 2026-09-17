@@ -1,13 +1,18 @@
 package dev.ssscfw.venusmod.compat;
 
+import dev.ssscfw.venusmod.treasure.RoyalBladeDamageRules;
 import dev.ssscfw.venusmod.treasure.TreasureRules;
 import java.lang.reflect.Method;
 import java.util.Optional;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
 
 /**
- * 王の財宝から射出した抜刀剣の耐久だけを安全に更新する任意依存ブリッジ。
- * SlashBladeのクラスへ静的リンクせず、最後の1耐久では消失させず折れ状態へ移す。
+ * 王の財宝で使う抜刀剣状態の任意依存ブリッジ。
+ * SlashBladeのクラスへ静的リンクせず、耐久・ベース攻撃力・印/妖刀判定だけを反射で読む。
  */
 public final class SlashBladeTreasuryCompat {
     private static boolean lookupDone;
@@ -16,6 +21,10 @@ public final class SlashBladeTreasuryCompat {
     private static Method setDamageMethod;
     private static Method isBrokenMethod;
     private static Method setBrokenMethod;
+
+    private static boolean damageLookupDone;
+    private static Method getBaseAttackModifierMethod;
+    private static Method swordTypeFromMethod;
 
     private SlashBladeTreasuryCompat() {}
 
@@ -34,6 +43,54 @@ public final class SlashBladeTreasuryCompat {
         } catch (ReflectiveOperationException | LinkageError | RuntimeException ignored) {
             // 状態を判断できない刀は保護する。破損判定失敗を「正常」とは扱わない。
             return -1;
+        }
+    }
+
+    /**
+     * 刀のgetBaseAttackModifierを初期値として、Minecraft 1.21.1標準の
+     * EnchantmentHelper.modifyDamageで対象依存のダメージ系エンチャントを反映する。
+     */
+    public static float damageAgainst(ServerLevel level, ItemStack stack, Entity target,
+                                      DamageSource source, boolean direct) {
+        float weaponDamage = EnchantmentHelper.modifyDamage(
+                level, stack, target, source, baseAttackModifier(stack));
+        RoyalBladeDamageRules.BladeGrade grade = bladeGrade(stack);
+        return direct
+                ? RoyalBladeDamageRules.directDamage(weaponDamage, grade)
+                : RoyalBladeDamageRules.blastDamage(weaponDamage, grade);
+    }
+
+    public static float baseAttackModifier(ItemStack stack) {
+        if (stack == null || stack.isEmpty() || !SlashBladeEnchantmentCompat.isBlade(stack)
+                || !resolveDamageMethods()) return 0.0F;
+        try {
+            Object state = getBladeState(stack);
+            return state == null ? 0.0F
+                    : ((Number) getBaseAttackModifierMethod.invoke(state)).floatValue();
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException ignored) {
+            return 0.0F;
+        }
+    }
+
+    /** SwordType.ENCHANTED=印、BEWITCHED=妖刀。妖刀はENCHANTEDも含むため+6だけを優先する。 */
+    public static RoyalBladeDamageRules.BladeGrade bladeGrade(ItemStack stack) {
+        if (stack == null || stack.isEmpty() || !SlashBladeEnchantmentCompat.isBlade(stack)
+                || !resolveDamageMethods()) return RoyalBladeDamageRules.BladeGrade.NORMAL;
+        try {
+            Object raw = swordTypeFromMethod.invoke(null, stack);
+            boolean enchanted = false;
+            boolean bewitched = false;
+            if (raw instanceof Iterable<?> values) {
+                for (Object value : values) {
+                    String name = value instanceof Enum<?> enumValue
+                            ? enumValue.name() : String.valueOf(value);
+                    if ("BEWITCHED".equals(name)) bewitched = true;
+                    else if ("ENCHANTED".equals(name)) enchanted = true;
+                }
+            }
+            return RoyalBladeDamageRules.grade(enchanted, bewitched);
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException ignored) {
+            return RoyalBladeDamageRules.BladeGrade.NORMAL;
         }
     }
 
@@ -65,6 +122,30 @@ public final class SlashBladeTreasuryCompat {
         Object optionalState = bladeStateOfMethod.invoke(null, stack);
         if (optionalState instanceof Optional<?> optional) return optional.orElse(null);
         return null;
+    }
+
+    private static boolean resolveDamageMethods() {
+        if (damageLookupDone) {
+            return bladeStateOfMethod != null
+                    && getBaseAttackModifierMethod != null
+                    && swordTypeFromMethod != null;
+        }
+        damageLookupDone = true;
+        try {
+            Class<?> access = Class.forName(
+                    "mods.flammpfeil.slashblade.capability.slashblade.BladeStateAccess");
+            Class<?> state = Class.forName(
+                    "mods.flammpfeil.slashblade.capability.slashblade.ISlashBladeState");
+            Class<?> swordType = Class.forName("mods.flammpfeil.slashblade.item.SwordType");
+            bladeStateOfMethod = access.getMethod("of", ItemStack.class);
+            getBaseAttackModifierMethod = state.getMethod("getBaseAttackModifier");
+            swordTypeFromMethod = swordType.getMethod("from", ItemStack.class);
+            return true;
+        } catch (ReflectiveOperationException | LinkageError ignored) {
+            getBaseAttackModifierMethod = null;
+            swordTypeFromMethod = null;
+            return false;
+        }
     }
 
     private static boolean resolve() {

@@ -1,5 +1,6 @@
 package dev.ssscfw.venusmod.treasure;
 
+import dev.ssscfw.venusmod.compat.SlashBladeTreasuryCompat;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.Registries;
@@ -207,11 +208,11 @@ public final class RoyalBladeEntity extends Projectile {
         Vec3 center = position().subtract(getDeltaMovement().normalize().scale(0.03));
         sendFarParticles(level, ParticleTypes.EXPLOSION,
                 center.x, center.y, center.z, 1, 0, 0, 0, 0);
-        // 音源位置と距離減衰を維持して音量/可聴距離を拡大する（通常16×32≒512ブロック）。
         level.playSound(null, center.x, center.y, center.z, SoundEvents.GENERIC_EXPLODE,
                 SoundSource.PLAYERS, TreasureRules.EXPLOSION_VOLUME, 1.35F);
         DamageSource source = new DamageSource(level.registryAccess().registryOrThrow(Registries.DAMAGE_TYPE)
                 .getHolderOrThrow(KingsTreasure.DAMAGE_TYPE), this, owner);
+        ItemStack firedBlade = blade();
         double radius = TreasureRules.BLAST_RADIUS;
         for (LivingEntity target : level.getEntitiesOfClass(
                 LivingEntity.class, new AABB(center, center).inflate(radius),
@@ -222,8 +223,11 @@ public final class RoyalBladeEntity extends Projectile {
             if (!direct && level.clip(new ClipContext(
                     center, target.getEyePosition(), ClipContext.Block.COLLIDER,
                     ClipContext.Fluid.NONE, this)).getType() != HitResult.Type.MISS) continue;
-            float damage = direct ? TreasureRules.DAMAGE
-                    : (float) (TreasureRules.DAMAGE * 0.5 * (1 - distance / radius));
+
+            // 直撃: 5 + 放出した刀のbase attack + 対象依存のエンチャント補正 + 印/妖刀ボーナス。
+            // 爆風: 3 + 同じ刀ダメージ + 同じ種別ボーナス。爆風内では距離減衰させない。
+            float damage = SlashBladeTreasuryCompat.damageAgainst(
+                    level, firedBlade, target, source, direct);
             if (damage > 0) {
                 target.invulnerableTime = 0;
                 target.hurt(source, damage);

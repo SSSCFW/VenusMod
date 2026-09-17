@@ -1,6 +1,7 @@
 package dev.ssscfw.venusmod.event;
 
 import dev.ssscfw.venusmod.compat.SlashBladeEnchantmentCompat;
+import dev.ssscfw.venusmod.treasure.KingsTreasure;
 import dev.ssscfw.venusmod.upgrade.BladeUpgradeData;
 import dev.ssscfw.venusmod.upgrade.BladeUpgradeRules;
 import dev.ssscfw.venusmod.upgrade.BladeUpgradeRankCompat;
@@ -19,6 +20,10 @@ public final class BladeUpgradeEvents {
     private BladeUpgradeEvents() {}
 
     public static void onIncomingDamage(LivingIncomingDamageEvent event) {
+        // 王の財宝は「放出した刀自身」のベースダメージ/エンチャントから計算する。
+        // 着弾時にプレイヤーが手に持っている別の刀の金星強化を二重加算しない。
+        if (event.getSource().is(KingsTreasure.DAMAGE_TYPE)) return;
+
         Entity attacker = event.getSource().getEntity();
         if (!(attacker instanceof LivingEntity livingAttacker)) return;
         ItemStack blade = livingAttacker.getMainHandItem();

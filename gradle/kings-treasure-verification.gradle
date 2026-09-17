@@ -2,10 +2,12 @@
 def compileTreasureChecks = tasks.register('compileKingsTreasureChecks', JavaCompile) {
     source = files(
             'src/main/java/dev/ssscfw/venusmod/treasure/TreasureRules.java',
+            'src/main/java/dev/ssscfw/venusmod/treasure/RoyalBladeDamageRules.java',
             'src/main/java/dev/ssscfw/venusmod/treasury/GiveCaptureRules.java',
             'src/main/java/dev/ssscfw/venusmod/treasury/VolleyPriority.java',
             'src/main/java/dev/ssscfw/venusmod/treasury/TreasuryVolleyRules.java',
             'src/main/java/dev/ssscfw/venusmod/upgrade/ForgeScreenLayout.java',
+            'tools/tests/RoyalBladeDamageRulesChecks.java',
             'tools/tests/TreasuryVolleyRulesChecks.java',
             'tools/tests/ForgeScreenLayoutChecks.java',
             'tools/tests/TreasureRulesChecks.java',
@@ -47,7 +49,14 @@ tasks.register('verifyForgeScreenLayout', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
     mainClass = 'ForgeScreenLayoutChecks'
 }
+tasks.register('verifyRoyalBladeDamageRules', JavaExec) {
+    dependsOn compileTreasureChecks
+    classpath compileTreasureChecks.flatMap { it.destinationDirectory }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'RoyalBladeDamageRulesChecks'
+}
 tasks.named('check') {
+    dependsOn 'verifyRoyalBladeDamageRules'
     dependsOn 'verifyTreasuryVolleySelection'
     dependsOn 'verifyForgeScreenLayout'
     dependsOn 'verifyKingsTreasureRules'
@@ -87,15 +96,16 @@ tasks.register('verifyKingsTreasureRenderDirection') {
 }
 tasks.named('check') { dependsOn 'verifyKingsTreasureRenderDirection' }
 
-// /give限定回収・F切替・持ち替え維持・射出後返却・遠距離パーティクルを固定する。
+// /give限定回収・F切替・持ち替え維持・射出後返却・遠距離パーティクル・刀由来ダメージを固定する。
 tasks.register('verifyKingsTreasureInteractionContracts') {
     group = 'verification'
-    description = 'Verify treasury give-only capture, persistent preparation, blade returns, particles, F cycling, and no cooldown.'
+    description = 'Verify treasury give-only capture, persistent preparation, blade returns, particles, blade-derived damage, F cycling, and no cooldown.'
     notCompatibleWithConfigurationCache('Validation inspects project source files')
     doLast {
         def treasure = file('src/main/java/dev/ssscfw/venusmod/treasure/KingsTreasure.java').text
         def entity = file('src/main/java/dev/ssscfw/venusmod/treasure/RoyalBladeEntity.java').text
         def durability = file('src/main/java/dev/ssscfw/venusmod/compat/SlashBladeTreasuryCompat.java').text
+        def upgrades = file('src/main/java/dev/ssscfw/venusmod/event/BladeUpgradeEvents.java').text
         def client = file('src/main/java/dev/ssscfw/venusmod/client/KingsTreasureClient.java').text
         def events = file('src/main/java/dev/ssscfw/venusmod/event/KingsTreasuryEvents.java').text
         def mod = file('src/main/java/dev/ssscfw/venusmod/VenusMod.java').text
@@ -152,6 +162,16 @@ tasks.register('verifyKingsTreasureInteractionContracts') {
             throw new GradleException('SlashBlade return bridge must preserve broken blades instead of deleting them.')
         if (!treasure.contains('storage.insert(player.getUUID(), returned, 1)'))
             throw new GradleException('Spent blades must be reinserted into the owner UUID treasury.')
+
+        if (!entity.contains('SlashBladeTreasuryCompat.damageAgainst(')
+                || !durability.contains('EnchantmentHelper.modifyDamage(')
+                || !durability.contains('getBaseAttackModifier')
+                || !durability.contains('mods.flammpfeil.slashblade.item.SwordType'))
+            throw new GradleException('Royal blade damage must come from the fired blade base attack, enchantments, and SwordType.')
+        if (entity.contains('TreasureRules.DAMAGE') || entity.contains('1 - distance / radius'))
+            throw new GradleException('Royal blade damage must not fall back to the old fixed/falloff formula.')
+        if (!upgrades.contains('event.getSource().is(KingsTreasure.DAMAGE_TYPE)'))
+            throw new GradleException('Held-blade Venus upgrades must not alter King\'s Treasure damage.')
 
         if (!saved.contains('"VolleyLimit"') || !saved.contains('cycleVolleyLimit'))
             throw new GradleException('Volley limit must be persisted per player.')
