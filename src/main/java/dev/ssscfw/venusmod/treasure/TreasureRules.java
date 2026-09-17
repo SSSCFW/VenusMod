@@ -6,9 +6,10 @@ import java.util.function.BiPredicate;
 
 /** 宝物庫の本数・配置・射出状態だけを扱う、Minecraft非依存の規則。 */
 public final class TreasureRules {
-    public static final int MAX_BLADES = 24;
+    public static final int MAX_BLADES = 120;
+    public static final int DEFAULT_VOLLEY_LIMIT = 24;
+    private static final int[] VOLLEY_LIMITS = {8, 12, 24, 32, 48, 96, 120};
     public static final int PREPARE_TICKS = 20 * 60;
-    public static final int COOLDOWN_TICKS = 40;
     public static final int FLIGHT_TICKS = 80;
     public static final double SPEED = 2.8;
     public static final double RANGE = 80;
@@ -37,12 +38,35 @@ public final class TreasureRules {
 
     private TreasureRules() {}
 
-    /** 種類を優先した巡回選択。同じ刀も所蔵本数以上には展開せず、入力を変更しない。 */
+    public static int normalizeVolleyLimit(int value) {
+        for (int allowed : VOLLEY_LIMITS) {
+            if (value == allowed) return value;
+        }
+        return DEFAULT_VOLLEY_LIMIT;
+    }
+
+    public static int nextVolleyLimit(int current) {
+        int normalized = normalizeVolleyLimit(current);
+        for (int i = 0; i < VOLLEY_LIMITS.length; i++) {
+            if (VOLLEY_LIMITS[i] == normalized) {
+                return VOLLEY_LIMITS[(i + 1) % VOLLEY_LIMITS.length];
+            }
+        }
+        return DEFAULT_VOLLEY_LIMIT;
+    }
+
+    /** 既定24本での選択。 */
     public static List<Integer> select(int[] counts) {
-        List<Integer> result = new ArrayList<>(MAX_BLADES);
-        for (int round = 0; result.size() < MAX_BLADES; round++) {
+        return select(counts, DEFAULT_VOLLEY_LIMIT);
+    }
+
+    /** 種類を優先した巡回選択。同じ刀も所蔵本数以上には展開せず、入力を変更しない。 */
+    public static List<Integer> select(int[] counts, int maxBlades) {
+        int limit = Math.max(0, Math.min(MAX_BLADES, maxBlades));
+        List<Integer> result = new ArrayList<>(limit);
+        for (int round = 0; result.size() < limit; round++) {
             boolean added = false;
-            for (int i = 0; i < counts.length && result.size() < MAX_BLADES; i++) {
+            for (int i = 0; i < counts.length && result.size() < limit; i++) {
                 if (counts[i] > round) {
                     result.add(i);
                     added = true;
@@ -55,16 +79,31 @@ public final class TreasureRules {
 
     public record FormationOffset(double right, double up, double back) {}
 
-    /** 8本×3段の半円。旧配置より約1.5倍広げて刀同士の重なりを減らす。 */
+    /**
+     * 最初の24本は従来の8本×3段配置を維持する。
+     * 25本目以降は16本ずつ外側の半円へ増設し、120本でも極端に遠くなりすぎないようにする。
+     */
     public static FormationOffset formationOffset(int slot) {
         int safeSlot = Math.max(0, Math.min(MAX_BLADES - 1, slot));
-        int row = safeSlot / 8;
-        double angle = Math.PI * ((safeSlot % 8) + 0.5) / 8.0;
-        double radius = 2.20 + row * 1.25;
+        if (safeSlot < 24) {
+            int row = safeSlot / 8;
+            double angle = Math.PI * ((safeSlot % 8) + 0.5) / 8.0;
+            double radius = 2.20 + row * 1.25;
+            return new FormationOffset(
+                    Math.cos(angle) * radius,
+                    Math.sin(angle) * radius + 0.35,
+                    1.85 + row * 0.30);
+        }
+
+        int extra = safeSlot - 24;
+        int row = extra / 16;
+        int column = extra % 16;
+        double angle = Math.PI * (column + 0.5) / 16.0;
+        double radius = 5.95 + row * 1.25;
         return new FormationOffset(
                 Math.cos(angle) * radius,
                 Math.sin(angle) * radius + 0.35,
-                1.85 + row * 0.30);
+                2.75 + row * 0.35);
     }
 
     /**
