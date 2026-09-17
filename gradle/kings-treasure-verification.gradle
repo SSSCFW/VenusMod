@@ -1,6 +1,9 @@
 // 王の財宝の状態機械は、Minecraft非依存のJava検査を通常のcheckへ組み込む。
 def compileTreasureChecks = tasks.register('compileKingsTreasureChecks', JavaCompile) {
-    source = files('src/main/java/dev/ssscfw/venusmod/treasure/TreasureRules.java', 'tools/tests/TreasureRulesChecks.java')
+    source = files(
+            'src/main/java/dev/ssscfw/venusmod/treasure/TreasureRules.java',
+            'tools/tests/TreasureRulesChecks.java',
+            'tools/tests/TreasureRulesLimitChecks.java')
     classpath = files()
     destinationDirectory = layout.buildDirectory.dir('classes/kingsTreasureChecks')
     javaCompiler = javaToolchains.compilerFor { languageVersion = JavaLanguageVersion.of(21) }
@@ -13,7 +16,16 @@ tasks.register('verifyKingsTreasureRules', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
     mainClass = 'TreasureRulesChecks'
 }
-tasks.named('check') { dependsOn 'verifyKingsTreasureRules' }
+tasks.register('verifyKingsTreasureLimits', JavaExec) {
+    dependsOn compileTreasureChecks
+    classpath compileTreasureChecks.flatMap { it.destinationDirectory }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'TreasureRulesLimitChecks'
+}
+tasks.named('check') {
+    dependsOn 'verifyKingsTreasureRules'
+    dependsOn 'verifyKingsTreasureLimits'
+}
 
 // 過去にyaw/pitch変換だけで刀身方向を合わせようとして90度ずれが再発したため、
 // 実方向Vector3fを同期し、OBJの-X軸から直接rotationToする契約を固定する。
