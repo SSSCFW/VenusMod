@@ -11,6 +11,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
+import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions;
 import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
 
@@ -24,13 +25,16 @@ public final class VenusPhase2Client {
         }, VenusPhase2.ACID_TYPE.get());
     }
 
+    @SubscribeEvent public static void registerScreens(RegisterMenuScreensEvent event) {
+        if (ModList.get().isLoaded("create")) {
+            VenusCreateClientCompat.registerScreens(event);
+        }
+    }
+
     @SubscribeEvent public static void setup(FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
             ItemBlockRenderTypes.setRenderLayer(VenusPhase2.ACID.get(), RenderType.translucent());
             ItemBlockRenderTypes.setRenderLayer(VenusPhase2.FLOWING_ACID.get(), RenderType.translucent());
-            if (ModList.get().isLoaded("create")) {
-                VenusCreateClientCompat.registerScreens();
-            }
         });
     }
 }

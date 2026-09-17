@@ -71,9 +71,9 @@ tasks.register('verifyMachineRendering') {
 }
 tasks.named('check') { dependsOn 'verifyMachineRendering' }
 
-// 金星刀鍛錬機が旧「手持ち右クリック強化」へ戻らないようGUI契約を固定する。
+// 金星刀鍛錬機が旧「手持ち右クリック強化」へ戻らず、NeoForgeの公開画面登録イベントを使う契約を固定する。
 tasks.register('verifyVenusBladeForgeGui') {
-    description = 'Verify Venus Blade Forge keeps its GUI, internal blade slot and screen registration.'
+    description = 'Verify Venus Blade Forge keeps its GUI, internal blade slot and event-based screen registration.'
     group = 'verification'
     notCompatibleWithConfigurationCache('Validation inspects project source files')
     doLast {
@@ -83,8 +83,9 @@ tasks.register('verifyVenusBladeForgeGui') {
         def screen = file('src/main/java/dev/ssscfw/venusmod/compat/create/client/VenusBladeForgeScreen.java')
         def compat = file('src/main/java/dev/ssscfw/venusmod/compat/create/VenusCreateCompat.java')
         def client = file('src/main/java/dev/ssscfw/venusmod/compat/create/client/VenusCreateClientCompat.java')
+        def phase2Client = file('src/main/java/dev/ssscfw/venusmod/client/VenusPhase2Client.java')
 
-        [block, blockEntity, menu, screen, compat, client].each {
+        [block, blockEntity, menu, screen, compat, client, phase2Client].each {
             if (!it.isFile()) throw new GradleException("Missing Venus Blade Forge GUI source: ${it}")
         }
         if (!block.text.contains('player.openMenu(forge)'))
@@ -101,8 +102,14 @@ tasks.register('verifyVenusBladeForgeGui') {
             throw new GradleException('Forge screen is not wired to its menu.')
         if (!compat.text.contains('VENUS_BLADE_FORGE_MENU') || !compat.text.contains('MENU_TYPES.register(modBus)'))
             throw new GradleException('Create compat must register the forge menu type.')
-        if (!client.text.contains('MenuScreens.register') || !client.text.contains('VenusBladeForgeScreen::new'))
-            throw new GradleException('Client compat must register the forge screen.')
+        if (client.text.contains('MenuScreens.register'))
+            throw new GradleException('MenuScreens.register is private in 1.21.1; use RegisterMenuScreensEvent instead.')
+        if (!client.text.contains('RegisterMenuScreensEvent') || !client.text.contains('event.register(')
+                || !client.text.contains('VenusBladeForgeScreen::new'))
+            throw new GradleException('Client compat must register the forge screen through RegisterMenuScreensEvent.')
+        if (!phase2Client.text.contains('registerScreens(RegisterMenuScreensEvent event)')
+                || !phase2Client.text.contains('VenusCreateClientCompat.registerScreens(event)'))
+            throw new GradleException('Client mod-bus event must forward RegisterMenuScreensEvent to Create compat.')
 
         println 'Verified Venus Blade Forge GUI contract.'
     }

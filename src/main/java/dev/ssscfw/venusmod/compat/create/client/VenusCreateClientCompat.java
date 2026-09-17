@@ -1,8 +1,8 @@
 package dev.ssscfw.venusmod.compat.create.client;
 
 import dev.ssscfw.venusmod.compat.create.VenusCreateCompat;
-import net.minecraft.client.gui.screens.MenuScreens;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 
 /** Create導入時だけ呼び出すクライアント側の描画・GUI登録。 */
 public final class VenusCreateClientCompat {
@@ -18,8 +18,8 @@ public final class VenusCreateClientCompat {
                 BladeMachineRenderer::new);
     }
 
-    public static void registerScreens() {
-        MenuScreens.register(
+    public static void registerScreens(RegisterMenuScreensEvent event) {
+        event.register(
                 VenusCreateCompat.VENUS_BLADE_FORGE_MENU.get(),
                 VenusBladeForgeScreen::new);
     }
