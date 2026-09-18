@@ -120,5 +120,7 @@
   "key.venusmod.storage_box": "Storage Box Action",
   "key.categories.venusmod": "VenusMod",
   "message.venusmod.storage_box.auto_on": "Storage Box: auto-collect ON",
-  "message.venusmod.storage_box.auto_off": "Storage Box: auto-collect OFF"
+  "message.venusmod.storage_box.auto_off": "Storage Box: auto-collect OFF",
+  "block.venusmod.gold_block_dummy": "Gold Block Dummy",
+  "item.venusmod.gold_block_dummy": "Gold Block Dummy"
 }

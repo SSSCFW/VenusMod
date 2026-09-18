@@ -21,7 +21,10 @@ public record VenusPortalFrame(BlockPos bottomLeft, Direction.Axis axis, int wid
             BlockPos sample = axis == Direction.Axis.X ? new BlockPos(u, v, fixed) : new BlockPos(fixed, v, u);
             if (level.isOutsideBuildHeight(sample) || !level.hasChunkAt(sample)) return PortalRectangle.BLOCKED;
             BlockState state = level.getBlockState(sample);
-            if (state.is(Blocks.GOLD_BLOCK)) return PortalRectangle.FRAME;
+            if (VenusPortalFrameRules.accepts(
+                    state.is(Blocks.GOLD_BLOCK), state.is(VenusDimensionContent.GOLD_BLOCK_DUMMY.get()))) {
+                return PortalRectangle.FRAME;
+            }
             if (state.is(VenusDimensionContent.PORTAL.get())) {
                 return state.getValue(VenusPortalBlock.AXIS) == axis ? PortalRectangle.PORTAL : PortalRectangle.BLOCKED;
             }

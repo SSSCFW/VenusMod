@@ -23,6 +23,7 @@ import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.SpawnPlacementTypes;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -56,6 +57,13 @@ public final class VenusDimensionContent {
     private static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES = DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, VenusMod.MOD_ID);
     public static final DeferredHolder<Block, VenusPortalBlock> PORTAL = BLOCKS.register("venus_portal",
             () -> new VenusPortalBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.NETHER_PORTAL).mapColor(MapColor.GOLD).noLootTable()));
+
+    /**
+     * 自動生成ゲート用。金ブロックと同じ見た目/物性だが、破壊・爆発・シルクタッチを含めて
+     * LootTableからアイテムを一切生成しない。BlockItemはCreative専用で登録する。
+     */
+    public static final DeferredHolder<Block, Block> GOLD_BLOCK_DUMMY = BLOCKS.register("gold_block_dummy",
+            () -> new Block(BlockBehaviour.Properties.ofFullCopy(Blocks.GOLD_BLOCK).noLootTable()));
     public static final DeferredHolder<Block, GuardianAltarBlock> ALTAR = BLOCKS.register("guardian_altar",
             () -> new GuardianAltarBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.POLISHED_BLACKSTONE_BRICKS)
                     .strength(-1.0F, 3600000.0F).noLootTable()));
@@ -86,6 +94,8 @@ public final class VenusDimensionContent {
     public static final DeferredHolder<EntityType<?>, EntityType<AphroditeCore>> APHRODITE_CORE = ENTITIES.register("aphrodite_core",
             () -> EntityType.Builder.of(AphroditeCore::new, MobCategory.MONSTER).sized(0.9F, 1.8F)
                     .clientTrackingRange(14).build(id("aphrodite_core").toString()));
+    public static final DeferredHolder<Item, BlockItem> GOLD_BLOCK_DUMMY_ITEM = ITEMS.register("gold_block_dummy",
+            () -> new BlockItem(GOLD_BLOCK_DUMMY.get(), new Item.Properties()));
     public static final DeferredHolder<Item, Item> VENUS_CORE = ITEMS.register("venus_core",
             () -> new Item(new Item.Properties().fireResistant().rarity(Rarity.EPIC)));
     public static final DeferredHolder<Item, Item> VENUS_SOUL_STONE = ITEMS.register("venus_soul_stone",
@@ -126,6 +136,7 @@ public final class VenusDimensionContent {
     }
     private static void creative(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey().equals(ModCreativeTabs.VENUS_TAB_KEY)) {
+            event.accept(GOLD_BLOCK_DUMMY_ITEM.get());
             event.accept(VENUS_CORE.get());
             event.accept(VENUS_SOUL_STONE.get());
             event.accept(GUARDIAN_EGG.get());

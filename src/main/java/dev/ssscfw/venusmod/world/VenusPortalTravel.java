@@ -130,7 +130,8 @@ public final class VenusPortalTravel {
             level.setBlock(offset(origin, axis, u, -1, depth), Blocks.POLISHED_BLACKSTONE_BRICKS.defaultBlockState(), 3);
         for (int u = -1; u <= 2; u++) for (int v = -1; v <= 3; v++)
             if (u == -1 || u == 2 || v == -1 || v == 3)
-                level.setBlock(offset(origin, axis, u, v, 0), Blocks.GOLD_BLOCK.defaultBlockState(), 3);
+                level.setBlock(offset(origin, axis, u, v, 0),
+                        VenusDimensionContent.GOLD_BLOCK_DUMMY.get().defaultBlockState(), 3);
         for (int u : new int[]{-2, 3}) for (int depth : new int[]{-2, 2})
             level.setBlock(offset(origin, axis, u, 0, depth), Blocks.TORCH.defaultBlockState(), 3);
         VenusPortalFrame frame = new VenusPortalFrame(origin, axis, 2, 3);

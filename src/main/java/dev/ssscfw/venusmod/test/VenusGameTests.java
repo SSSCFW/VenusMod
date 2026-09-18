@@ -3,9 +3,13 @@ package dev.ssscfw.venusmod.test;
 import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.entity.VenusGeneral;
 import dev.ssscfw.venusmod.world.VenusDimensionContent;
+import dev.ssscfw.venusmod.world.VenusPortalFrame;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.storage.loot.BuiltInLootTables;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -37,6 +41,31 @@ public final class VenusGameTests {
                 "Venus General must register interaction range for SlashBlade reach");
         helper.assertTrue(general.getAttributeValue(Attributes.ENTITY_INTERACTION_RANGE) >= 7.0D,
                 "Venus General SlashBlade interaction range regressed");
+        helper.succeed();
+    }
+
+    @GameTest(template = "test/empty")
+    public static void portalAcceptsMixedGoldAndDummyFrame(GameTestHelper helper) {
+        var level = helper.getLevel();
+        BlockPos inside = helper.absolutePos(new BlockPos(4, 3, 4));
+        for (int u = -1; u <= 2; u++) {
+            for (int v = -1; v <= 3; v++) {
+                BlockPos pos = inside.offset(u, v, 0);
+                boolean border = u == -1 || u == 2 || v == -1 || v == 3;
+                if (border) {
+                    level.setBlock(pos, ((u + v) & 1) == 0
+                            ? Blocks.GOLD_BLOCK.defaultBlockState()
+                            : VenusDimensionContent.GOLD_BLOCK_DUMMY.get().defaultBlockState(), 3);
+                } else {
+                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
+                }
+            }
+        }
+        VenusPortalFrame frame = VenusPortalFrame.find(level, inside);
+        helper.assertTrue(frame != null && frame.width() == 2 && frame.height() == 3,
+                "金ブロックと金ブロックダミーの混在枠を認識できない");
+        helper.assertTrue(VenusDimensionContent.GOLD_BLOCK_DUMMY.get().getLootTable() == BuiltInLootTables.EMPTY,
+                "金ブロックダミーは破壊/爆発でLootを生成してはいけない");
         helper.succeed();
     }
 

@@ -131,3 +131,70 @@ tasks.register('generatePhase2Assets', JavaExec) {
 sourceSets.main.resources.srcDir phase2Assets
 tasks.named('processResources') { dependsOn 'generatePhase2Assets' }
 runs.server.systemProperty 'venusmod.verifyWorldgen', providers.gradleProperty('venusWorldgenSmoke').orElse('false').get()
+
+
+def compileVenusPortalFrameRulesChecks = tasks.register('compileVenusPortalFrameRulesChecks', JavaCompile) {
+    source = files(
+            'src/main/java/dev/ssscfw/venusmod/world/VenusPortalFrameRules.java',
+            'tools/tests/VenusPortalFrameRulesChecks.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('classes/venusPortalFrameRulesChecks')
+    javaCompiler = javaToolchains.compilerFor { languageVersion = JavaLanguageVersion.of(21) }
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+tasks.register('verifyVenusPortalFrameRules', JavaExec) {
+    group = 'verification'
+    dependsOn compileVenusPortalFrameRulesChecks
+    classpath compileVenusPortalFrameRulesChecks.flatMap { it.destinationDirectory }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'VenusPortalFrameRulesChecks'
+}
+tasks.named('check') { dependsOn 'verifyVenusPortalFrameRules' }
+
+tasks.register('verifyVenusPortalDummyGold') {
+    group = 'verification'
+    notCompatibleWithConfigurationCache('Validation inspects portal source and resources')
+    doLast {
+        def root = 'src/main/java/dev/ssscfw/venusmod/world/'
+        def content = file(root + 'VenusDimensionContent.java').text
+        def frame = file(root + 'VenusPortalFrame.java').text
+        def travel = file(root + 'VenusPortalTravel.java').text
+        def gameTests = file('src/main/java/dev/ssscfw/venusmod/test/VenusGameTests.java').text
+        def blockModel = new JsonSlurper().parse(file('src/main/resources/assets/venusmod/models/block/gold_block_dummy.json'))
+        def itemModel = new JsonSlurper().parse(file('src/main/resources/assets/venusmod/models/item/gold_block_dummy.json'))
+        def blockState = new JsonSlurper().parse(file('src/main/resources/assets/venusmod/blockstates/gold_block_dummy.json'))
+
+        if (!content.contains('BLOCKS.register("gold_block_dummy"')
+                || !content.contains('BlockBehaviour.Properties.ofFullCopy(Blocks.GOLD_BLOCK).noLootTable()')
+                || !content.contains('ITEMS.register("gold_block_dummy"')
+                || !content.contains('event.accept(GOLD_BLOCK_DUMMY_ITEM.get())'))
+            throw new GradleException('Gold dummy must be a creative-only BlockItem backed by a no-loot gold-like block.')
+
+        if (!frame.contains('VenusPortalFrameRules.accepts(')
+                || !frame.contains('state.is(Blocks.GOLD_BLOCK)')
+                || !frame.contains('state.is(VenusDimensionContent.GOLD_BLOCK_DUMMY.get())'))
+            throw new GradleException('Portal frame must accept vanilla gold, dummy gold, and mixed frames.')
+
+        if (!travel.contains('VenusDimensionContent.GOLD_BLOCK_DUMMY.get().defaultBlockState()')
+                || travel.contains('level.setBlock(offset(origin, axis, u, v, 0), Blocks.GOLD_BLOCK.defaultBlockState()'))
+            throw new GradleException('Automatically generated portal frames must use dummy gold.')
+
+        def recipes = fileTree('src/main/resources/data/venusmod/recipe') { include '**/*.json' }
+        if (recipes.any { it.text.contains('venusmod:gold_block_dummy') })
+            throw new GradleException('Gold Block Dummy must not have a survival crafting recipe.')
+
+        if (blockModel.textures.all != 'minecraft:block/gold_block'
+                || itemModel.parent != 'venusmod:block/gold_block_dummy'
+                || blockState.variants[''].model != 'venusmod:block/gold_block_dummy')
+            throw new GradleException('Gold Block Dummy must render exactly with the vanilla gold-block texture.')
+
+        if (!gameTests.contains('getLootTable() == BuiltInLootTables.EMPTY')
+                || !gameTests.contains('portalAcceptsMixedGoldAndDummyFrame'))
+            throw new GradleException('GameTests must cover no-loot and mixed-frame behavior.')
+
+        println 'Verified dummy-gold portal anti-duplication contracts.'
+    }
+}
+tasks.named('check') { dependsOn 'verifyVenusPortalDummyGold' }
