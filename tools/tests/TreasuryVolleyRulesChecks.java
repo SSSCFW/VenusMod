@@ -47,7 +47,6 @@ public final class TreasuryVolleyRulesChecks {
             check(result.size() == 5 && result.stream().noneMatch(i -> i == 1 || i == 2), "ランダム除外/本数: " + seed);
             check(result.stream().filter(i -> i == 0).count() == 2, "ランダム非復元抽出: " + seed);
         }
-        // 最初の抽選を全値列挙して、1本と3本の在庫が1:3の確率になることを確かめる。
         var weighted = List.of(new Candidate(0, 1, 1, false, false), new Candidate(1, 3, 1, false, false));
         int[] hits = new int[2];
         for (int draw = 0; draw < 4; draw++) {
@@ -61,7 +60,19 @@ public final class TreasuryVolleyRulesChecks {
         }
         check(VolleyPriority.fromId("unknown") == VolleyPriority.RANDOM, "旧保存データの既定値はランダム");
         check(VolleyPriority.fromOrdinal(-1) == VolleyPriority.RANDOM, "負の同期値を拒否");
-        check(VolleyPriority.fromOrdinal(3) == VolleyPriority.RANDOM, "範囲外同期値を拒否");
+        check(VolleyPriority.fromOrdinal(4) == VolleyPriority.RANDOM, "範囲外同期値を拒否");
+        var ranks = List.of(new Candidate(0, 1, 20, false, false, 3, 4),
+                new Candidate(1, 2, 20, false, false, 0, 2),
+                new Candidate(2, 1, 20, false, false, 0, 4),
+                new Candidate(3, 1, 20, false, false, 1, 2),
+                new Candidate(4, 1, 20, false, false, 2, 1),
+                new Candidate(5, 1, 20, false, true, 0, 0),
+                new Candidate(6, 1, 1, true, false, 0, 0));
+        check(TreasuryVolleyRules.select(ranks, 120, VolleyPriority.RANK_LOW, b -> 0)
+                .equals(List.of(1, 1, 2, 3, 4, 0)), "木偶等→通常→印→妖刀。保護/破損は除外");
+        check(TreasuryVolleyRules.select(ranks, 2, VolleyPriority.RANK_LOW, b -> 0).equals(List.of(1, 1)), "弱い在庫から先に使う");
+        var tied = List.of(new Candidate(0, 1, 20, false, false, 0, 2), new Candidate(1, 1, 3, false, false, 0, 2));
+        check(TreasuryVolleyRules.select(tied, 2, VolleyPriority.RANK_LOW, b -> 0).equals(List.of(1, 0)), "同ランク同威力は低耐久優先");
         System.out.println("TreasuryVolleyRulesChecks: " + checks + " passed");
     }
 }

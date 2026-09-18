@@ -9,7 +9,7 @@ public final class KingsTreasureAssets {
     public static void main(String[] args) throws IOException {
         Path root = Path.of(args[0]);
         write(root, "assets/venusmod/models/item/kings_treasure.json", """
-                {"parent":"minecraft:item/generated","textures":{"layer0":"venusmod:item/kings_treasure"}}
+                {"parent":"minecraft:item/generated","textures":{"layer0":"venusmod:item/kings_treasure"},"overrides":[{"predicate":{"custom_model_data":1},"model":"venusmod:item/kings_treasure_phantasm"}]}
                 """);
         write(root, "data/venusmod/recipe/kings_treasure.json", """
                 {"type":"minecraft:crafting_shaped","category":"equipment","pattern":[" G ","GEG"," G "],"key":{"G":{"item":"minecraft:gold_ingot"},"E":{"item":"minecraft:ender_eye"}},"result":{"id":"venusmod:kings_treasure","count":1}}
@@ -33,6 +33,17 @@ public final class KingsTreasureAssets {
         Path path = root.resolve("assets/venusmod/textures/item/kings_treasure.png");
         Files.createDirectories(path.getParent());
         ImageIO.write(icon, "PNG", path.toFile());
+        write(root, "assets/venusmod/models/item/kings_treasure_phantasm.json", """
+                {"parent":"minecraft:item/generated","textures":{"layer0":"venusmod:item/kings_treasure_phantasm"}}
+                """);
+        BufferedImage redIcon = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < 16; y++) for (int x = 0; x < 16; x++) {
+            if ((icon.getRGB(x, y) >>> 24) != 0) {
+                redIcon.setRGB(x, y, (x + y) % 3 == 0 ? 0xFFFFABAB : 0xFFE32939);
+            }
+        }
+        ImageIO.write(redIcon, "PNG", root.resolve(
+                "assets/venusmod/textures/item/kings_treasure_phantasm.png").toFile());
     }
     private static void write(Path root, String name, String contents) throws IOException {
         Path path = root.resolve(name);

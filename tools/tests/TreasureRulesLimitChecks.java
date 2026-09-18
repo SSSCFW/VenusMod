@@ -40,7 +40,7 @@ public final class TreasureRulesLimitChecks {
                 start += size;
             }
         }
-        check(TreasureRules.EXPLOSION_VOLUME == 2.0F, "爆発音量は2F");
+        check(TreasureRules.EXPLOSION_VOLUME == 1.2F, "爆発音の音量");
         System.out.println("TreasureRulesLimitChecks: " + checks + " passed");
     }
 }

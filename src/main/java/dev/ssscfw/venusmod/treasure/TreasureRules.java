@@ -10,7 +10,7 @@ public final class TreasureRules {
     public static final int DEFAULT_VOLLEY_LIMIT = 24;
     // 8・16・24・32・40本の半円を1段ずつ完成させる累積本数。
     private static final int[] VOLLEY_LIMITS = {8, 24, 48, 80, 120};
-    public static final float EXPLOSION_VOLUME = 2.0F;
+    public static final float EXPLOSION_VOLUME = 1.2F;
     public static final int PREPARE_TICKS = 20 * 60;
     public static final int FLIGHT_TICKS = 80;
     public static final double SPEED = 2.8;
@@ -145,8 +145,8 @@ public final class TreasureRules {
     public record DurabilityUse(int damage, boolean broken) {}
 
     /**
-     * 射出1回ぶんの耐久消費。最後の1耐久はアイテム消失ではなくSlashBladeの折れ状態へ移す。
-     * 既に折れている刀はそれ以上壊さず、その状態のまま宝物庫へ戻す。
+     * 射出1回ぶんの耐久消費と破損判定。最後の1耐久でbroken=trueを返す。
+     * 消滅型なら削除、それ以外なら折れ状態で返却する判断は互換ブリッジが行う。
      */
     public static DurabilityUse useOneDurability(int currentDamage, int maxDamage, boolean alreadyBroken) {
         int max = Math.max(1, maxDamage);

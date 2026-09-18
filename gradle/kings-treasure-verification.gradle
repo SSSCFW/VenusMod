@@ -1,186 +1,127 @@
-// 王の財宝の状態機械は、Minecraft非依存のJava検査を通常のcheckへ組み込む。
+// Minecraft非依存の実ルール検査。既存検査を残したまま新しい効果/保護/配送検査を加える。
 def compileTreasureChecks = tasks.register('compileKingsTreasureChecks', JavaCompile) {
     source = files(
             'src/main/java/dev/ssscfw/venusmod/treasure/TreasureRules.java',
             'src/main/java/dev/ssscfw/venusmod/treasure/RoyalBladeDamageRules.java',
+            'src/main/java/dev/ssscfw/venusmod/treasure/RoyalBladeEffectsRules.java',
+            'src/main/java/dev/ssscfw/venusmod/treasury/TreasuryBladeRules.java',
             'src/main/java/dev/ssscfw/venusmod/treasury/GiveCaptureRules.java',
+            'src/main/java/dev/ssscfw/venusmod/treasury/GiveDeliveryRules.java',
             'src/main/java/dev/ssscfw/venusmod/treasury/VolleyPriority.java',
             'src/main/java/dev/ssscfw/venusmod/treasury/TreasuryVolleyRules.java',
             'src/main/java/dev/ssscfw/venusmod/upgrade/ForgeScreenLayout.java',
-            'tools/tests/RoyalBladeDamageRulesChecks.java',
-            'tools/tests/TreasuryVolleyRulesChecks.java',
-            'tools/tests/ForgeScreenLayoutChecks.java',
             'tools/tests/TreasureRulesChecks.java',
             'tools/tests/TreasureRulesLimitChecks.java',
-            'tools/tests/GiveCaptureRulesChecks.java')
+            'tools/tests/RoyalBladeDamageRulesChecks.java',
+            'tools/tests/RoyalBladeEffectsRulesChecks.java',
+            'tools/tests/TreasuryBladeRulesChecks.java',
+            'tools/tests/TreasuryVolleyRulesChecks.java',
+            'tools/tests/GiveCaptureRulesChecks.java',
+            'tools/tests/GiveDeliveryRulesChecks.java',
+            'tools/tests/ForgeScreenLayoutChecks.java')
     classpath = files()
     destinationDirectory = layout.buildDirectory.dir('classes/kingsTreasureChecks')
     javaCompiler = javaToolchains.compilerFor { languageVersion = JavaLanguageVersion.of(21) }
     options.encoding = 'UTF-8'
     options.release = 21
 }
-tasks.register('verifyKingsTreasureRules', JavaExec) {
-    dependsOn compileTreasureChecks
-    classpath compileTreasureChecks.flatMap { it.destinationDirectory }
-    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
-    mainClass = 'TreasureRulesChecks'
-}
-tasks.register('verifyKingsTreasureLimits', JavaExec) {
-    dependsOn compileTreasureChecks
-    classpath compileTreasureChecks.flatMap { it.destinationDirectory }
-    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
-    mainClass = 'TreasureRulesLimitChecks'
-}
-tasks.register('verifyTreasuryGiveCapture', JavaExec) {
-    dependsOn compileTreasureChecks
-    classpath compileTreasureChecks.flatMap { it.destinationDirectory }
-    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
-    mainClass = 'GiveCaptureRulesChecks'
-}
-tasks.register('verifyTreasuryVolleySelection', JavaExec) {
-    dependsOn compileTreasureChecks
-    classpath compileTreasureChecks.flatMap { it.destinationDirectory }
-    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
-    mainClass = 'TreasuryVolleyRulesChecks'
-}
-tasks.register('verifyForgeScreenLayout', JavaExec) {
-    dependsOn compileTreasureChecks
-    classpath compileTreasureChecks.flatMap { it.destinationDirectory }
-    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
-    mainClass = 'ForgeScreenLayoutChecks'
-}
-tasks.register('verifyRoyalBladeDamageRules', JavaExec) {
-    dependsOn compileTreasureChecks
-    classpath compileTreasureChecks.flatMap { it.destinationDirectory }
-    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
-    mainClass = 'RoyalBladeDamageRulesChecks'
-}
-tasks.named('check') {
-    dependsOn 'verifyRoyalBladeDamageRules'
-    dependsOn 'verifyTreasuryVolleySelection'
-    dependsOn 'verifyForgeScreenLayout'
-    dependsOn 'verifyKingsTreasureRules'
-    dependsOn 'verifyKingsTreasureLimits'
-    dependsOn 'verifyTreasuryGiveCapture'
+[
+    verifyKingsTreasureRules: 'TreasureRulesChecks',
+    verifyKingsTreasureLimits: 'TreasureRulesLimitChecks',
+    verifyRoyalBladeDamageRules: 'RoyalBladeDamageRulesChecks',
+    verifyRoyalBladeEffectsRules: 'RoyalBladeEffectsRulesChecks',
+    verifyTreasuryBladeRules: 'TreasuryBladeRulesChecks',
+    verifyTreasuryVolleySelection: 'TreasuryVolleyRulesChecks',
+    verifyTreasuryGiveCapture: 'GiveCaptureRulesChecks',
+    verifyTreasuryGiveDelivery: 'GiveDeliveryRulesChecks',
+    verifyForgeScreenLayout: 'ForgeScreenLayoutChecks'
+].each { taskName, checkClass ->
+    tasks.register(taskName, JavaExec) {
+        group = 'verification'
+        dependsOn compileTreasureChecks
+        classpath compileTreasureChecks.flatMap { it.destinationDirectory }
+        javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+        mainClass = checkClass
+    }
+    tasks.named('check') { dependsOn taskName }
 }
 
-// 過去にyaw/pitch変換だけで刀身方向を合わせようとして90度ずれが再発したため、
-// 実方向Vector3fを同期し、OBJの-X軸から直接rotationToする契約を固定する。
 tasks.register('verifyKingsTreasureRenderDirection') {
     group = 'verification'
-    description = 'Verify royal blade rendering uses the synced direction vector directly.'
     notCompatibleWithConfigurationCache('Validation inspects project source files')
     doLast {
         def entity = file('src/main/java/dev/ssscfw/venusmod/treasure/RoyalBladeEntity.java').text
         def renderer = file('src/main/java/dev/ssscfw/venusmod/client/RoyalBladeRenderer.java').text
-
-        if (!entity.contains('EntityDataSerializers.VECTOR3'))
-            throw new GradleException('RoyalBladeEntity must sync the real aim direction with VECTOR3.')
-        if (!entity.contains('public Vec3 aimDirection()'))
-            throw new GradleException('RoyalBladeEntity must expose the synced aim direction.')
-        if (!entity.contains('setAimDirection(direction);'))
-            throw new GradleException('RoyalBladeEntity must update synced aim direction on stage/launch.')
-        if (!renderer.contains('blade.aimDirection()'))
-            throw new GradleException('RoyalBladeRenderer must consume the synced direction vector.')
-        if (!(renderer =~ /rotationTo\s*\(\s*MODEL_TIP\s*,\s*target\s*\)/))
-            throw new GradleException('RoyalBladeRenderer must rotate the OBJ tip axis directly to the target direction.')
-        if (renderer.contains('blade.getYRot()') || renderer.contains('blade.getXRot()'))
-            throw new GradleException('RoyalBladeRenderer must not reconstruct rendering direction from yaw/pitch.')
-        if (!renderer.contains('Axis.XP.rotationDegrees(age * 1.5F)'))
-            throw new GradleException('Royal blade rings must rotate around the blade axis.')
-        if (!(renderer =~ /addVertex\s*\(\s*matrix\s*,\s*-0\.15F\s*,/))
-            throw new GradleException('Royal blade rings must be drawn in the YZ plane, perpendicular to the blade axis.')
-
-        println "Verified King's Treasure direct-vector render direction contract."
+        if (!entity.contains('EntityDataSerializers.VECTOR3') || !entity.contains('public Vec3 aimDirection()')
+                || !entity.contains('setAimDirection(direction);') || !renderer.contains('blade.aimDirection()'))
+            throw new GradleException('Royal blades must sync and render the real aim direction.')
+        if (!(renderer =~ /rotationTo\s*\(\s*MODEL_TIP\s*,\s*target\s*\)/)
+                || renderer.contains('blade.getYRot()') || renderer.contains('blade.getXRot()'))
+            throw new GradleException('Render the OBJ tip from its vector, not reconstructed yaw/pitch.')
+        if (!renderer.contains('Axis.XP.rotationDegrees(age * 1.5F)')
+                || !(renderer =~ /addVertex\s*\(\s*matrix\s*,\s*-0\.15F\s*,/))
+            throw new GradleException('Royal blade rings must be perpendicular to the blade axis.')
+        println 'Verified royal blade direction contract.'
     }
 }
 tasks.named('check') { dependsOn 'verifyKingsTreasureRenderDirection' }
 
-// /give限定回収・F切替・持ち替え維持・射出後返却・遠距離パーティクル・刀由来ダメージを固定する。
 tasks.register('verifyKingsTreasureInteractionContracts') {
     group = 'verification'
-    description = 'Verify treasury give-only capture, persistent preparation, blade returns, particles, blade-derived damage, F cycling, and no cooldown.'
     notCompatibleWithConfigurationCache('Validation inspects project source files')
     doLast {
-        def treasure = file('src/main/java/dev/ssscfw/venusmod/treasure/KingsTreasure.java').text
-        def entity = file('src/main/java/dev/ssscfw/venusmod/treasure/RoyalBladeEntity.java').text
-        def durability = file('src/main/java/dev/ssscfw/venusmod/compat/SlashBladeTreasuryCompat.java').text
-        def upgrades = file('src/main/java/dev/ssscfw/venusmod/event/BladeUpgradeEvents.java').text
-        def client = file('src/main/java/dev/ssscfw/venusmod/client/KingsTreasureClient.java').text
-        def events = file('src/main/java/dev/ssscfw/venusmod/event/KingsTreasuryEvents.java').text
-        def mod = file('src/main/java/dev/ssscfw/venusmod/VenusMod.java').text
-        def saved = file('src/main/java/dev/ssscfw/venusmod/treasury/KingsTreasurySavedData.java').text
+        def root = 'src/main/java/dev/ssscfw/venusmod/'
+        def treasure = file(root + 'treasure/KingsTreasure.java').text
+        def entity = file(root + 'treasure/RoyalBladeEntity.java').text
+        def effects = file(root + 'treasure/RoyalBladeEffects.java').text
+        def bridge = file(root + 'compat/SlashBladeTreasuryCompat.java').text
+        def upgrades = file(root + 'event/BladeUpgradeEvents.java').text
+        def client = file(root + 'client/KingsTreasureClient.java').text
+        def events = file(root + 'event/KingsTreasuryEvents.java').text
+        def mod = file(root + 'VenusMod.java').text
         def ja = new groovy.json.JsonSlurper().parse(file('src/main/resources/assets/venusmod/lang/ja_jp.json'))
         def en = new groovy.json.JsonSlurper().parse(file('src/main/resources/assets/venusmod/lang/en_us.json'))
-
         if (treasure.contains('addCooldown(') || treasure.contains('isOnCooldown('))
-            throw new GradleException("King's Treasure must not use item cooldowns.")
-        if (!client.contains('keySwapOffhand.consumeClick()') || !client.contains('LimitAction'))
-            throw new GradleException('F/swap-offhand key must cycle the volley limit while holding King\'s Treasure.')
-
-        if (!events.contains('onCommand(CommandEvent') || !events.contains('PENDING_GIVES'))
-            throw new GradleException('/give collection must be armed specifically by CommandEvent.')
-        if (!events.contains('GiveCaptureRules.newlyAdded'))
-            throw new GradleException('/give collection must compare inventory counts before and after the command.')
-        int tickStart = events.indexOf('public static void onPlayerTick(PlayerTickEvent.Post')
-        int tickEnd = events.indexOf('public static void onLogout', tickStart)
-        if (tickStart < 0 || tickEnd < 0)
-            throw new GradleException('KingsTreasuryEvents pending /give tick handler is missing.')
-        def tickBody = events.substring(tickStart, tickEnd)
-        if (!tickBody.contains('PENDING_GIVES.remove(player.getUUID())'))
-            throw new GradleException('PlayerTick must only process a pending /give capture.')
-        if (tickBody.contains('for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++)'))
-            throw new GradleException('PlayerTick must not scan and absorb the whole existing inventory.')
-        if (!events.contains('storage.autoCollect(player.getUUID())'))
-            throw new GradleException('/give capture must still require treasury auto-collect ON.')
-        if (!mod.contains('KingsTreasuryEvents::onCommand') || !mod.contains('KingsTreasuryEvents::onPlayerTick'))
-            throw new GradleException('KingsTreasuryEvents command/tick handlers must be registered.')
-
-        if (!treasure.contains('TreasureRules.keepPrepared('))
-            throw new GradleException('Prepared blades must use the held-item-independent lifecycle rule.')
-        int formationTick = treasure.indexOf('private static void tick(PlayerTickEvent.Post')
-        int cancelMethod = treasure.indexOf('private static void cancel(UUID owner)', formationTick)
-        if (formationTick < 0 || cancelMethod < 0)
-            throw new GradleException('King\'s Treasure formation tick handler is missing.')
-        def formationTickBody = treasure.substring(formationTick, cancelMethod)
-        if (formationTickBody.contains('!isHeld(player)'))
-            throw new GradleException('Switching away from King\'s Treasure must not cancel prepared blades.')
-
-        if (!treasure.contains('.clientTrackingRange(32)'))
-            throw new GradleException('Royal blade tracking range must remain extended for distant visuals.')
-        if (!entity.contains('sendParticles(viewer, particle, true'))
-            throw new GradleException('Royal blade particles must use forced long-distance packets.')
-        if (!entity.contains('FAR_PARTICLE_RANGE_SQR'))
-            throw new GradleException('Royal blade particles must keep an explicit far visibility range.')
-
-        if (!entity.contains('finishFlight(owner)') || !entity.contains('KingsTreasure.returnSpentBlade(player, blade())'))
-            throw new GradleException('Every normal fired-blade completion path must return the blade.')
-        if (!treasure.contains('SlashBladeTreasuryCompat.damageOnePoint(original)'))
-            throw new GradleException('Returned blades must lose exactly one durability use.')
-        if (!durability.contains('TreasureRules.useOneDurability(')
-                || !durability.contains('setBrokenMethod.invoke(state, use.broken())'))
-            throw new GradleException('SlashBlade return bridge must preserve broken blades instead of deleting them.')
-        if (!treasure.contains('storage.insert(player.getUUID(), returned, 1)'))
-            throw new GradleException('Spent blades must be reinserted into the owner UUID treasury.')
-
-        if (!entity.contains('SlashBladeTreasuryCompat.damageAgainst(')
-                || !durability.contains('EnchantmentHelper.modifyDamage(')
-                || !durability.contains('getBaseAttackModifier')
-                || !durability.contains('mods.flammpfeil.slashblade.item.SwordType'))
-            throw new GradleException('Royal blade damage must come from the fired blade base attack, enchantments, and SwordType.')
-        if (entity.contains('TreasureRules.DAMAGE') || entity.contains('1 - distance / radius'))
-            throw new GradleException('Royal blade damage must not fall back to the old fixed/falloff formula.')
-        if (!upgrades.contains('event.getSource().is(KingsTreasure.DAMAGE_TYPE)'))
-            throw new GradleException('Held-blade Venus upgrades must not alter King\'s Treasure damage.')
-
-        if (!saved.contains('"VolleyLimit"') || !saved.contains('cycleVolleyLimit'))
-            throw new GradleException('Volley limit must be persisted per player.')
-        if (ja['item.venusmod.king_treasury'] != '王の宝物庫')
-            throw new GradleException('Japanese King Treasury item translation is missing.')
-        if (!en.containsKey('item.venusmod.king_treasury'))
-            throw new GradleException('English King Treasury item translation is missing.')
-
-        println "Verified King's Treasure interaction contracts."
+            throw new GradleException('King treasure must not use item cooldowns.')
+        if (!client.contains('keySwapOffhand.consumeClick()') || !client.contains('keyShift.isDown()'))
+            throw new GradleException('F/Shift+F controls must consume swap-offhand input.')
+        if (!events.contains('onCommand(CommandEvent') || !events.contains('context.withCommand(new CapturingGive(')
+                || !events.contains('context = context.getChild()') || !events.contains('GiveDeliveryRules.deliver('))
+            throw new GradleException('Give capture must wrap executed give commands, including execute children.')
+        if (events.contains('PENDING_GIVES') || events.contains('countMatching(') || events.contains('getContainerSize()'))
+            throw new GradleException('Give capture must not absorb existing inventory or use delayed component comparisons.')
+        if (!events.contains('autoCollect(player.getUUID())') || !events.contains('KingTreasuryItem.hasTreasury(player)')
+                || !mod.contains('KingsTreasuryEvents::onCommand') || !mod.contains('KingsTreasuryEvents::onItemPickup'))
+            throw new GradleException('Give/pickup collection must be registered and require ON plus treasury ownership.')
+        int tickStart = treasure.indexOf('private static void tick(PlayerTickEvent.Post')
+        int tickEnd = treasure.indexOf('private static void cancel(UUID owner)', tickStart)
+        if (tickStart < 0 || tickEnd < 0 || !treasure.contains('TreasureRules.keepPrepared(')
+                || treasure.substring(tickStart, tickEnd).contains('!isHeld(player)'))
+            throw new GradleException('Switching items must not cancel prepared blades.')
+        if (!treasure.contains('.clientTrackingRange(32)') || !entity.contains('sendParticles(viewer, particle, true')
+                || !entity.contains('FAR_PARTICLE_RANGE_SQR'))
+            throw new GradleException('Long-range particles and entity tracking must remain.')
+        if (!entity.contains('RoyalBladeEffectsRules.returnsBlade(phantasm(), impacted)')
+                || !entity.contains('KingsTreasure.returnSpentBlade(player, blade())')
+                || !treasure.contains('RoyalBladeEffects.returnBlade(player.serverLevel(), original)')
+                || !treasure.contains('storage.insert(player.getUUID(), returned, 1)'))
+            throw new GradleException('Normal completions must return blades; only impacted phantasm blades are sacrificed.')
+        if (!bridge.contains('TreasureRules.useOneDurability(') || !bridge.contains('TreasuryBladeRules.vanishesOnBreak(')
+                || !bridge.contains('getMethod("isDestructable")') || !effects.contains('usesDurability(unbreaking, roll)'))
+            throw new GradleException('Durability must respect unbreaking, native destructability and ordinary broken blades.')
+        if (!entity.contains('SlashBladeTreasuryCompat.damageAgainst(') || !bridge.contains('EnchantmentHelper.modifyDamage(')
+                || !bridge.contains('getBaseAttackModifier') || !bridge.contains('mods.flammpfeil.slashblade.item.SwordType'))
+            throw new GradleException('Damage must derive from the fired blade, enchantments and grade.')
+        if (entity.contains('TreasureRules.DAMAGE') || entity.contains('1 - distance / radius')
+                || !upgrades.contains('event.getSource().is(KingsTreasure.DAMAGE_TYPE)'))
+            throw new GradleException('Do not reintroduce fixed damage, falloff or held-weapon upgrades.')
+        if (!entity.contains('RoyalBladeEffects.ignite(level, firedBlade, target)')
+                || !effects.contains('Enchantments.FIRE_ASPECT') || !effects.contains('Enchantments.UNBREAKING')
+                || !effects.contains('DataComponents.CUSTOM_MODEL_DATA'))
+            throw new GradleException('Fire aspect, unbreaking and red-key mode must be connected.')
+        if (ja['item.venusmod.king_treasury'] != '王の宝物庫' || !en.containsKey('item.venusmod.king_treasury'))
+            throw new GradleException('Treasury translations must remain.')
+        println 'Verified royal blade interaction contracts.'
     }
 }
 tasks.named('check') { dependsOn 'verifyKingsTreasureInteractionContracts' }
@@ -199,43 +140,42 @@ tasks.register('generateKingsTreasureAssets', JavaExec) {
 sourceSets.main.resources.srcDir assets
 tasks.named('processResources') { dependsOn 'generateKingsTreasureAssets' }
 
-// 実ロジックのJava検査に加え、GUIから保存/選択処理への接続漏れを検出する。
 tasks.register('verifyTreasurySelectionWiring') {
     group = 'verification'
     notCompatibleWithConfigurationCache('Validation inspects project source files')
     doLast {
         def root = 'src/main/java/dev/ssscfw/venusmod/'
         def saved = file(root + 'treasury/KingsTreasurySavedData.java').text
+        def protection = file(root + 'treasury/TreasuryBladeProtection.java').text
         def menu = file(root + 'treasury/KingsTreasuryMenu.java').text
         def screen = file(root + 'client/KingsTreasuryScreen.java').text
         def treasure = file(root + 'treasure/KingsTreasure.java').text
         def entity = file(root + 'treasure/RoyalBladeEntity.java').text
         def forge = file(root + 'compat/create/client/VenusBladeForgeScreen.java').text
         def forgeMenu = file(root + 'compat/create/VenusBladeForgeMenu.java').text
-        if (!saved.contains('entryTag.putBoolean("Favorite", entry.favorite)')
-                || !saved.contains('entryTag.getBoolean("Favorite")')
-                || !saved.contains('playerTag.putString("VolleyPriority"')
-                || !saved.contains('VolleyPriority.fromId(playerTag.getString("VolleyPriority"))'))
-            throw new GradleException('Favorite and priority must survive SavedData reload.')
-        if (!saved.contains('!entry.favorite && SlashBladeTreasuryCompat.canLaunch(entry.template)'))
-            throw new GradleException('Immediately before firing, protect favorite and broken blades.')
-        if (!treasure.contains('storage.selectForVolley(') || !saved.contains('TreasuryVolleyRules.select('))
-            throw new GradleException('Volley selection must use the tested whole-treasury selection rule.')
-        if (!menu.contains('clickType == ClickType.PICKUP && button == 1') || !menu.contains('storage.toggleFavorite(')
+        if (!saved.contains('TreasuryBladeProtection.migrate(stack, entryTag.getBoolean("Favorite"), entryTag.getBoolean("PhantasmProtected"))')
+                || !saved.contains('TreasuryBladeProtection.cycle(entry.template)')
+                || !protection.contains('DataComponents.CUSTOM_DATA') || !protection.contains('venusmod_treasury_protection'))
+            throw new GradleException('Protection must live on the blade and migrate legacy entry flags.')
+        if (!saved.contains('"VolleyLimit"') || !saved.contains('"VolleyPriority"')
+                || !saved.contains('RoyalBladeEffectsRules.eligible(entry.protection(),')
+                || !saved.contains('TreasuryVolleyRules.select(') || !saved.contains('VolleyPriority.RANK_LOW'))
+            throw new GradleException('Saved limits, mode protection and low-rank whole-treasury selection must remain.')
+        if (!menu.contains('clickType == ClickType.PICKUP && button == 1') || !menu.contains('storage.cycleProtection(')
                 || !menu.contains('DATA_FAVORITES_START') || !menu.contains('storage.setVolleyPriority('))
-            throw new GradleException('Treasury right click and priority controls must update server state.')
-        if (!screen.contains('menu.isFavorite(index)') || !screen.contains('0xFF205B2D')
-                || !screen.contains('SIDEBAR_WIDTH') || !screen.contains('BUTTON_PRIORITY_START'))
-            throw new GradleException('Treasury screen must show protected slots and left priority buttons.')
+            throw new GradleException('GUI protection and priority controls must reach the server.')
+        if (!screen.contains('menu.isFavorite(index)') || !screen.contains('menu.isPhantasmProtected(index)')
+                || !screen.contains('0xFF205B2D') || !screen.contains('0xFF662020') || !screen.contains('BUTTON_PRIORITY_START'))
+            throw new GradleException('GUI must show green/red protection and left priority buttons.')
         if (!entity.contains('TreasureRules.formationOffset(formationSlot, formationSize)')
-                || !treasure.contains('blade.stage(player, template, slot, aimDirection, selected.size())'))
-            throw new GradleException('Partial formations must use the actual number of selected blades.')
+                || !treasure.contains('blade.stage(player, template, slot, aimDirection, selected.size(), phantasm)'))
+            throw new GradleException('Partial formations must use actual blade count.')
         if (!entity.contains('SoundSource.PLAYERS, TreasureRules.EXPLOSION_VOLUME'))
-            throw new GradleException('Royal blade explosion sound must keep the extended volume.')
-        if (!forge.contains('ForgeScreenLayout.nameWidth(countWidth)')
-                || !forge.contains('font.plainSubstrByWidth') || !forgeMenu.contains('ForgeScreenLayout.INVENTORY_Y'))
-            throw new GradleException('Forge text widths and menu slot layout must stay coordinated.')
-        println 'Verified treasury favorite/priority/formation/forge layout wiring.'
+            throw new GradleException('Impact sound must use the shared volume.')
+        if (!forge.contains('ForgeScreenLayout.nameWidth(countWidth)') || !forge.contains('font.plainSubstrByWidth')
+                || !forgeMenu.contains('ForgeScreenLayout.INVENTORY_Y'))
+            throw new GradleException('Forge text and menu layout must stay coordinated.')
+        println 'Verified persistent protection, selection and GUI wiring.'
     }
 }
 tasks.named('check') { dependsOn 'verifyTreasurySelectionWiring' }

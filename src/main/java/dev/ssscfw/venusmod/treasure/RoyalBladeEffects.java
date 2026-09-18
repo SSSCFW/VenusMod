@@ -1,0 +1,56 @@
+package dev.ssscfw.venusmod.treasure;
+
+import dev.ssscfw.venusmod.compat.SlashBladeTreasuryCompat;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.item.enchantment.Enchantments;
+
+/** モードの同期と、放出した刀自身のエンチャント効果。現在の手持ち刀は参照しない。 */
+public final class RoyalBladeEffects {
+    private static final String PHANTASM_KEY = "venusmod_broken_phantasm";
+    private RoyalBladeEffects() {}
+
+    public static boolean isPhantasm(ItemStack key) {
+        return !key.isEmpty() && key.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY)
+                .copyTag().getBoolean(PHANTASM_KEY);
+    }
+
+    /** CUSTOM_DATAは他の値を保持し、標準custom_model_dataのモデル切替を同期する。 */
+    public static void setPhantasm(ItemStack key, boolean enabled) {
+        CompoundTag data = key.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+        data.putBoolean(PHANTASM_KEY, enabled);
+        key.set(DataComponents.CUSTOM_DATA, CustomData.of(data));
+        if (enabled) key.set(DataComponents.CUSTOM_MODEL_DATA, 1);
+        else key.remove(DataComponents.CUSTOM_MODEL_DATA);
+    }
+
+    public static int level(ServerLevel level, ItemStack blade, ResourceKey<Enchantment> key) {
+        var enchantment = level.registryAccess().registryOrThrow(Registries.ENCHANTMENT).getHolderOrThrow(key);
+        return RoyalBladeEffectsRules.enchantmentLevel(EnchantmentHelper.getItemEnchantmentLevel(enchantment, blade));
+    }
+
+    /** 直撃・爆風で実際にダメージが成立した相手だけを燃やす。ブロックには着火しない。 */
+    public static void ignite(ServerLevel level, ItemStack firedBlade, LivingEntity target) {
+        if (target.fireImmune()) return;
+        int seconds = RoyalBladeEffectsRules.fireSeconds(level(level, firedBlade, Enchantments.FIRE_ASPECT));
+        if (seconds > 0) target.igniteForSeconds((float) seconds);
+    }
+
+    /** 返却1回に対して1回だけ耐久力を抽選し、消費する場合だけ既存の折れ状態処理を呼ぶ。 */
+    public static ItemStack returnBlade(ServerLevel level, ItemStack original) {
+        if (original == null || original.isEmpty()) return ItemStack.EMPTY;
+        if (original.has(DataComponents.UNBREAKABLE)) return original.copyWithCount(1);
+        int unbreaking = level(level, original, Enchantments.UNBREAKING);
+        int roll = unbreaking == 0 ? 0 : level.getRandom().nextInt(unbreaking + 1);
+        return RoyalBladeEffectsRules.usesDurability(unbreaking, roll)
+                ? SlashBladeTreasuryCompat.damageOnePoint(original) : original.copyWithCount(1);
+    }
+}

@@ -25,10 +25,7 @@ public final class KingsTreasureClient {
         private static final TreasureRules.PressLatch LATCH = new TreasureRules.PressLatch();
         private Input() {}
 
-        /**
-         * バニラの持ち替え処理より前にswap-offhand(F既定)のclickを消費する。
-         * 王の財宝を持っている間だけFを最大射出本数の切替へ専有する。
-         */
+        /** F=最大本数、Shift+F=壊れた幻想。バニラの持ち替えより前に入力を消費する。 */
         @SubscribeEvent public static void preTick(ClientTickEvent.Pre event) {
             Minecraft client = Minecraft.getInstance();
             if (client.player == null || client.screen != null || !KingsTreasure.isHeld(client.player)) return;
@@ -36,7 +33,7 @@ public final class KingsTreasureClient {
             while (client.options.keySwapOffhand.consumeClick()) {
                 // 同tickに溜まったリピート入力を1回にまとめる。
             }
-            PacketDistributor.sendToServer(new KingsTreasure.LimitAction(true));
+            PacketDistributor.sendToServer(new KingsTreasure.LimitAction(!client.options.keyShift.isDown()));
         }
 
         @SubscribeEvent public static void tick(ClientTickEvent.Post event) {
