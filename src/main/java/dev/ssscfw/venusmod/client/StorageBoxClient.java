@@ -9,6 +9,7 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.RegisterItemDecorationsEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.lwjgl.glfw.GLFW;
@@ -17,7 +18,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 
-/** Storage Boxのクライアント画面登録。キー/装飾は別イベントで追加する。 */
+/** Storage Boxの画面、キー入力、インベントリアイコン装飾をクライアント側だけで登録する。 */
 @EventBusSubscriber(modid = VenusMod.MOD_ID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public final class StorageBoxClient {
     private static final KeyMapping ACTION_KEY = new KeyMapping(
@@ -34,6 +35,11 @@ public final class StorageBoxClient {
     @SubscribeEvent
     public static void registerScreens(RegisterMenuScreensEvent event) {
         event.register(ModMenus.STORAGE_BOX.get(), StorageBoxScreen::new);
+    }
+
+    @SubscribeEvent
+    public static void registerDecorations(RegisterItemDecorationsEvent event) {
+        event.register(ModItems.STORAGE_BOX.get(), new StorageBoxItemDecorator());
     }
 
     @EventBusSubscriber(modid = VenusMod.MOD_ID, value = Dist.CLIENT)

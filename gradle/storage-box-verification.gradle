@@ -103,3 +103,28 @@ tasks.register('verifyStorageBoxActionWiring') {
     }
 }
 tasks.named('check') { dependsOn 'verifyStorageBoxActionWiring' }
+
+tasks.register('verifyStorageBoxVisualAndGameTests') {
+    group = 'verification'
+    notCompatibleWithConfigurationCache('Validation inspects project source files')
+    doLast {
+        def root = 'src/main/java/dev/ssscfw/venusmod/'
+        def decorator = file(root + 'client/StorageBoxItemDecorator.java').text
+        def client = file(root + 'client/StorageBoxClient.java').text
+        def tests = file(root + 'test/StorageBoxGameTests.java').text
+        def item = file(root + 'storagebox/StorageBoxItem.java').text
+        if (!client.contains('RegisterItemDecorationsEvent')
+                || !client.contains('new StorageBoxItemDecorator()')
+                || !decorator.contains('graphics.renderItem(template')
+                || !decorator.contains('StorageBoxData.storedCount(box)'))
+            throw new GradleException('Storage Box non-empty item decoration is not wired.')
+        if (!item.contains('return StorageBoxData.storedCount(stack) > 0'))
+            throw new GradleException('Non-empty Storage Box must use foil/glint.')
+        if (!tests.contains('ItemStack.isSameItemSameComponents')
+                || !tests.contains('Integer.MAX_VALUE - 1')
+                || !tests.contains('StorageBoxData.template(box).isEmpty()'))
+            throw new GradleException('Storage Box GameTests must cover components, capacity and empty policy.')
+        println 'Verified Storage Box visuals and GameTest coverage wiring.'
+    }
+}
+tasks.named('check') { dependsOn 'verifyStorageBoxVisualAndGameTests' }
