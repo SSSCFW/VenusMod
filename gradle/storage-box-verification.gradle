@@ -42,3 +42,29 @@ tasks.register('verifyStorageBoxCoreWiring') {
     }
 }
 tasks.named('check') { dependsOn 'verifyStorageBoxCoreWiring' }
+
+tasks.register('verifyStorageBoxItemGuiWiring') {
+    group = 'verification'
+    notCompatibleWithConfigurationCache('Validation inspects project source files')
+    doLast {
+        def root = 'src/main/java/dev/ssscfw/venusmod/'
+        def items = file(root + 'registry/ModItems.java').text
+        def menus = file(root + 'registry/ModMenus.java').text
+        def item = file(root + 'storagebox/StorageBoxItem.java').text
+        def menu = file(root + 'storagebox/StorageBoxMenu.java').text
+        def client = file(root + 'client/StorageBoxClient.java').text
+        def screen = file(root + 'client/StorageBoxScreen.java').text
+        def recipe = new groovy.json.JsonSlurper().parse(file('src/main/resources/data/venusmod/recipe/storage_box.json'))
+        def blacklist = new groovy.json.JsonSlurper().parse(file('src/main/resources/data/venusmod/tags/item/storage_box_blacklist.json'))
+        if (!items.contains('ITEMS.register("storage_box"') || !menus.contains('MENUS.register("storage_box"'))
+            throw new GradleException('Storage Box item/menu must be registered.')
+        if (!item.contains('new StorageBoxMenu(') || !menu.contains('StorageBoxData.insert(')
+                || !menu.contains('StorageBoxData.extract(') || !screen.contains('BUTTON_AUTO_COLLECT')
+                || !client.contains('event.register(ModMenus.STORAGE_BOX.get(), StorageBoxScreen::new)'))
+            throw new GradleException('Storage Box GUI must use the shared data API.')
+        if (recipe.result.id != 'venusmod:storage_box' || !blacklist.values.contains('venusmod:storage_box'))
+            throw new GradleException('Storage Box recipe/blacklist resources are missing.')
+        println 'Verified Storage Box item and GUI wiring.'
+    }
+}
+tasks.named('check') { dependsOn 'verifyStorageBoxItemGuiWiring' }

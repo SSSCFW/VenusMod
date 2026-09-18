@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": ["CCC", "C C", "CCC"],
+  "key": {
+    "C": { "item": "minecraft:chest" }
+  },
+  "result": {
+    "count": 1,
+    "id": "venusmod:storage_box"
+  }
+}

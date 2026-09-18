@@ -105,6 +105,21 @@ public final class VenusAssetGenerator {
             soul.setRGB(x, y, color);
         }
         writePNG(root, "item/venus_soul_stone", soul);
+
+        // Storage Boxは外部Modのテクスチャを使わず、VenusMod用にここで生成する。
+        BufferedImage storage = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 2; y <= 14; y++) for (int x = 1; x <= 14; x++) {
+            int color;
+            if (x == 1 || x == 14 || y == 2 || y == 14) color = 0xff3d260f;
+            else if (y <= 5) color = 0xffb8893e;
+            else color = ((x + y) & 1) == 0 ? 0xff8b5d26 : 0xff97672c;
+            storage.setRGB(x, y, color);
+        }
+        for (int x = 2; x <= 13; x++) storage.setRGB(x, 6, 0xffd2a957);
+        for (int y = 7; y <= 11; y++) for (int x = 6; x <= 9; x++) storage.setRGB(x, y, 0xffd6b760);
+        storage.setRGB(7, 9, 0xff5a3b17);
+        storage.setRGB(8, 9, 0xff5a3b17);
+        writePNG(root, "item/storage_box", storage);
     }
     private static final class Template {
         final Map<State, Integer> indices = new LinkedHashMap<>();

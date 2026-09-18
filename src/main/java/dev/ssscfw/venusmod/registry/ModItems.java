@@ -3,6 +3,7 @@ package dev.ssscfw.venusmod.registry;
 import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.entity.VenusZombie;
 import dev.ssscfw.venusmod.item.KingTreasuryItem;
+import dev.ssscfw.venusmod.storagebox.StorageBoxItem;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.BlockItem;
@@ -42,6 +43,10 @@ public final class ModItems {
     public static final DeferredItem<KingTreasuryItem> KING_TREASURY =
             ITEMS.register("king_treasury",
                     () -> new KingTreasuryItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
+
+    public static final DeferredItem<StorageBoxItem> STORAGE_BOX =
+            ITEMS.register("storage_box",
+                    () -> new StorageBoxItem(new Item.Properties().stacksTo(1)));
 
     public static final DeferredItem<DeferredSpawnEggItem> VENUS_ZOMBIE_SPAWN_EGG =
             ITEMS.register("venus_zombie_spawn_egg",
@@ -86,6 +91,9 @@ public final class ModItems {
     }
 
     public static void addCreativeTabContents(BuildCreativeModeTabContentsEvent event) {
+        if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
+            event.accept(STORAGE_BOX);
+        }
         if (event.getTabKey() == CreativeModeTabs.SPAWN_EGGS) {
             event.accept(VENUS_ZOMBIE_SPAWN_EGG);
             event.accept(VENUS_SLASHBLADE_ZOMBIE_SPAWN_EGG);

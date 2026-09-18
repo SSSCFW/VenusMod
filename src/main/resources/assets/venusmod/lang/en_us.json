@@ -103,5 +103,20 @@
   "gui.venusmod.king_treasury.page": "Page %s / %s",
   "gui.venusmod.king_treasury.total": "Stored stacks %s / 10000",
   "gui.venusmod.king_treasury.auto_on": "Auto-collect: ON",
-  "gui.venusmod.king_treasury.auto_off": "Auto-collect: OFF"
+  "gui.venusmod.king_treasury.auto_off": "Auto-collect: OFF",
+  "item.venusmod.storage_box": "Storage Box",
+  "container.venusmod.storage_box": "Storage Box",
+  "tooltip.venusmod.storage_box.empty": "Empty",
+  "tooltip.venusmod.storage_box.item": "Stored: %s",
+  "tooltip.venusmod.storage_box.count": "Count: %s / %s",
+  "tooltip.venusmod.storage_box.lc": "Large chests: %s",
+  "tooltip.venusmod.storage_box.auto_on": "Auto-collect: ON",
+  "tooltip.venusmod.storage_box.auto_off": "Auto-collect: OFF",
+  "tooltip.venusmod.storage_box.keys": "' insert / Shift+' extract / Ctrl+' auto / Shift+Ctrl+' drop",
+  "gui.venusmod.storage_box.auto_on": "Auto-collect ON",
+  "gui.venusmod.storage_box.auto_off": "Auto-collect OFF",
+  "gui.venusmod.storage_box.count": "%s / %s",
+  "gui.venusmod.storage_box.lc": "LC %s",
+  "key.venusmod.storage_box": "Storage Box Action",
+  "key.categories.venusmod": "VenusMod"
 }

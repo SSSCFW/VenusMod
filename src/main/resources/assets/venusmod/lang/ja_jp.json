@@ -103,5 +103,20 @@
   "gui.venusmod.king_treasury.page": "%s / %s ページ",
   "gui.venusmod.king_treasury.total": "収蔵スタック %s / 10000",
   "gui.venusmod.king_treasury.auto_on": "自動回収: ON",
-  "gui.venusmod.king_treasury.auto_off": "自動回収: OFF"
+  "gui.venusmod.king_treasury.auto_off": "自動回収: OFF",
+  "item.venusmod.storage_box": "ストレージボックス",
+  "container.venusmod.storage_box": "ストレージボックス",
+  "tooltip.venusmod.storage_box.empty": "空",
+  "tooltip.venusmod.storage_box.item": "収納: %s",
+  "tooltip.venusmod.storage_box.count": "個数: %s / %s",
+  "tooltip.venusmod.storage_box.lc": "LC換算: %s",
+  "tooltip.venusmod.storage_box.auto_on": "自動回収: ON",
+  "tooltip.venusmod.storage_box.auto_off": "自動回収: OFF",
+  "tooltip.venusmod.storage_box.keys": "' 収納 / Shift+' 取出 / Ctrl+' 自動回収 / Shift+Ctrl+' 投棄",
+  "gui.venusmod.storage_box.auto_on": "自動回収 ON",
+  "gui.venusmod.storage_box.auto_off": "自動回収 OFF",
+  "gui.venusmod.storage_box.count": "%s / %s",
+  "gui.venusmod.storage_box.lc": "LC %s",
+  "key.venusmod.storage_box": "Storage Box 操作",
+  "key.categories.venusmod": "VenusMod"
 }
