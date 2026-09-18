@@ -111,20 +111,49 @@ public final class KingsTreasurySavedData extends SavedData {
     }
 
     public List<ItemStack> selectForVolley(UUID playerId, int limit, IntUnaryOperator nextInt) {
-        return selectForVolley(playerId, limit, nextInt, false);
+        return selectForVolley(playerId, limit, nextInt, false, List.of());
     }
+
     public List<ItemStack> selectForVolley(UUID playerId, int limit, IntUnaryOperator nextInt, boolean phantasm) {
+        return selectForVolley(playerId, limit, nextInt, phantasm, List.of());
+    }
+
+    /**
+     * 既に展開準備されている刀を論理予約として差し引いてから追加展開分を選ぶ。
+     * 予約済みの刀が現在の宝物庫状態と一致しなくなった場合は安全側に倒して追加選択を止める。
+     */
+    public List<ItemStack> selectForVolley(UUID playerId, int limit, IntUnaryOperator nextInt,
+                                           boolean phantasm, List<ItemStack> reserved) {
         PlayerTreasury treasury = players.get(playerId);
         if (treasury == null) return List.of();
+
+        List<ItemStack> templates = new ArrayList<>(treasury.entries.size());
+        int[] storedCounts = new int[treasury.entries.size()];
+        for (int i = 0; i < treasury.entries.size(); i++) {
+            StoredEntry entry = treasury.entries.get(i);
+            templates.add(entry.template);
+            storedCounts[i] = entry.count;
+        }
+
+        int[] reservedCounts = new int[treasury.entries.size()];
+        if (reserved != null && !reserved.isEmpty()) {
+            int[] planned = TreasureRules.planConsumption(
+                    templates, storedCounts, reserved, ItemStack::isSameItemSameComponents);
+            if (planned == null) return List.of();
+            reservedCounts = planned;
+        }
+
         List<TreasuryVolleyRules.Candidate> candidates = new ArrayList<>(treasury.entries.size());
         for (int i = 0; i < treasury.entries.size(); i++) {
             StoredEntry entry = treasury.entries.get(i);
             if (!RoyalBladeEffectsRules.eligible(entry.protection(), false, phantasm)) continue;
+            int available = PreparedVolleyRules.remainingCount(entry.count, reservedCounts[i]);
+            if (available <= 0) continue;
             int remaining = SlashBladeTreasuryCompat.remainingDurability(entry.template);
             if (remaining <= 0) continue;
             boolean rankOrder = treasury.volleyPriority == VolleyPriority.RANK_LOW
                     || treasury.volleyPriority == VolleyPriority.RANK_HIGH;
-            candidates.add(new TreasuryVolleyRules.Candidate(i, entry.count, remaining, false, false,
+            candidates.add(new TreasuryVolleyRules.Candidate(i, available, remaining, false, false,
                     rankOrder ? SlashBladeTreasuryCompat.bladeRank(entry.template) : 0,
                     rankOrder ? SlashBladeTreasuryCompat.baseAttackModifier(entry.template) : 0.0F));
         }

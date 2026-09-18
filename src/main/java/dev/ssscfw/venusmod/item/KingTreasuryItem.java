@@ -2,7 +2,7 @@ package dev.ssscfw.venusmod.item;
 
 import dev.ssscfw.venusmod.registry.ModItems;
 import dev.ssscfw.venusmod.treasury.KingsTreasuryMenu;
-import dev.ssscfw.venusmod.treasury.KingsTreasurySavedData;
+import dev.ssscfw.venusmod.treasure.KingsTreasure;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -34,12 +34,11 @@ public final class KingTreasuryItem extends Item {
 
         if (player.isShiftKeyDown()) {
             if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
-                boolean enabled = KingsTreasurySavedData.get(serverPlayer.serverLevel())
-                        .toggleAutoCollect(serverPlayer.getUUID());
-                serverPlayer.displayClientMessage(Component.translatable(
-                        enabled
-                                ? "message.venusmod.king_treasury_auto_on"
-                                : "message.venusmod.king_treasury_auto_off"), true);
+                int closed = KingsTreasure.closePrepared(serverPlayer);
+                serverPlayer.displayClientMessage(Component.literal(
+                        closed > 0
+                                ? "王の財宝：展開中の刀 " + closed + " 本を収納しました。"
+                                : "王の財宝：展開中の刀はありません。"), true);
             }
             return InteractionResultHolder.sidedSuccess(held, level.isClientSide);
         }

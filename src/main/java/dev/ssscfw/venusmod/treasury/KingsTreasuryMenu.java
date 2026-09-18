@@ -25,6 +25,7 @@ public final class KingsTreasuryMenu extends AbstractContainerMenu {
     public static final int BUTTON_NEXT = 1;
     public static final int BUTTON_PRIORITY_START = 2;
     public static final int BUTTON_PATTERN_START = 20;
+    public static final int BUTTON_AUTO_COLLECT = 30;
     public static final int BUTTON_CONVERGENCE_START = 1000;
     private static final int DATA_COUNTS_START = 0;
     private static final int DATA_PAGE = TREASURY_SLOTS;
@@ -75,6 +76,11 @@ public final class KingsTreasuryMenu extends AbstractContainerMenu {
         int page = getPage();
         if (id == BUTTON_PREVIOUS && page > 0) { data.set(DATA_PAGE, page - 1); refreshFromStorage(); return true; }
         if (id == BUTTON_NEXT && page + 1 < getPageCount()) { data.set(DATA_PAGE, page + 1); refreshFromStorage(); return true; }
+        if (id == BUTTON_AUTO_COLLECT) {
+            storage.toggleAutoCollect(ownerId);
+            refreshFromStorage();
+            return true;
+        }
         int priority = id - BUTTON_PRIORITY_START;
         if (priority >= 0 && priority < VolleyPriority.values().length) {
             storage.setVolleyPriority(ownerId, VolleyPriority.fromOrdinal(priority));

@@ -20,6 +20,7 @@ public final class KingsTreasuryScreen extends AbstractContainerScreen<KingsTrea
     private static final int SIDEBAR_HEIGHT = 236;
     private Button previousButton;
     private Button nextButton;
+    private Button autoCollectButton;
     private final Button[] priorityButtons = new Button[VolleyPriority.values().length];
     private final Button[] patternButtons = new Button[SummonPattern.values().length];
     private ConvergenceSlider convergenceSlider;
@@ -41,6 +42,10 @@ public final class KingsTreasuryScreen extends AbstractContainerScreen<KingsTrea
         nextButton = addRenderableWidget(Button.builder(Component.literal(">"),
                         b -> pressMenuButton(KingsTreasuryMenu.BUTTON_NEXT))
                 .bounds(leftPos + 150, topPos + 17, 18, 12).build());
+        autoCollectButton = addRenderableWidget(Button.builder(Component.empty(),
+                        b -> pressMenuButton(KingsTreasuryMenu.BUTTON_AUTO_COLLECT))
+                .bounds(leftPos + 8, topPos + 140, 82, 12)
+                .tooltip(Tooltip.create(Component.literal("自動回収のON/OFFを切り替え"))).build());
 
         int side = sidebarLeft();
         for (VolleyPriority priority : VolleyPriority.values()) {
@@ -118,8 +123,6 @@ public final class KingsTreasuryScreen extends AbstractContainerScreen<KingsTrea
         g.drawString(font, title, 8, 6, 0xFFFFE27A, false);
         g.drawCenteredString(font, Component.literal((menu.getPage() + 1) + " / " + menu.getPageCount()),
                 88, 19, 0xFFF4D36C);
-        g.drawString(font, menu.isAutoCollectEnabled() ? "自動回収: ON" : "自動回収: OFF", 8, 143,
-                menu.isAutoCollectEnabled() ? 0xFF7ADC85 : 0xFFCCCCCC, false);
         String total = menu.getTotalCount() + "/10000";
         g.drawString(font, total, imageWidth - 8 - font.width(total), 143, 0xFFF4D36C, false);
     }
@@ -133,6 +136,10 @@ public final class KingsTreasuryScreen extends AbstractContainerScreen<KingsTrea
     private void updateButtons() {
         if (previousButton != null) previousButton.active = menu.getPage() > 0;
         if (nextButton != null) nextButton.active = menu.getPage() + 1 < menu.getPageCount();
+        if (autoCollectButton != null) {
+            autoCollectButton.setMessage(Component.literal(
+                    menu.isAutoCollectEnabled() ? "自動回収 ON" : "自動回収 OFF"));
+        }
         for (VolleyPriority priority : VolleyPriority.values()) {
             Button button = priorityButtons[priority.ordinal()];
             if (button != null) button.active = menu.getVolleyPriority() != priority;

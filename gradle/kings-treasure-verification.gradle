@@ -9,6 +9,7 @@ def compileTreasureChecks = tasks.register('compileKingsTreasureChecks', JavaCom
             'src/main/java/dev/ssscfw/venusmod/treasury/GiveDeliveryRules.java',
             'src/main/java/dev/ssscfw/venusmod/treasury/VolleyPriority.java',
             'src/main/java/dev/ssscfw/venusmod/treasury/SummonPattern.java',
+            'src/main/java/dev/ssscfw/venusmod/treasury/PreparedVolleyRules.java',
             'src/main/java/dev/ssscfw/venusmod/treasury/TreasuryVolleyRules.java',
             'src/main/java/dev/ssscfw/venusmod/upgrade/ForgeScreenLayout.java',
             'tools/tests/TreasureRulesChecks.java',
@@ -18,6 +19,7 @@ def compileTreasureChecks = tasks.register('compileKingsTreasureChecks', JavaCom
             'tools/tests/TreasuryBladeRulesChecks.java',
             'tools/tests/TreasuryVolleyRulesChecks.java',
             'tools/tests/SummonPatternChecks.java',
+            'tools/tests/PreparedVolleyRulesChecks.java',
             'tools/tests/GiveCaptureRulesChecks.java',
             'tools/tests/GiveDeliveryRulesChecks.java',
             'tools/tests/ForgeScreenLayoutChecks.java')
@@ -35,6 +37,7 @@ def compileTreasureChecks = tasks.register('compileKingsTreasureChecks', JavaCom
     verifyTreasuryBladeRules: 'TreasuryBladeRulesChecks',
     verifyTreasuryVolleySelection: 'TreasuryVolleyRulesChecks',
     verifySummonPatterns: 'SummonPatternChecks',
+    verifyPreparedVolleyRules: 'PreparedVolleyRulesChecks',
     verifyTreasuryGiveCapture: 'GiveCaptureRulesChecks',
     verifyTreasuryGiveDelivery: 'GiveDeliveryRulesChecks',
     verifyForgeScreenLayout: 'ForgeScreenLayoutChecks'
@@ -80,6 +83,9 @@ tasks.register('verifyKingsTreasureInteractionContracts') {
         def bridge = file(root + 'compat/SlashBladeTreasuryCompat.java').text
         def upgrades = file(root + 'event/BladeUpgradeEvents.java').text
         def client = file(root + 'client/KingsTreasureClient.java').text
+        def treasuryItem = file(root + 'item/KingTreasuryItem.java').text
+        def menu = file(root + 'treasury/KingsTreasuryMenu.java').text
+        def screen = file(root + 'client/KingsTreasuryScreen.java').text
         def events = file(root + 'event/KingsTreasuryEvents.java').text
         def mod = file(root + 'VenusMod.java').text
         def ja = new groovy.json.JsonSlurper().parse(file('src/main/resources/assets/venusmod/lang/ja_jp.json'))
@@ -96,6 +102,21 @@ tasks.register('verifyKingsTreasureInteractionContracts') {
         if (!events.contains('autoCollect(player.getUUID())') || !events.contains('KingTreasuryItem.hasTreasury(player)')
                 || !mod.contains('KingsTreasuryEvents::onCommand') || !mod.contains('KingsTreasuryEvents::onItemPickup'))
             throw new GradleException('Give/pickup collection must be registered and require ON plus treasury ownership.')
+        if (!treasure.contains('Map<UUID, List<Formation>> FORMATIONS')
+                || !treasure.contains('preparedCosts(player.getUUID())')
+                || !treasure.contains('.selectForVolley(')
+                || !treasure.contains('FORMATIONS.computeIfAbsent('))
+            throw new GradleException('Repeated right click must append separately reserved prepared formations.')
+        int requestStart = treasure.indexOf('public static void request(ServerPlayer player, boolean fire)')
+        int requestEnd = treasure.indexOf('private static void togglePhantasm', requestStart)
+        if (requestStart < 0 || requestEnd < 0
+                || treasure.substring(requestStart, requestEnd).contains('cancel(player.getUUID())')
+                || treasure.substring(requestStart, requestEnd).contains('FORMATIONS.containsKey'))
+            throw new GradleException('Right click/Shift+right click on King treasure must never close an existing preparation.')
+        if (!treasuryItem.contains('KingsTreasure.closePrepared(serverPlayer)')
+                || !menu.contains('BUTTON_AUTO_COLLECT') || !menu.contains('storage.toggleAutoCollect(ownerId)')
+                || !screen.contains('BUTTON_AUTO_COLLECT'))
+            throw new GradleException('Treasury Shift+right click must close preparations and auto-collect must remain available in GUI.')
         int tickStart = treasure.indexOf('private static void tick(PlayerTickEvent.Post')
         int tickEnd = treasure.indexOf('private static void cancel(UUID owner)', tickStart)
         if (tickStart < 0 || tickEnd < 0 || !treasure.contains('TreasureRules.keepPrepared(')
