@@ -143,17 +143,21 @@ public final class KingsTreasurySavedData extends SavedData {
             reservedCounts = planned;
         }
 
+        boolean brokenOnly = treasury.volleyPriority == VolleyPriority.BROKEN_ONLY;
+        boolean effectivePhantasm = phantasm || brokenOnly;
         List<TreasuryVolleyRules.Candidate> candidates = new ArrayList<>(treasury.entries.size());
         for (int i = 0; i < treasury.entries.size(); i++) {
             StoredEntry entry = treasury.entries.get(i);
-            if (!RoyalBladeEffectsRules.eligible(entry.protection(), false, phantasm)) continue;
+            boolean broken = SlashBladeTreasuryCompat.isBroken(entry.template);
+            if (!RoyalBladeEffectsRules.eligibleForMode(
+                    entry.protection(), broken, effectivePhantasm, brokenOnly)) continue;
             int available = PreparedVolleyRules.remainingCount(entry.count, reservedCounts[i]);
             if (available <= 0) continue;
-            int remaining = SlashBladeTreasuryCompat.remainingDurability(entry.template);
-            if (remaining <= 0) continue;
+            int remaining = broken ? 0 : SlashBladeTreasuryCompat.remainingDurability(entry.template);
+            if (!brokenOnly && remaining <= 0) continue;
             boolean rankOrder = treasury.volleyPriority == VolleyPriority.RANK_LOW
                     || treasury.volleyPriority == VolleyPriority.RANK_HIGH;
-            candidates.add(new TreasuryVolleyRules.Candidate(i, available, remaining, false, false,
+            candidates.add(new TreasuryVolleyRules.Candidate(i, available, remaining, broken, false,
                     rankOrder ? SlashBladeTreasuryCompat.bladeRank(entry.template) : 0,
                     rankOrder ? SlashBladeTreasuryCompat.baseAttackModifier(entry.template) : 0.0F));
         }
@@ -161,24 +165,48 @@ public final class KingsTreasurySavedData extends SavedData {
                 .map(index -> treasury.entries.get(index).template.copyWithCount(1)).toList();
     }
 
+    public record VolleyUse(ItemStack stack, boolean phantasm, boolean brokenOnly) {
+        public VolleyUse {
+            stack = stack == null ? ItemStack.EMPTY : stack.copyWithCount(1);
+        }
+    }
+
     public boolean consumeAll(UUID playerId, List<ItemStack> requested) {
         return consumeAll(playerId, requested, false);
     }
-    /** 射出直前に保護と在庫を再確認。1本でも不足/変更なら部分消費しない。 */
+
     public boolean consumeAll(UUID playerId, List<ItemStack> requested, boolean phantasm) {
+        if (requested == null) return false;
+        return consumeVolleyUses(playerId, requested.stream()
+                .map(stack -> new VolleyUse(stack, phantasm, false)).toList());
+    }
+
+    /** 各展開セットのモードごとに再検査し、全本数を一括で確保できる場合だけ消費する。 */
+    public boolean consumeVolleyUses(UUID playerId, List<VolleyUse> requested) {
         if (requested == null || requested.isEmpty()) return false;
         PlayerTreasury treasury = players.get(playerId);
         if (treasury == null || treasury.entries.isEmpty()) return false;
-        List<ItemStack> templates = new ArrayList<>(treasury.entries.size());
-        int[] counts = new int[treasury.entries.size()];
-        for (int i = 0; i < treasury.entries.size(); i++) {
-            StoredEntry entry = treasury.entries.get(i);
-            templates.add(entry.template);
-            counts[i] = RoyalBladeEffectsRules.eligible(entry.protection(),
-                    !SlashBladeTreasuryCompat.canLaunch(entry.template), phantasm) ? entry.count : 0;
+
+        int[] remaining = treasury.entries.stream().mapToInt(entry -> entry.count).toArray();
+        int[] consumption = new int[remaining.length];
+        for (VolleyUse use : requested) {
+            if (use.stack().isEmpty()) return false;
+            boolean found = false;
+            for (int i = 0; i < treasury.entries.size(); i++) {
+                if (remaining[i] <= 0) continue;
+                StoredEntry entry = treasury.entries.get(i);
+                if (!ItemStack.isSameItemSameComponents(entry.template, use.stack())) continue;
+                boolean broken = SlashBladeTreasuryCompat.isBroken(entry.template);
+                if (!RoyalBladeEffectsRules.eligibleForMode(
+                        entry.protection(), broken, use.phantasm(), use.brokenOnly())) continue;
+                remaining[i]--;
+                consumption[i]++;
+                found = true;
+                break;
+            }
+            if (!found) return false;
         }
-        int[] consumption = TreasureRules.planConsumption(templates, counts, requested, ItemStack::isSameItemSameComponents);
-        if (consumption == null) return false;
+
         for (int i = 0; i < consumption.length; i++) treasury.entries.get(i).count -= consumption[i];
         treasury.entries.removeIf(entry -> entry.count <= 0);
         setDirty();

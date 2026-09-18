@@ -30,6 +30,8 @@ public final class RoyalBladeEffectsRulesChecks {
         for (float damage : new float[]{0, 5, 13, 21.5F}) {
             check((float) call("damage", damage, false) == damage, "通常倍率");
             check((float) call("damage", damage, true) == damage * 5, "直撃/爆風とも5倍");
+            check(Math.abs((float) call("damage", damage, true, true) - damage * 1.1F) < 0.0001F,
+                    "折れた刀幻想は1.1倍");
         }
         check((int) call("nextProtection", 0) == 1, "通常→お気に入り");
         check((int) call("nextProtection", 1) == 2, "お気に入り→幻想禁止");
@@ -41,6 +43,10 @@ public final class RoyalBladeEffectsRulesChecks {
             check((boolean) call("eligible", 2, false, phantom) == !phantom, "赤は幻想のみ除外");
             check((boolean) call("returnsBlade", phantom, false), "未着弾の刀は返す");
         }
+        check((boolean) call("eligibleForMode", 0, true, true, true), "折れた刀モードは破損刀だけ許可");
+        check(!(boolean) call("eligibleForMode", 0, false, true, true), "折れた刀モードは正常刀を拒否");
+        check(!(boolean) call("eligibleForMode", 1, true, true, true), "お気に入り破損刀を拒否");
+        check(!(boolean) call("eligibleForMode", 2, true, true, true), "幻想禁止の破損刀を拒否");
         check(!(boolean) call("returnsBlade", true, true), "幻想の着弾刀は返さない");
         check((boolean) call("returnsBlade", false, true), "通常の着弾刀は返す");
         check((float) call("blastRadius", false) == 2F, "通常爆風2");

@@ -3,6 +3,7 @@ package dev.ssscfw.venusmod.test;
 import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.compat.SlashBladeEnchantmentCompat;
 import dev.ssscfw.venusmod.compat.SlashBladeTreasuryCompat;
+import dev.ssscfw.venusmod.treasure.RoyalBladeEffects;
 import dev.ssscfw.venusmod.treasury.KingsTreasurySavedData;
 import dev.ssscfw.venusmod.treasury.TreasuryBladeProtection;
 import dev.ssscfw.venusmod.treasury.SummonPattern;
@@ -12,6 +13,7 @@ import java.util.UUID;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
@@ -19,6 +21,7 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -62,9 +65,17 @@ public final class TreasurySelectionGameTests {
         ItemStack broken = SlashBladeTreasuryCompat.damageOnePoint(last);
         h.assertTrue(!broken.isEmpty() && !SlashBladeTreasuryCompat.canLaunch(broken), "非消滅型は折れ状態で保持");
         data.insert(owner, broken, 1);
-        h.assertTrue(data.selectForVolley(owner, 120, b -> 0).isEmpty(), "折れた刀を展開しない");
-        h.assertTrue(!data.consumeAll(owner, List.of(broken)), "射出直前にも折れた刀を拒否");
-        h.assertTrue(data.entryCount(owner) == 1, "折れた刀を宝物庫に残す");
+        h.assertTrue(data.selectForVolley(owner, 120, b -> 0).isEmpty(), "通常優先度では折れた刀を展開しない");
+        h.assertTrue(!data.consumeAll(owner, List.of(broken)), "通常射出では折れた刀を拒否");
+        data.setVolleyPriority(owner, VolleyPriority.BROKEN_ONLY);
+        List<ItemStack> brokenVolley = data.selectForVolley(owner, 120, b -> 0);
+        h.assertTrue(brokenVolley.size() == 1
+                && ItemStack.isSameItemSameComponents(brokenVolley.getFirst(), broken),
+                "折れた刀のみ優先度なら破損刀を選択");
+        h.assertTrue(data.consumeVolleyUses(owner,
+                List.of(new KingsTreasurySavedData.VolleyUse(brokenVolley.getFirst(), true, true))),
+                "折れた刀幻想として射出直前の消費を許可");
+        h.assertTrue(data.entryCount(owner) == 0, "折れた刀幻想は宝物庫から取り出す");
         h.succeed();
     }
     @GameTest(template = "test/empty")
@@ -164,6 +175,19 @@ public final class TreasurySelectionGameTests {
         h.assertTrue(!last.isEmpty(), "元ItemStackを消費処理で書き換えない");
         h.succeed();
     }
+    @GameTest(template = "test/empty")
+    public static void vanishingCurseDeletesBladeWhenVolleyBreaksIt(GameTestHelper h) {
+        if (skip(h)) return;
+        ItemStack last = blade(h);
+        last.setDamageValue(last.getMaxDamage() - 1);
+        last.enchant(h.getLevel().registryAccess().registryOrThrow(Registries.ENCHANTMENT)
+                .getHolderOrThrow(Enchantments.VANISHING_CURSE), 1);
+        RoyalBladeEffects.ReturnResult result = RoyalBladeEffects.returnBladeResult(h.getLevel(), last);
+        h.assertTrue(result.broke(), "射出耐久で折れたことを検出");
+        h.assertTrue(result.stack().isEmpty(), "消滅の呪い付きは折れた瞬間に返却しない");
+        h.succeed();
+    }
+
     private static boolean skip(GameTestHelper h) {
         if (ModList.get().isLoaded("slashblade")) return false;
         System.out.println("TreasurySelectionGameTests: SKIP actual SlashBlade checks (optional mod absent)");

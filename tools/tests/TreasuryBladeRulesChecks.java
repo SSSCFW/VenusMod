@@ -21,6 +21,10 @@ public final class TreasuryBladeRulesChecks {
         check((boolean)vanish.invoke(null, true, true), "消滅型は最後の耐久で消える");
         check(!(boolean)vanish.invoke(null, false, true), "通常刀は折れ状態を残す");
         check(!(boolean)vanish.invoke(null, true, false), "消滅型でも耐久が残っていれば返却");
+        Method vanishWithCurse = rules.getMethod("vanishesOnBreak", boolean.class, boolean.class, boolean.class);
+        check((boolean)vanishWithCurse.invoke(null, false, true, true), "消滅の呪いは折れた瞬間に消滅");
+        check(!(boolean)vanishWithCurse.invoke(null, false, true, false), "消滅の呪いでも折れていなければ残る");
+        check((boolean)vanishWithCurse.invoke(null, true, false, true), "既存の消滅型も維持");
         Method rank = rules.getMethod("rank", boolean.class, boolean.class, boolean.class);
         check((int)rank.invoke(null, true, false, false) == 0, "木偶など消滅型");
         check((int)rank.invoke(null, false, false, false) == 1, "通常刀");

@@ -41,6 +41,7 @@ public final class RoyalBladeEntity extends Projectile {
     private int formationSlot;
     private int formationSize = TreasureRules.MAX_BLADES;
     private int flightTicks;
+    private boolean brokenPhantasm;
     private boolean returnedToTreasury;
 
     public RoyalBladeEntity(EntityType<? extends RoyalBladeEntity> type, Level level) { super(type, level); }
@@ -53,6 +54,7 @@ public final class RoyalBladeEntity extends Projectile {
     public ItemStack blade() { return entityData.get(BLADE); }
     public boolean launched() { return entityData.get(LAUNCHED); }
     public boolean phantasm() { return entityData.get(PHANTASM); }
+    public boolean brokenPhantasm() { return brokenPhantasm; }
     public Vec3 aimDirection() {
         Vector3f d = entityData.get(AIM_DIRECTION);
         return safeDirection(new Vec3(d.x(), d.y(), d.z()), new Vec3(0, 0, 1));
@@ -76,9 +78,15 @@ public final class RoyalBladeEntity extends Projectile {
 
     public void stage(LivingEntity owner, ItemStack template, int slot, Vec3 summonDirection,
                       int totalBlades, boolean phantasm, SummonPattern pattern) {
+        stage(owner, template, slot, summonDirection, totalBlades, phantasm, false, pattern);
+    }
+
+    public void stage(LivingEntity owner, ItemStack template, int slot, Vec3 summonDirection,
+                      int totalBlades, boolean phantasm, boolean brokenPhantasm, SummonPattern pattern) {
         setOwner(owner);
         entityData.set(BLADE, template.copyWithCount(1));
         entityData.set(PHANTASM, phantasm);
+        this.brokenPhantasm = brokenPhantasm;
         formationSize = Math.max(1, Math.min(TreasureRules.MAX_BLADES, totalBlades));
         formationSlot = Math.max(0, Math.min(formationSize - 1, slot));
         setNoGravity(true);
@@ -200,7 +208,9 @@ public final class RoyalBladeEntity extends Projectile {
             if (!direct && distance >= radius) continue;
             if (!direct && level.clip(new ClipContext(center, target.getEyePosition(), ClipContext.Block.COLLIDER,
                     ClipContext.Fluid.NONE, this)).getType() != HitResult.Type.MISS) continue;
-            float damage = RoyalBladeEffectsRules.damage(SlashBladeTreasuryCompat.damageAgainst(level, firedBlade, target, source, direct), phantasm());
+            float damage = RoyalBladeEffectsRules.damage(
+                    SlashBladeTreasuryCompat.damageAgainst(level, firedBlade, target, source, direct),
+                    phantasm(), brokenPhantasm());
             if (damage > 0) {
                 target.invulnerableTime = 0;
                 if (target.hurt(source, damage)) RoyalBladeEffects.ignite(level, firedBlade, target);

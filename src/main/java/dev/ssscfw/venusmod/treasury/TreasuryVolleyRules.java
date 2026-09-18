@@ -17,7 +17,10 @@ public final class TreasuryVolleyRules {
         public Candidate {
             baseDamage = Float.isFinite(baseDamage) ? Math.max(0, baseDamage) : Float.MAX_VALUE;
         }
-        public boolean eligible() { return count > 0 && !broken && !favorite; }
+        public boolean eligible(VolleyPriority priority) {
+            if (count <= 0 || favorite) return false;
+            return priority == VolleyPriority.BROKEN_ONLY ? broken : !broken;
+        }
     }
     private TreasuryVolleyRules() {}
 
@@ -26,13 +29,15 @@ public final class TreasuryVolleyRules {
         Objects.requireNonNull(candidates);
         Objects.requireNonNull(priority);
         int limit = Math.max(0, Math.min(TreasureRules.MAX_BLADES, requested));
-        List<Candidate> eligible = candidates.stream().filter(Candidate::eligible).toList();
+        List<Candidate> eligible = candidates.stream().filter(candidate -> candidate.eligible(priority)).toList();
         List<Integer> result = new ArrayList<>(limit);
         if (limit == 0 || eligible.isEmpty()) return List.of();
         if (priority != VolleyPriority.RANDOM) {
             Comparator<Candidate> order = Comparator.comparingInt(Candidate::remainingDurability);
             if (priority == VolleyPriority.DURABILITY_HIGH) order = order.reversed();
-            if (priority == VolleyPriority.RANK_LOW) {
+            if (priority == VolleyPriority.BROKEN_ONLY) {
+                order = Comparator.comparingInt(Candidate::index);
+            } else if (priority == VolleyPriority.RANK_LOW) {
                 order = Comparator.comparingInt(Candidate::rank)
                         .thenComparingDouble(Candidate::baseDamage)
                         .thenComparingInt(Candidate::remainingDurability);

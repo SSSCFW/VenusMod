@@ -1,6 +1,7 @@
 package dev.ssscfw.venusmod.treasure;
 
 import dev.ssscfw.venusmod.compat.SlashBladeTreasuryCompat;
+import dev.ssscfw.venusmod.treasury.TreasuryBladeRules;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
@@ -58,8 +59,13 @@ public final class RoyalBladeEffects {
         if (!RoyalBladeEffectsRules.usesDurability(unbreaking, roll)) {
             return new ReturnResult(original.copyWithCount(1), false);
         }
+        boolean wasBroken = SlashBladeTreasuryCompat.isBroken(original);
+        boolean vanishingCurse = level(level, original, Enchantments.VANISHING_CURSE) > 0;
         ItemStack returned = SlashBladeTreasuryCompat.damageOnePoint(original);
-        boolean broke = returned.isEmpty() || !SlashBladeTreasuryCompat.canLaunch(returned);
+        boolean broke = !wasBroken && (returned.isEmpty() || SlashBladeTreasuryCompat.isBroken(returned));
+        if (TreasuryBladeRules.vanishesOnBreak(false, vanishingCurse, broke)) {
+            return new ReturnResult(ItemStack.EMPTY, true);
+        }
         return new ReturnResult(returned, broke);
     }
 

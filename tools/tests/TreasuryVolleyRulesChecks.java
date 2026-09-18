@@ -60,7 +60,7 @@ public final class TreasuryVolleyRulesChecks {
         }
         check(VolleyPriority.fromId("unknown") == VolleyPriority.RANDOM, "旧保存データの既定値はランダム");
         check(VolleyPriority.fromOrdinal(-1) == VolleyPriority.RANDOM, "負の同期値を拒否");
-        check(VolleyPriority.fromOrdinal(5) == VolleyPriority.RANDOM, "範囲外同期値を拒否");
+        check(VolleyPriority.fromOrdinal(6) == VolleyPriority.RANDOM, "範囲外同期値を拒否");
         var ranks = List.of(new Candidate(0, 1, 20, false, false, 3, 4),
                 new Candidate(1, 2, 20, false, false, 0, 2),
                 new Candidate(2, 1, 20, false, false, 0, 4),
@@ -75,6 +75,13 @@ public final class TreasuryVolleyRulesChecks {
                 .equals(List.of(0, 4, 3, 2)), "高ランク順は妖刀→印→通常→消滅型通常刀");
         var tied = List.of(new Candidate(0, 1, 20, false, false, 0, 2), new Candidate(1, 1, 3, false, false, 0, 2));
         check(TreasuryVolleyRules.select(tied, 2, VolleyPriority.RANK_LOW, b -> 0).equals(List.of(1, 0)), "同ランク同威力は低耐久優先");
+        var brokenOnly = List.of(
+                new Candidate(0, 2, 0, true, false),
+                new Candidate(1, 3, 10, false, false),
+                new Candidate(2, 4, 0, true, true),
+                new Candidate(3, 1, 0, true, false));
+        check(TreasuryVolleyRules.select(brokenOnly, 8, VolleyPriority.BROKEN_ONLY, b -> 0)
+                .equals(List.of(0, 0, 3)), "折れた刀のみを選び、お気に入りは除外");
         System.out.println("TreasuryVolleyRulesChecks: " + checks + " passed");
     }
 }

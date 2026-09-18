@@ -11,7 +11,11 @@ public final class TreasuryBladeRules {
     }
 
     public static boolean vanishesOnBreak(boolean destructable, boolean broken) {
-        return destructable && broken;
+        return vanishesOnBreak(destructable, false, broken);
+    }
+
+    public static boolean vanishesOnBreak(boolean destructable, boolean vanishingCurse, boolean broken) {
+        return broken && (destructable || vanishingCurse);
     }
 
     /** 消滅型の通常刀→通常刀→印→妖刀。名前や言語に依存せずSlashBladeの状態で分類する。 */

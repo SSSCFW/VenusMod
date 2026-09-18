@@ -18,12 +18,24 @@ public final class RoyalBladeEffectsRules {
     }
 
     public static float damage(float normal, boolean phantasm) {
-        return Float.isFinite(normal) && normal > 0 ? normal * (phantasm ? 5.0F : 1.0F) : 0.0F;
+        return damage(normal, phantasm, false);
+    }
+
+    public static float damage(float normal, boolean phantasm, boolean brokenPhantasm) {
+        if (!Float.isFinite(normal) || normal <= 0) return 0.0F;
+        float multiplier = brokenPhantasm ? 1.1F : phantasm ? 5.0F : 1.0F;
+        return normal * multiplier;
     }
     public static float blastRadius(boolean phantasm) { return phantasm ? 6.0F : 2.0F; }
     public static int nextProtection(int current) { return current >= NORMAL && current <= PHANTASM_PROTECTED ? (current + 1) % 3 : NORMAL; }
     public static boolean eligible(int protection, boolean broken, boolean phantasm) {
-        return !broken && protection != FAVORITE && (!phantasm || protection != PHANTASM_PROTECTED);
+        return eligibleForMode(protection, broken, phantasm, false);
+    }
+
+    public static boolean eligibleForMode(int protection, boolean broken, boolean phantasm, boolean brokenOnly) {
+        if (protection == FAVORITE) return false;
+        if (phantasm && protection == PHANTASM_PROTECTED) return false;
+        return brokenOnly ? broken : !broken;
     }
     public static boolean returnsBlade(boolean phantasm, boolean impacted) { return !phantasm || !impacted; }
 }

@@ -29,6 +29,16 @@ public final class SlashBladeTreasuryCompat {
 
     public static boolean canLaunch(ItemStack stack) { return remainingDurability(stack) > 0; }
 
+    public static boolean isBroken(ItemStack stack) {
+        if (stack == null || stack.isEmpty() || !SlashBladeEnchantmentCompat.isBlade(stack) || !resolve()) return false;
+        try {
+            Object state = getBladeState(stack.copyWithCount(1));
+            return state != null && (boolean)isBrokenMethod.invoke(state);
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException ignored) {
+            return false;
+        }
+    }
+
     public static int remainingDurability(ItemStack stack) {
         if (stack == null || stack.isEmpty() || !SlashBladeEnchantmentCompat.isBlade(stack) || !resolve()) return -1;
         try {

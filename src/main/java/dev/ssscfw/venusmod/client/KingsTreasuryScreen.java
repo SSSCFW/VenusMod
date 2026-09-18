@@ -55,11 +55,12 @@ public final class KingsTreasuryScreen extends AbstractContainerScreen<KingsTrea
                 case DURABILITY_HIGH -> "残り耐久が多い刀から選択";
                 case RANK_LOW -> "消滅型の通常刀→通常刀→印→妖刀。同ランクは低攻撃力から";
                 case RANK_HIGH -> "妖刀→印→通常刀→消滅型の通常刀。同ランクは高攻撃力から";
+                case BROKEN_ONLY -> "折れた刀だけを選択。強制的に壊れた幻想となり、着弾で消滅";
             };
             priorityButtons[priority.ordinal()] = addRenderableWidget(Button.builder(
                             Component.literal(priority.label()),
                             b -> pressMenuButton(KingsTreasuryMenu.BUTTON_PRIORITY_START + priority.ordinal()))
-                    .bounds(side + 5, topPos + 31 + priority.ordinal() * 18, SIDEBAR_WIDTH - 10, 16)
+                    .bounds(side + 5, topPos + 29 + priority.ordinal() * 15, SIDEBAR_WIDTH - 10, 14)
                     .tooltip(Tooltip.create(Component.literal(hint))).build());
         }
 

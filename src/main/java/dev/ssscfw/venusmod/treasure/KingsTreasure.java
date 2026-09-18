@@ -5,6 +5,7 @@ import dev.ssscfw.venusmod.treasury.KingsTreasuryMenu;
 import dev.ssscfw.venusmod.treasury.KingsTreasurySavedData;
 import dev.ssscfw.venusmod.treasury.PreparedVolleyRules;
 import dev.ssscfw.venusmod.treasury.SummonPattern;
+import dev.ssscfw.venusmod.treasury.VolleyPriority;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -110,7 +111,8 @@ public final class KingsTreasure {
     private static void prepare(ServerPlayer player, boolean converging) {
         KingsTreasurySavedData storage = KingsTreasurySavedData.get(player.serverLevel());
         int limit = storage.volleyLimit(player.getUUID());
-        boolean phantasm = RoyalBladeEffects.isPhantasm(player.getMainHandItem());
+        boolean brokenOnly = storage.volleyPriority(player.getUUID()) == VolleyPriority.BROKEN_ONLY;
+        boolean phantasm = brokenOnly || RoyalBladeEffects.isPhantasm(player.getMainHandItem());
         SummonPattern pattern = storage.summonPattern(player.getUUID());
         int convergencePercent = converging ? storage.convergencePercent(player.getUUID()) : 0;
         double convergence = converging ? storage.convergence(player.getUUID()) : 0.0D;
@@ -128,7 +130,7 @@ public final class KingsTreasure {
         for (int slot = 0; slot < selected.size(); slot++) {
             ItemStack template = selected.get(slot);
             RoyalBladeEntity blade = new RoyalBladeEntity(BLADE.get(), player.level());
-            blade.stage(player, template, slot, aimDirection, selected.size(), phantasm, pattern);
+            blade.stage(player, template, slot, aimDirection, selected.size(), phantasm, brokenOnly, pattern);
             if (pattern == SummonPattern.VIEW_RING
                     && !player.serverLevel().noBlockCollision(blade, blade.getBoundingBox())) {
                 blade.discard();
@@ -147,29 +149,31 @@ public final class KingsTreasure {
         }
         if (pattern != SummonPattern.VIEW_RING && blades.size() != selected.size()) {
             for (int i = 0; i < blades.size(); i++) {
-                blades.get(i).stage(player, costs.get(i), i, aimDirection, blades.size(), phantasm, pattern);
+                blades.get(i).stage(player, costs.get(i), i, aimDirection, blades.size(), phantasm, brokenOnly, pattern);
             }
         }
         FORMATIONS.computeIfAbsent(player.getUUID(), ignored -> new ArrayList<>())
                 .add(new Formation(new TreasureRules.Wave(now(player)), player.level().dimension(),
-                        List.copyOf(blades), copyStacks(costs), convergence, aimOrigin, aimDirection, phantasm, pattern));
+                        List.copyOf(blades), copyStacks(costs), convergence, aimOrigin, aimDirection,
+                        phantasm, brokenOnly, pattern));
         player.level().playSound(null, player.blockPosition(), SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 0.65F, 1.5F);
         String convergenceName = converging ? "収束" + convergencePercent + "%" : "平行射出";
+        String powerMode = brokenOnly
+                ? "折れた刀幻想：着弾で消滅・火力1.1倍"
+                : phantasm ? "壊れた幻想：着弾で消滅・火力5倍"
+                : "通常：使用後に返却・耐久力で消耗軽減";
         player.displayClientMessage(Component.literal("王の財宝：" + blades.size() + "/" + limit + "本展開（"
-                + pattern.label() + " / " + convergenceName + "） / "
-                + (phantasm ? "壊れた幻想：着弾で消滅・火力5倍" : "通常：使用後に返却・耐久力で消耗軽減")), true);
+                + pattern.label() + " / " + convergenceName + "） / " + powerMode), true);
     }
     private static void fire(ServerPlayer player) {
         List<Formation> formations = FORMATIONS.remove(player.getUUID());
         if (formations == null || formations.isEmpty()) return;
 
         long gameTime = now(player);
-        boolean phantasm = formations.getFirst().phantasm();
-        List<ItemStack> allCosts = new ArrayList<>();
+        List<KingsTreasurySavedData.VolleyUse> allUses = new ArrayList<>();
         for (Formation formation : formations) {
             if (!formation.dimension().equals(player.level().dimension())
                     || formation.wave().expired(gameTime)
-                    || formation.phantasm() != phantasm
                     || formation.blades().size() != formation.costs().size()
                     || formation.blades().stream().anyMatch(
                             blade -> blade.isRemoved() || blade.level() != player.level())) {
@@ -177,7 +181,10 @@ public final class KingsTreasure {
                 player.displayClientMessage(Component.literal("展開した刀の状態が変化したため射出を中止しました。"), true);
                 return;
             }
-            allCosts.addAll(formation.costs());
+            for (ItemStack cost : formation.costs()) {
+                allUses.add(new KingsTreasurySavedData.VolleyUse(
+                        cost, formation.phantasm(), formation.brokenPhantasm()));
+            }
         }
 
         // 複数回展開した全セットを一括で確保する。1本でも不足すれば何も消費しない。
@@ -188,7 +195,7 @@ public final class KingsTreasure {
             }
         }
         if (!KingsTreasurySavedData.get(player.serverLevel())
-                .consumeAll(player.getUUID(), allCosts, phantasm)) {
+                .consumeVolleyUses(player.getUUID(), allUses)) {
             closeAll(formations);
             player.displayClientMessage(
                     Component.literal("刀の不足・保護設定・破損状態の変更により射出を中止しました。"), true);
@@ -296,7 +303,7 @@ public final class KingsTreasure {
     private static void creativeTab(BuildCreativeModeTabContentsEvent event) { if (event.getTabKey() == CreativeModeTabs.COMBAT) event.accept(ITEM); }
     private record Formation(TreasureRules.Wave wave, ResourceKey<Level> dimension, List<RoyalBladeEntity> blades,
                              List<ItemStack> costs, double convergence, Vec3 aimOrigin, Vec3 aimDirection,
-                             boolean phantasm, SummonPattern pattern) {
+                             boolean phantasm, boolean brokenPhantasm, SummonPattern pattern) {
         void close() { wave.cancel(); blades.forEach(RoyalBladeEntity::discard); }
     }
     public record Action(boolean fire) implements CustomPacketPayload {
@@ -327,6 +334,7 @@ public final class KingsTreasure {
             lines.add(Component.literal("Shift+F：壊れた幻想切替 / 収束率・召喚パターンは宝物庫で設定"));
             lines.add(Component.literal(RoyalBladeEffects.isPhantasm(stack) ? "壊れた幻想：着弾した刀は消滅・火力5倍" : "通常：耐久消費後に返却（消滅型は寿命で消失）"));
             lines.add(Component.literal("火属性：Lv×4秒 / 耐久力：確率で消耗防止 / 爆発音量1.2"));
+            lines.add(Component.literal("折れた刀のみ：強制幻想・火力1.1倍・着弾で消滅"));
             lines.add(Component.literal("お気に入り・幻想禁止・放出優先度は宝物庫で設定 / 地形破壊なし"));
         }
     }

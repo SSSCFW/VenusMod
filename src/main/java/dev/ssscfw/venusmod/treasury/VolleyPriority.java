@@ -6,7 +6,8 @@ public enum VolleyPriority {
     DURABILITY_LOW("durability_low", "耐久度低い順"),
     DURABILITY_HIGH("durability_high", "耐久度高い順"),
     RANK_LOW("rank_low", "低ランク順"),
-    RANK_HIGH("rank_high", "高ランク順");
+    RANK_HIGH("rank_high", "高ランク順"),
+    BROKEN_ONLY("broken_only", "折れた刀のみ");
 
     private final String id;
     private final String label;
