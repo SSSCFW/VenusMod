@@ -118,5 +118,7 @@
   "gui.venusmod.storage_box.count": "%s / %s",
   "gui.venusmod.storage_box.lc": "LC %s",
   "key.venusmod.storage_box": "Storage Box 操作",
-  "key.categories.venusmod": "VenusMod"
+  "key.categories.venusmod": "VenusMod",
+  "message.venusmod.storage_box.auto_on": "ストレージボックス: 自動回収 ON",
+  "message.venusmod.storage_box.auto_off": "ストレージボックス: 自動回収 OFF"
 }

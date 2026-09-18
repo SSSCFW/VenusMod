@@ -68,3 +68,38 @@ tasks.register('verifyStorageBoxItemGuiWiring') {
     }
 }
 tasks.named('check') { dependsOn 'verifyStorageBoxItemGuiWiring' }
+
+tasks.register('verifyStorageBoxActionWiring') {
+    group = 'verification'
+    notCompatibleWithConfigurationCache('Validation inspects project source files')
+    doLast {
+        def root = 'src/main/java/dev/ssscfw/venusmod/'
+        def net = file(root + 'storagebox/StorageBoxNetwork.java').text
+        def actions = file(root + 'storagebox/StorageBoxActions.java').text
+        def events = file(root + 'storagebox/StorageBoxEvents.java').text
+        def use = file(root + 'storagebox/StorageBoxUseHandler.java').text
+        def item = file(root + 'storagebox/StorageBoxItem.java').text
+        def client = file(root + 'client/StorageBoxClient.java').text
+        def mod = file(root + 'VenusMod.java').text
+        if (!net.contains('player.getMainHandItem().getItem() instanceof StorageBoxItem')
+                || !net.contains('INSERT_ALL') || !net.contains('EXTRACT_STACK')
+                || !net.contains('DROP_STACK') || !net.contains('TOGGLE_AUTO_COLLECT'))
+            throw new GradleException('Storage Box C2S actions must revalidate main hand and expose four actions.')
+        if (!client.contains('GLFW.GLFW_KEY_APOSTROPHE') || !client.contains('Screen.hasShiftDown()')
+                || !client.contains('Screen.hasControlDown()') || !client.contains('PacketDistributor.sendToServer'))
+            throw new GradleException('Storage Box apostrophe modifier controls are not wired.')
+        if (!events.contains('StorageBoxData.template(box).isEmpty()')
+                || !events.contains('StorageBoxData.autoCollect(box)'))
+            throw new GradleException('Auto collect must skip empty boxes and require ON.')
+        if (!actions.contains('Capabilities.ItemHandler.BLOCK') || !actions.contains('handler.insertItem('))
+            throw new GradleException('Block inventory dumping must use NeoForge item capability.')
+        if (!use.contains('copyWithCount(1)') || !use.contains('ItemStack.isSameItemSameComponents')
+                || !item.contains('finishUsingItem('))
+            throw new GradleException('Stored item direct use must reconcile one virtual item and byproducts.')
+        if (!mod.contains('StorageBoxNetwork.register(modBus)')
+                || !mod.contains('StorageBoxEvents::onItemPickup'))
+            throw new GradleException('Storage Box networking/events must be registered.')
+        println 'Verified Storage Box action wiring.'
+    }
+}
+tasks.named('check') { dependsOn 'verifyStorageBoxActionWiring' }

@@ -118,5 +118,7 @@
   "gui.venusmod.storage_box.count": "%s / %s",
   "gui.venusmod.storage_box.lc": "LC %s",
   "key.venusmod.storage_box": "Storage Box Action",
-  "key.categories.venusmod": "VenusMod"
+  "key.categories.venusmod": "VenusMod",
+  "message.venusmod.storage_box.auto_on": "Storage Box: auto-collect ON",
+  "message.venusmod.storage_box.auto_off": "Storage Box: auto-collect OFF"
 }

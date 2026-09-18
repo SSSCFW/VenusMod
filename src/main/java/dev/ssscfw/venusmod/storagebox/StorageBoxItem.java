@@ -2,14 +2,19 @@ package dev.ssscfw.venusmod.storagebox;
 
 import java.text.DecimalFormat;
 import java.util.List;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.SimpleMenuProvider;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.UseAnim;
+import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
 
@@ -25,6 +30,19 @@ public final class StorageBoxItem extends Item {
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         ItemStack box = player.getItemInHand(hand);
         if (hand != InteractionHand.MAIN_HAND) return InteractionResultHolder.pass(box);
+
+        ItemStack template = StorageBoxData.template(box);
+        if (!template.isEmpty() && StorageBoxUseHandler.supportsContinuousUse(template, player)) {
+            var food = template.get(DataComponents.FOOD);
+            if (food != null && !player.canEat(food.canAlwaysEat())) return InteractionResultHolder.fail(box);
+            player.startUsingItem(hand);
+            return InteractionResultHolder.consume(box);
+        }
+        if (!template.isEmpty()) {
+            InteractionResultHolder<ItemStack> delegated = StorageBoxUseHandler.useAir(level, player, hand, box);
+            if (delegated.getResult() != InteractionResult.PASS) return delegated;
+        }
+
         if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
             serverPlayer.openMenu(new SimpleMenuProvider(
                     (containerId, inventory, menuPlayer) ->
@@ -33,6 +51,48 @@ public final class StorageBoxItem extends Item {
         }
         return InteractionResultHolder.sidedSuccess(box, level.isClientSide);
     }
+
+    @Override
+    public InteractionResult useOn(UseOnContext context) {
+        ItemStack box = context.getItemInHand();
+        if (StorageBoxData.storedCount(box) > 0
+                && StorageBoxActions.hasBlockInventory(
+                        context.getLevel(), context.getClickedPos(), context.getClickedFace())) {
+            if (context.getPlayer() instanceof ServerPlayer serverPlayer) {
+                StorageBoxActions.dumpIntoBlock(
+                        serverPlayer, box, context.getClickedPos(), context.getClickedFace());
+            }
+            return InteractionResult.sidedSuccess(context.getLevel().isClientSide);
+        }
+        return StorageBoxUseHandler.useOn(context, box);
+    }
+
+    @Override
+    public InteractionResult interactLivingEntity(
+            ItemStack box, Player player, LivingEntity entity, InteractionHand hand) {
+        return StorageBoxUseHandler.useOnEntity(box, player, entity, hand);
+    }
+
+    @Override
+    public UseAnim getUseAnimation(ItemStack box) {
+        ItemStack template = StorageBoxData.template(box);
+        if (template.isEmpty()) return UseAnim.NONE;
+        UseAnim animation = template.getUseAnimation();
+        return animation == UseAnim.EAT || animation == UseAnim.DRINK ? animation : UseAnim.NONE;
+    }
+
+    @Override
+    public int getUseDuration(ItemStack box, LivingEntity entity) {
+        ItemStack template = StorageBoxData.template(box);
+        return StorageBoxUseHandler.supportsContinuousUse(template, entity)
+                ? template.getUseDuration(entity) : 0;
+    }
+
+    @Override
+    public ItemStack finishUsingItem(ItemStack box, Level level, LivingEntity user) {
+        return StorageBoxUseHandler.finishContinuousUse(box, level, user);
+    }
+
 
     @Override
     public boolean isFoil(ItemStack stack) {

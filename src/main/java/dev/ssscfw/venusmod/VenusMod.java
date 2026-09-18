@@ -14,6 +14,8 @@ import dev.ssscfw.venusmod.registry.ModItems;
 import dev.ssscfw.venusmod.registry.ModMenus;
 import dev.ssscfw.venusmod.world.VenusDimensionContent;
 import dev.ssscfw.venusmod.treasure.KingsTreasure;
+import dev.ssscfw.venusmod.storagebox.StorageBoxEvents;
+import dev.ssscfw.venusmod.storagebox.StorageBoxNetwork;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -36,6 +38,7 @@ public final class VenusMod {
         VenusDimensionContent.register(modBus);
         dev.ssscfw.venusmod.registry.VenusPhase2.register(modBus, modContainer);
         KingsTreasure.register(modBus);
+        StorageBoxNetwork.register(modBus);
 
         modBus.addListener(ModEntities::registerAttributes);
         modBus.addListener(ModItems::addCreativeTabContents);
@@ -55,6 +58,7 @@ public final class VenusMod {
         NeoForge.EVENT_BUS.addListener(BladeUpgradeEvents::onDamagePost);
         NeoForge.EVENT_BUS.addListener(BladeUpgradeEvents::onPlayerTick);
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, KingsTreasuryEvents::onItemPickup);
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOW, StorageBoxEvents::onItemPickup);
         NeoForge.EVENT_BUS.addListener(KingsTreasuryEvents::onCommand);
         NeoForge.EVENT_BUS.addListener(KingsTreasuryEvents::onPlayerTick);
         NeoForge.EVENT_BUS.addListener(KingsTreasuryEvents::onLogout);

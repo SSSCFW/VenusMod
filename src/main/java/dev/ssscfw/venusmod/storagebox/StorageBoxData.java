@@ -69,6 +69,21 @@ public final class StorageBoxData {
         return result;
     }
 
+    /** 中身を返却物なしで指定数だけ消費する。実際に消費した数を返す。 */
+    public static int consume(ItemStack box, int requested) {
+        int stored = storedCount(box);
+        int take = Math.min(stored, Math.max(0, requested));
+        if (take <= 0) return 0;
+        int remaining = stored - take;
+        if (remaining <= 0) {
+            box.remove(ModDataComponents.STORAGE_BOX_TEMPLATE.get());
+            box.remove(ModDataComponents.STORAGE_BOX_COUNT.get());
+        } else {
+            box.set(ModDataComponents.STORAGE_BOX_COUNT.get(), remaining);
+        }
+        return take;
+    }
+
     public static boolean toggleAutoCollect(ItemStack box) {
         boolean enabled = !autoCollect(box);
         box.set(ModDataComponents.STORAGE_BOX_AUTO_COLLECT.get(), enabled);
