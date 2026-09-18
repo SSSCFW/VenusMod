@@ -5,7 +5,8 @@ public enum VolleyPriority {
     RANDOM("random", "ランダム"),
     DURABILITY_LOW("durability_low", "耐久度低い順"),
     DURABILITY_HIGH("durability_high", "耐久度高い順"),
-    RANK_LOW("rank_low", "低ランク順");
+    RANK_LOW("rank_low", "低ランク順"),
+    RANK_HIGH("rank_high", "高ランク順");
 
     private final String id;
     private final String label;

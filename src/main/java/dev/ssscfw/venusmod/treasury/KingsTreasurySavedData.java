@@ -122,7 +122,8 @@ public final class KingsTreasurySavedData extends SavedData {
             if (!RoyalBladeEffectsRules.eligible(entry.protection(), false, phantasm)) continue;
             int remaining = SlashBladeTreasuryCompat.remainingDurability(entry.template);
             if (remaining <= 0) continue;
-            boolean rankOrder = treasury.volleyPriority == VolleyPriority.RANK_LOW;
+            boolean rankOrder = treasury.volleyPriority == VolleyPriority.RANK_LOW
+                    || treasury.volleyPriority == VolleyPriority.RANK_HIGH;
             candidates.add(new TreasuryVolleyRules.Candidate(i, entry.count, remaining, false, false,
                     rankOrder ? SlashBladeTreasuryCompat.bladeRank(entry.template) : 0,
                     rankOrder ? SlashBladeTreasuryCompat.baseAttackModifier(entry.template) : 0.0F));
@@ -197,6 +198,40 @@ public final class KingsTreasurySavedData extends SavedData {
         setDirty();
         return treasury.volleyLimit;
     }
+
+    public int convergencePercent(UUID playerId) {
+        PlayerTreasury treasury = players.get(playerId);
+        return treasury == null ? TreasureRules.DEFAULT_CONVERGENCE_PERCENT
+                : TreasureRules.normalizeConvergencePercent(treasury.convergencePercent);
+    }
+
+    public double convergence(UUID playerId) {
+        return TreasureRules.convergenceFactor(convergencePercent(playerId));
+    }
+
+    public void setConvergencePercent(UUID playerId, int percent) {
+        PlayerTreasury treasury = treasury(playerId);
+        int normalized = TreasureRules.normalizeConvergencePercent(percent);
+        if (treasury.convergencePercent != normalized) {
+            treasury.convergencePercent = normalized;
+            setDirty();
+        }
+    }
+
+    public SummonPattern summonPattern(UUID playerId) {
+        PlayerTreasury treasury = players.get(playerId);
+        return treasury == null ? SummonPattern.DEFAULT : treasury.summonPattern;
+    }
+
+    public void setSummonPattern(UUID playerId, SummonPattern pattern) {
+        if (pattern == null) return;
+        PlayerTreasury treasury = treasury(playerId);
+        if (treasury.summonPattern != pattern) {
+            treasury.summonPattern = pattern;
+            setDirty();
+        }
+    }
+
     private PlayerTreasury treasury(UUID playerId) {
         return players.computeIfAbsent(playerId, ignored -> new PlayerTreasury());
     }
@@ -210,7 +245,13 @@ public final class KingsTreasurySavedData extends SavedData {
             PlayerTreasury treasury = new PlayerTreasury();
             treasury.autoCollect = playerTag.getBoolean("AutoCollect");
             treasury.volleyPriority = VolleyPriority.fromId(playerTag.getString("VolleyPriority"));
-            if (playerTag.contains("VolleyLimit", Tag.TAG_INT)) treasury.volleyLimit = TreasureRules.normalizeVolleyLimit(playerTag.getInt("VolleyLimit"));
+            if (playerTag.contains("VolleyLimit", Tag.TAG_INT)) {
+                treasury.volleyLimit = TreasureRules.normalizeVolleyLimit(playerTag.getInt("VolleyLimit"));
+            }
+            if (playerTag.contains("ConvergencePercent", Tag.TAG_INT)) {
+                treasury.convergencePercent = TreasureRules.normalizeConvergencePercent(playerTag.getInt("ConvergencePercent"));
+            }
+            treasury.summonPattern = SummonPattern.fromId(playerTag.getString("SummonPattern"));
             ListTag entries = playerTag.getList("Entries", Tag.TAG_COMPOUND);
             for (int j = 0; j < entries.size() && TreasuryRules.canCreateStack(treasury.entries.size()); j++) {
                 CompoundTag entryTag = entries.getCompound(j);
@@ -232,6 +273,8 @@ public final class KingsTreasurySavedData extends SavedData {
             playerTag.putBoolean("AutoCollect", treasury.autoCollect);
             playerTag.putInt("VolleyLimit", TreasureRules.normalizeVolleyLimit(treasury.volleyLimit));
             playerTag.putString("VolleyPriority", treasury.volleyPriority.id());
+            playerTag.putInt("ConvergencePercent", TreasureRules.normalizeConvergencePercent(treasury.convergencePercent));
+            playerTag.putString("SummonPattern", treasury.summonPattern.id());
             ListTag entries = new ListTag();
             for (StoredEntry entry : treasury.entries) {
                 if (entry.template.isEmpty() || entry.count <= 0) continue;
@@ -254,6 +297,8 @@ public final class KingsTreasurySavedData extends SavedData {
         private boolean autoCollect;
         private int volleyLimit = TreasureRules.DEFAULT_VOLLEY_LIMIT;
         private VolleyPriority volleyPriority = VolleyPriority.RANDOM;
+        private int convergencePercent = TreasureRules.DEFAULT_CONVERGENCE_PERCENT;
+        private SummonPattern summonPattern = SummonPattern.DEFAULT;
     }
     private static final class StoredEntry {
         private final ItemStack template;

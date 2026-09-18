@@ -44,13 +44,25 @@ public final class RoyalBladeEffects {
         if (seconds > 0) target.igniteForSeconds((float) seconds);
     }
 
-    /** 返却1回に対して1回だけ耐久力を抽選し、消費する場合だけ既存の折れ状態処理を呼ぶ。 */
-    public static ItemStack returnBlade(ServerLevel level, ItemStack original) {
-        if (original == null || original.isEmpty()) return ItemStack.EMPTY;
-        if (original.has(DataComponents.UNBREAKABLE)) return original.copyWithCount(1);
+    public record ReturnResult(ItemStack stack, boolean broke) {}
+
+    /** 返却1回に対して1回だけ耐久力を抽選し、実際に折れ状態へ移行/消滅したかも返す。 */
+    public static ReturnResult returnBladeResult(ServerLevel level, ItemStack original) {
+        if (original == null || original.isEmpty()) return new ReturnResult(ItemStack.EMPTY, false);
+        if (original.has(DataComponents.UNBREAKABLE)) {
+            return new ReturnResult(original.copyWithCount(1), false);
+        }
         int unbreaking = level(level, original, Enchantments.UNBREAKING);
         int roll = unbreaking == 0 ? 0 : level.getRandom().nextInt(unbreaking + 1);
-        return RoyalBladeEffectsRules.usesDurability(unbreaking, roll)
-                ? SlashBladeTreasuryCompat.damageOnePoint(original) : original.copyWithCount(1);
+        if (!RoyalBladeEffectsRules.usesDurability(unbreaking, roll)) {
+            return new ReturnResult(original.copyWithCount(1), false);
+        }
+        ItemStack returned = SlashBladeTreasuryCompat.damageOnePoint(original);
+        boolean broke = returned.isEmpty() || !SlashBladeTreasuryCompat.canLaunch(returned);
+        return new ReturnResult(returned, broke);
+    }
+
+    public static ItemStack returnBlade(ServerLevel level, ItemStack original) {
+        return returnBladeResult(level, original).stack();
     }
 }

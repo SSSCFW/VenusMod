@@ -8,6 +8,7 @@ def compileTreasureChecks = tasks.register('compileKingsTreasureChecks', JavaCom
             'src/main/java/dev/ssscfw/venusmod/treasury/GiveCaptureRules.java',
             'src/main/java/dev/ssscfw/venusmod/treasury/GiveDeliveryRules.java',
             'src/main/java/dev/ssscfw/venusmod/treasury/VolleyPriority.java',
+            'src/main/java/dev/ssscfw/venusmod/treasury/SummonPattern.java',
             'src/main/java/dev/ssscfw/venusmod/treasury/TreasuryVolleyRules.java',
             'src/main/java/dev/ssscfw/venusmod/upgrade/ForgeScreenLayout.java',
             'tools/tests/TreasureRulesChecks.java',
@@ -16,6 +17,7 @@ def compileTreasureChecks = tasks.register('compileKingsTreasureChecks', JavaCom
             'tools/tests/RoyalBladeEffectsRulesChecks.java',
             'tools/tests/TreasuryBladeRulesChecks.java',
             'tools/tests/TreasuryVolleyRulesChecks.java',
+            'tools/tests/SummonPatternChecks.java',
             'tools/tests/GiveCaptureRulesChecks.java',
             'tools/tests/GiveDeliveryRulesChecks.java',
             'tools/tests/ForgeScreenLayoutChecks.java')
@@ -32,6 +34,7 @@ def compileTreasureChecks = tasks.register('compileKingsTreasureChecks', JavaCom
     verifyRoyalBladeEffectsRules: 'RoyalBladeEffectsRulesChecks',
     verifyTreasuryBladeRules: 'TreasuryBladeRulesChecks',
     verifyTreasuryVolleySelection: 'TreasuryVolleyRulesChecks',
+    verifySummonPatterns: 'SummonPatternChecks',
     verifyTreasuryGiveCapture: 'GiveCaptureRulesChecks',
     verifyTreasuryGiveDelivery: 'GiveDeliveryRulesChecks',
     verifyForgeScreenLayout: 'ForgeScreenLayoutChecks'
@@ -102,10 +105,13 @@ tasks.register('verifyKingsTreasureInteractionContracts') {
                 || !entity.contains('FAR_PARTICLE_RANGE_SQR'))
             throw new GradleException('Long-range particles and entity tracking must remain.')
         if (!entity.contains('RoyalBladeEffectsRules.returnsBlade(phantasm(), impacted)')
-                || !entity.contains('KingsTreasure.returnSpentBlade(player, blade())')
-                || !treasure.contains('RoyalBladeEffects.returnBlade(player.serverLevel(), original)')
+                || !entity.contains('KingsTreasure.returnSpentBlade(player, blade(), impacted ? position() : null)')
+                || !treasure.contains('RoyalBladeEffects.returnBladeResult(player.serverLevel(), original)')
                 || !treasure.contains('storage.insert(player.getUUID(), returned, 1)'))
             throw new GradleException('Normal completions must return blades; only impacted phantasm blades are sacrificed.')
+        if (!treasure.contains('SoundEvents.ITEM_BREAK') || !treasure.contains('impactPosition.x')
+                || !effects.contains('record ReturnResult(ItemStack stack, boolean broke)'))
+            throw new GradleException('Blades that break on impact must play ITEM_BREAK at the impact position.')
         if (!bridge.contains('TreasureRules.useOneDurability(') || !bridge.contains('TreasuryBladeRules.vanishesOnBreak(')
                 || !bridge.contains('getMethod("isDestructable")') || !effects.contains('usesDurability(unbreaking, roll)'))
             throw new GradleException('Durability must respect unbreaking, native destructability and ordinary broken blades.')
@@ -158,18 +164,26 @@ tasks.register('verifyTreasurySelectionWiring') {
                 || !protection.contains('DataComponents.CUSTOM_DATA') || !protection.contains('venusmod_treasury_protection'))
             throw new GradleException('Protection must live on the blade and migrate legacy entry flags.')
         if (!saved.contains('"VolleyLimit"') || !saved.contains('"VolleyPriority"')
+                || !saved.contains('"ConvergencePercent"') || !saved.contains('"SummonPattern"')
                 || !saved.contains('RoyalBladeEffectsRules.eligible(entry.protection(),')
-                || !saved.contains('TreasuryVolleyRules.select(') || !saved.contains('VolleyPriority.RANK_LOW'))
-            throw new GradleException('Saved limits, mode protection and low-rank whole-treasury selection must remain.')
+                || !saved.contains('TreasuryVolleyRules.select(')
+                || !saved.contains('VolleyPriority.RANK_LOW') || !saved.contains('VolleyPriority.RANK_HIGH'))
+            throw new GradleException('Saved limits, convergence, summon pattern and rank selections must remain.')
         if (!menu.contains('clickType == ClickType.PICKUP && button == 1') || !menu.contains('storage.cycleProtection(')
-                || !menu.contains('DATA_FAVORITES_START') || !menu.contains('storage.setVolleyPriority('))
-            throw new GradleException('GUI protection and priority controls must reach the server.')
+                || !menu.contains('DATA_FAVORITES_START') || !menu.contains('storage.setVolleyPriority(')
+                || !menu.contains('storage.setConvergencePercent(') || !menu.contains('storage.setSummonPattern('))
+            throw new GradleException('GUI protection, priority, convergence and summon-pattern controls must reach the server.')
         if (!screen.contains('menu.isFavorite(index)') || !screen.contains('menu.isPhantasmProtected(index)')
-                || !screen.contains('0xFF205B2D') || !screen.contains('0xFF662020') || !screen.contains('BUTTON_PRIORITY_START'))
-            throw new GradleException('GUI must show green/red protection and left priority buttons.')
+                || !screen.contains('0xFF205B2D') || !screen.contains('0xFF662020')
+                || !screen.contains('BUTTON_PRIORITY_START') || !screen.contains('AbstractSliderButton')
+                || !screen.contains('BUTTON_CONVERGENCE_START') || !screen.contains('BUTTON_PATTERN_START'))
+            throw new GradleException('GUI must show protection plus priority, convergence slider and summon-pattern controls.')
         if (!entity.contains('TreasureRules.formationOffset(formationSlot, formationSize)')
-                || !treasure.contains('blade.stage(player, template, slot, aimDirection, selected.size(), phantasm)'))
-            throw new GradleException('Partial formations must use actual blade count.')
+                || !entity.contains('TreasureRules.circleOffset(formationSlot, formationSize)')
+                || !entity.contains('new Vec3(0, 1, 0).cross(forward)')
+                || !treasure.contains('blade.stage(player, template, slot, aimDirection, selected.size(), phantasm, pattern)')
+                || !treasure.contains('noBlockCollision(blade, blade.getBoundingBox())'))
+            throw new GradleException('Summon patterns must use view-aligned placement and ring block-collision skipping.')
         if (!entity.contains('SoundSource.PLAYERS, TreasureRules.EXPLOSION_VOLUME'))
             throw new GradleException('Impact sound must use the shared volume.')
         if (!forge.contains('ForgeScreenLayout.nameWidth(countWidth)') || !forge.contains('font.plainSubstrByWidth')

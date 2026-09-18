@@ -3,6 +3,7 @@ package dev.ssscfw.venusmod.treasure;
 import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.treasury.KingsTreasuryMenu;
 import dev.ssscfw.venusmod.treasury.KingsTreasurySavedData;
+import dev.ssscfw.venusmod.treasury.SummonPattern;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -89,7 +90,7 @@ public final class KingsTreasure {
             if (player.isShiftKeyDown()) cancel(player.getUUID());
             return;
         }
-        prepare(player, TreasureRules.VolleyMode.forSummon(player.isShiftKeyDown()));
+        prepare(player, player.isShiftKeyDown());
     }
     /** モード変更時は未射出の展開だけ解除する。射出済みの刀は召喚時のモードのまま。 */
     private static void togglePhantasm(ServerPlayer player) {
@@ -107,11 +108,14 @@ public final class KingsTreasure {
         int limit = KingsTreasurySavedData.get(player.serverLevel()).cycleVolleyLimit(player.getUUID());
         player.displayClientMessage(Component.translatable("message.venusmod.kings_treasure_limit", limit), true);
     }
-    private static void prepare(ServerPlayer player, TreasureRules.VolleyMode mode) {
+    private static void prepare(ServerPlayer player, boolean converging) {
         if (FORMATIONS.containsKey(player.getUUID())) return;
         KingsTreasurySavedData storage = KingsTreasurySavedData.get(player.serverLevel());
         int limit = storage.volleyLimit(player.getUUID());
         boolean phantasm = RoyalBladeEffects.isPhantasm(player.getMainHandItem());
+        SummonPattern pattern = storage.summonPattern(player.getUUID());
+        int convergencePercent = converging ? storage.convergencePercent(player.getUUID()) : 0;
+        double convergence = converging ? storage.convergence(player.getUUID()) : 0.0D;
         List<ItemStack> selected = storage.selectForVolley(player.getUUID(), limit, player.getRandom()::nextInt, phantasm);
         if (selected.isEmpty()) {
             player.displayClientMessage(Component.literal("射出可能な抜刀剣がありません（保護設定・折れた刀は除外）。"), true);
@@ -124,19 +128,34 @@ public final class KingsTreasure {
         for (int slot = 0; slot < selected.size(); slot++) {
             ItemStack template = selected.get(slot);
             RoyalBladeEntity blade = new RoyalBladeEntity(BLADE.get(), player.level());
-            blade.stage(player, template, slot, aimDirection, selected.size(), phantasm);
-            if (player.serverLevel().addFreshEntity(blade)) { blades.add(blade); costs.add(template.copyWithCount(1)); }
-            else blade.discard();
+            blade.stage(player, template, slot, aimDirection, selected.size(), phantasm, pattern);
+            if (pattern == SummonPattern.VIEW_RING
+                    && !player.serverLevel().noBlockCollision(blade, blade.getBoundingBox())) {
+                blade.discard();
+                continue;
+            }
+            if (player.serverLevel().addFreshEntity(blade)) {
+                blades.add(blade);
+                costs.add(template.copyWithCount(1));
+            } else {
+                blade.discard();
+            }
         }
-        if (blades.isEmpty()) return;
-        if (blades.size() != selected.size()) {
-            for (int i = 0; i < blades.size(); i++) blades.get(i).stage(player, costs.get(i), i, aimDirection, blades.size(), phantasm);
+        if (blades.isEmpty()) {
+            player.displayClientMessage(Component.literal("召喚可能な空間がありません。"), true);
+            return;
+        }
+        if (pattern != SummonPattern.VIEW_RING && blades.size() != selected.size()) {
+            for (int i = 0; i < blades.size(); i++) {
+                blades.get(i).stage(player, costs.get(i), i, aimDirection, blades.size(), phantasm, pattern);
+            }
         }
         FORMATIONS.put(player.getUUID(), new Formation(new TreasureRules.Wave(now(player)), player.level().dimension(),
-                List.copyOf(blades), copyStacks(costs), mode, aimOrigin, aimDirection, phantasm));
+                List.copyOf(blades), copyStacks(costs), convergence, aimOrigin, aimDirection, phantasm, pattern));
         player.level().playSound(null, player.blockPosition(), SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 0.65F, 1.5F);
-        String modeName = mode == TreasureRules.VolleyMode.PARALLEL ? "平行" : "中程度収束";
-        player.displayClientMessage(Component.literal("王の財宝：" + blades.size() + "/" + limit + "本展開（" + modeName + "） / "
+        String convergenceName = converging ? "収束" + convergencePercent + "%" : "平行射出";
+        player.displayClientMessage(Component.literal("王の財宝：" + blades.size() + "/" + limit + "本展開（"
+                + pattern.label() + " / " + convergenceName + "） / "
                 + (phantasm ? "壊れた幻想：着弾で消滅・火力5倍" : "通常：使用後に返却・耐久力で消耗軽減")), true);
     }
     private static void fire(ServerPlayer player) {
@@ -157,12 +176,23 @@ public final class KingsTreasure {
             return;
         }
         Vec3 focus = formation.aimOrigin().add(formation.aimDirection().scale(TreasureRules.CONVERGENCE_DISTANCE));
-        for (RoyalBladeEntity blade : formation.blades()) blade.launch(formation.aimDirection(), focus, formation.mode().convergence());
+        for (RoyalBladeEntity blade : formation.blades()) {
+            blade.launch(formation.aimDirection(), focus, formation.convergence());
+        }
         player.level().playSound(null, player.blockPosition(), SoundEvents.TRIDENT_THROW.value(), SoundSource.PLAYERS, 1.0F, 0.75F);
     }
     static void returnSpentBlade(ServerPlayer player, ItemStack original) {
+        returnSpentBlade(player, original, null);
+    }
+
+    static void returnSpentBlade(ServerPlayer player, ItemStack original, Vec3 impactPosition) {
         if (original == null || original.isEmpty()) return;
-        ItemStack returned = RoyalBladeEffects.returnBlade(player.serverLevel(), original);
+        RoyalBladeEffects.ReturnResult result = RoyalBladeEffects.returnBladeResult(player.serverLevel(), original);
+        if (result.broke() && impactPosition != null) {
+            player.serverLevel().playSound(null, impactPosition.x, impactPosition.y, impactPosition.z,
+                    SoundEvents.ITEM_BREAK, SoundSource.PLAYERS, 1.0F, 1.0F);
+        }
+        ItemStack returned = result.stack();
         if (returned.isEmpty()) return;
         KingsTreasurySavedData storage = KingsTreasurySavedData.get(player.serverLevel());
         int accepted = storage.insert(player.getUUID(), returned, 1);
@@ -170,7 +200,8 @@ public final class KingsTreasure {
             if (player.containerMenu instanceof KingsTreasuryMenu menu) menu.refreshFromStorage();
             return;
         }
-        ItemEntity fallback = new ItemEntity(player.serverLevel(), player.getX(), player.getY() + 0.5D, player.getZ(), returned.copyWithCount(1));
+        ItemEntity fallback = new ItemEntity(player.serverLevel(), player.getX(), player.getY() + 0.5D,
+                player.getZ(), returned.copyWithCount(1));
         fallback.setTarget(player.getUUID());
         fallback.setNoPickUpDelay();
         player.serverLevel().addFreshEntity(fallback);
@@ -195,7 +226,8 @@ public final class KingsTreasure {
     private static void stop(ServerStoppedEvent event) { FORMATIONS.values().forEach(Formation::close); FORMATIONS.clear(); }
     private static void creativeTab(BuildCreativeModeTabContentsEvent event) { if (event.getTabKey() == CreativeModeTabs.COMBAT) event.accept(ITEM); }
     private record Formation(TreasureRules.Wave wave, ResourceKey<Level> dimension, List<RoyalBladeEntity> blades,
-                             List<ItemStack> costs, TreasureRules.VolleyMode mode, Vec3 aimOrigin, Vec3 aimDirection, boolean phantasm) {
+                             List<ItemStack> costs, double convergence, Vec3 aimOrigin, Vec3 aimDirection,
+                             boolean phantasm, SummonPattern pattern) {
         void close() { wave.cancel(); blades.forEach(RoyalBladeEntity::discard); }
     }
     public record Action(boolean fire) implements CustomPacketPayload {
@@ -219,12 +251,13 @@ public final class KingsTreasure {
             return InteractionResultHolder.sidedSuccess(player.getItemInHand(hand), level.isClientSide);
         }
         @Override public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> lines, TooltipFlag flag) {
-            lines.add(Component.literal("右クリック：平行展開 / Shift＋右クリック：中程度収束展開"));
+            lines.add(Component.literal("右クリック：平行射出展開 / Shift＋右クリック：設定した収束率で展開"));
             lines.add(Component.literal("左クリック：一斉射出 / 展開中Shift＋右クリック：収納"));
-            lines.add(Component.literal("F：最大本数 8→24→48→80→120 / Shift+F：壊れた幻想切替"));
+            lines.add(Component.literal("F：最大本数 8→24→48→80→120→168→224→288→360→440"));
+            lines.add(Component.literal("Shift+F：壊れた幻想切替 / 収束率・召喚パターンは宝物庫で設定"));
             lines.add(Component.literal(RoyalBladeEffects.isPhantasm(stack) ? "壊れた幻想：着弾した刀は消滅・火力5倍" : "通常：耐久消費後に返却（消滅型は寿命で消失）"));
             lines.add(Component.literal("火属性：Lv×4秒 / 耐久力：確率で消耗防止 / 爆発音量1.2"));
-            lines.add(Component.literal("お気に入り・幻想禁止・低ランク優先は宝物庫で設定 / 地形破壊なし"));
+            lines.add(Component.literal("お気に入り・幻想禁止・放出優先度は宝物庫で設定 / 地形破壊なし"));
         }
     }
 }

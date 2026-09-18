@@ -6,10 +6,11 @@ import java.util.function.BiPredicate;
 
 /** 宝物庫の本数・配置・射出状態だけを扱う、Minecraft非依存の規則。 */
 public final class TreasureRules {
-    public static final int MAX_BLADES = 120;
+    public static final int MAX_BLADES = 440;
     public static final int DEFAULT_VOLLEY_LIMIT = 24;
-    // 8・16・24・32・40本の半円を1段ずつ完成させる累積本数。
-    private static final int[] VOLLEY_LIMITS = {8, 24, 48, 80, 120};
+    public static final int DEFAULT_CONVERGENCE_PERCENT = 35;
+    // 半円の各段を8本ずつ増やし、10段目まで完成する累積本数。
+    private static final int[] VOLLEY_LIMITS = {8, 24, 48, 80, 120, 168, 224, 288, 360, 440};
     public static final float EXPLOSION_VOLUME = 1.2F;
     public static final int PREPARE_TICKS = 20 * 60;
     public static final int FLIGHT_TICKS = 80;
@@ -51,6 +52,14 @@ public final class TreasureRules {
             case 96 -> 80;
             default -> DEFAULT_VOLLEY_LIMIT;
         };
+    }
+
+    public static int normalizeConvergencePercent(int percent) {
+        return Math.max(0, Math.min(100, percent));
+    }
+
+    public static double convergenceFactor(int percent) {
+        return normalizeConvergencePercent(percent) / 100.0D;
     }
 
     public static int nextVolleyLimit(int current) {
@@ -114,6 +123,27 @@ public final class TreasureRules {
                 Math.cos(angle) * radius,
                 Math.sin(angle) * radius + 0.35D,
                 1.85D + row * 0.35D);
+    }
+
+    /**
+     * 視線平行・円形パターン用。半円とほぼ同じ刀間隔になるよう1段16本ずつ増やす。
+     * 最外周が未完成でも、その段の実本数を360度へ均等配置する。
+     */
+    public static FormationOffset circleOffset(int slot, int totalBlades) {
+        int total = Math.max(1, Math.min(MAX_BLADES, totalBlades));
+        int safeSlot = Math.max(0, Math.min(total - 1, slot));
+        int row = 0;
+        int start = 0;
+        int capacity = 16;
+        while (safeSlot >= start + capacity) {
+            start += capacity;
+            row++;
+            capacity = 16 * (row + 1);
+        }
+        int countInRow = Math.min(capacity, total - start);
+        double angle = Math.PI * 2.0D * (safeSlot - start) / countInRow - Math.PI / 2.0D;
+        double radius = 2.8D * (row + 1);
+        return new FormationOffset(Math.cos(angle) * radius, Math.sin(angle) * radius, 0.0D);
     }
 
     /**

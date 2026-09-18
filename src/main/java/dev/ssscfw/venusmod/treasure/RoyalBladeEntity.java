@@ -1,6 +1,7 @@
 package dev.ssscfw.venusmod.treasure;
 
 import dev.ssscfw.venusmod.compat.SlashBladeTreasuryCompat;
+import dev.ssscfw.venusmod.treasury.SummonPattern;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.Registries;
@@ -56,10 +57,25 @@ public final class RoyalBladeEntity extends Projectile {
         Vector3f d = entityData.get(AIM_DIRECTION);
         return safeDirection(new Vec3(d.x(), d.y(), d.z()), new Vec3(0, 0, 1));
     }
-    public void stage(LivingEntity owner, ItemStack template, int slot) { stage(owner, template, slot, owner.getLookAngle()); }
-    public void stage(LivingEntity owner, ItemStack template, int slot, Vec3 direction) { stage(owner, template, slot, direction, TreasureRules.MAX_BLADES); }
-    public void stage(LivingEntity owner, ItemStack template, int slot, Vec3 direction, int total) { stage(owner, template, slot, direction, total, false); }
-    public void stage(LivingEntity owner, ItemStack template, int slot, Vec3 summonDirection, int totalBlades, boolean phantasm) {
+    public void stage(LivingEntity owner, ItemStack template, int slot) {
+        stage(owner, template, slot, owner.getLookAngle());
+    }
+
+    public void stage(LivingEntity owner, ItemStack template, int slot, Vec3 direction) {
+        stage(owner, template, slot, direction, TreasureRules.MAX_BLADES);
+    }
+
+    public void stage(LivingEntity owner, ItemStack template, int slot, Vec3 direction, int total) {
+        stage(owner, template, slot, direction, total, false);
+    }
+
+    public void stage(LivingEntity owner, ItemStack template, int slot, Vec3 summonDirection,
+                      int totalBlades, boolean phantasm) {
+        stage(owner, template, slot, summonDirection, totalBlades, phantasm, SummonPattern.DEFAULT);
+    }
+
+    public void stage(LivingEntity owner, ItemStack template, int slot, Vec3 summonDirection,
+                      int totalBlades, boolean phantasm, SummonPattern pattern) {
         setOwner(owner);
         entityData.set(BLADE, template.copyWithCount(1));
         entityData.set(PHANTASM, phantasm);
@@ -69,7 +85,7 @@ public final class RoyalBladeEntity extends Projectile {
         setDeltaMovement(Vec3.ZERO);
         Vec3 direction = safeDirection(summonDirection, owner.getLookAngle());
         setAimDirection(direction);
-        placeAtSummon(owner, direction);
+        placeAtSummon(owner, direction, pattern == null ? SummonPattern.DEFAULT : pattern);
         setAimRotation(direction);
     }
     public void launch(Vec3 target) { launch(target.subtract(position()), target, 1.0D); }
@@ -85,16 +101,37 @@ public final class RoyalBladeEntity extends Projectile {
         setAimRotation(direction);
         flightTicks = 0;
     }
-    private void placeAtSummon(LivingEntity owner, Vec3 direction) {
-        Vec3 horizontal = new Vec3(direction.x, 0, direction.z);
-        if (horizontal.lengthSqr() < 1.0E-8D) {
-            double yaw = Math.toRadians(owner.getYRot());
-            horizontal = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
+    private void placeAtSummon(LivingEntity owner, Vec3 direction, SummonPattern pattern) {
+        if (pattern == SummonPattern.DEFAULT) {
+            Vec3 horizontal = new Vec3(direction.x, 0, direction.z);
+            if (horizontal.lengthSqr() < 1.0E-8D) {
+                double yaw = Math.toRadians(owner.getYRot());
+                horizontal = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
+            }
+            Vec3 forward = horizontal.normalize();
+            Vec3 right = new Vec3(forward.z, 0, -forward.x);
+            TreasureRules.FormationOffset offset = TreasureRules.formationOffset(formationSlot, formationSize);
+            setPos(owner.getEyePosition().subtract(forward.scale(offset.back()))
+                    .add(right.scale(offset.right())).add(0, offset.up(), 0));
+            return;
         }
-        Vec3 forward = horizontal.normalize();
-        Vec3 right = new Vec3(forward.z, 0, -forward.x);
-        TreasureRules.FormationOffset offset = TreasureRules.formationOffset(formationSlot, formationSize);
-        setPos(owner.getEyePosition().subtract(forward.scale(offset.back())).add(right.scale(offset.right())).add(0, offset.up(), 0));
+
+        Vec3 forward = safeDirection(direction, owner.getLookAngle());
+        Vec3 right = new Vec3(0, 1, 0).cross(forward);
+        if (right.lengthSqr() < 1.0E-8D) {
+            double yaw = Math.toRadians(owner.getYRot());
+            Vec3 horizontal = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
+            right = new Vec3(horizontal.z, 0, -horizontal.x);
+        }
+        right = right.normalize();
+        Vec3 up = forward.cross(right).normalize();
+        TreasureRules.FormationOffset offset = pattern == SummonPattern.VIEW_RING
+                ? TreasureRules.circleOffset(formationSlot, formationSize)
+                : TreasureRules.formationOffset(formationSlot, formationSize);
+        Vec3 center = pattern == SummonPattern.VIEW_RING
+                ? owner.getBoundingBox().getCenter()
+                : owner.getEyePosition().subtract(forward.scale(offset.back()));
+        setPos(center.add(right.scale(offset.right())).add(up.scale(offset.up())));
     }
     private void setAimDirection(Vec3 direction) {
         Vec3 d = safeDirection(direction, new Vec3(0, 0, 1));
@@ -175,8 +212,9 @@ public final class RoyalBladeEntity extends Projectile {
     private void finishFlight(LivingEntity owner, boolean impacted) {
         if (!returnedToTreasury) {
             returnedToTreasury = true;
-            if (RoyalBladeEffectsRules.returnsBlade(phantasm(), impacted) && owner instanceof ServerPlayer player)
-                KingsTreasure.returnSpentBlade(player, blade());
+            if (RoyalBladeEffectsRules.returnsBlade(phantasm(), impacted) && owner instanceof ServerPlayer player) {
+                KingsTreasure.returnSpentBlade(player, blade(), impacted ? position() : null);
+            }
         }
         discard();
     }

@@ -24,6 +24,8 @@ public final class KingsTreasuryMenu extends AbstractContainerMenu {
     public static final int BUTTON_PREVIOUS = 0;
     public static final int BUTTON_NEXT = 1;
     public static final int BUTTON_PRIORITY_START = 2;
+    public static final int BUTTON_PATTERN_START = 20;
+    public static final int BUTTON_CONVERGENCE_START = 1000;
     private static final int DATA_COUNTS_START = 0;
     private static final int DATA_PAGE = TREASURY_SLOTS;
     private static final int DATA_PAGE_COUNT = TREASURY_SLOTS + 1;
@@ -31,7 +33,9 @@ public final class KingsTreasuryMenu extends AbstractContainerMenu {
     private static final int DATA_AUTO = TREASURY_SLOTS + 3;
     private static final int DATA_FAVORITES_START = TREASURY_SLOTS + 4;
     private static final int DATA_PRIORITY = DATA_FAVORITES_START + TREASURY_SLOTS;
-    private static final int DATA_SIZE = DATA_PRIORITY + 1;
+    private static final int DATA_CONVERGENCE = DATA_PRIORITY + 1;
+    private static final int DATA_PATTERN = DATA_CONVERGENCE + 1;
+    private static final int DATA_SIZE = DATA_PATTERN + 1;
     private final SimpleContainer display = new SimpleContainer(TREASURY_SLOTS);
     private final ContainerData data = new SimpleContainerData(DATA_SIZE);
     @Nullable private final KingsTreasurySavedData storage;
@@ -59,6 +63,8 @@ public final class KingsTreasuryMenu extends AbstractContainerMenu {
     public boolean isFavorite(int slot) { return slot >= 0 && slot < TREASURY_SLOTS && data.get(DATA_FAVORITES_START + slot) == 1; }
     public boolean isPhantasmProtected(int slot) { return slot >= 0 && slot < TREASURY_SLOTS && data.get(DATA_FAVORITES_START + slot) == 2; }
     public VolleyPriority getVolleyPriority() { return VolleyPriority.fromOrdinal(data.get(DATA_PRIORITY)); }
+    public int getConvergencePercent() { return TreasureRules.normalizeConvergencePercent(data.get(DATA_CONVERGENCE)); }
+    public SummonPattern getSummonPattern() { return SummonPattern.fromOrdinal(data.get(DATA_PATTERN)); }
     public int getPage() { return Math.max(0, data.get(DATA_PAGE)); }
     public int getPageCount() { return Math.max(1, data.get(DATA_PAGE_COUNT)); }
     public int getTotalCount() { return Math.max(0, data.get(DATA_TOTAL)); }
@@ -72,6 +78,18 @@ public final class KingsTreasuryMenu extends AbstractContainerMenu {
         int priority = id - BUTTON_PRIORITY_START;
         if (priority >= 0 && priority < VolleyPriority.values().length) {
             storage.setVolleyPriority(ownerId, VolleyPriority.fromOrdinal(priority));
+            refreshFromStorage();
+            return true;
+        }
+        int pattern = id - BUTTON_PATTERN_START;
+        if (pattern >= 0 && pattern < SummonPattern.values().length) {
+            storage.setSummonPattern(ownerId, SummonPattern.fromOrdinal(pattern));
+            refreshFromStorage();
+            return true;
+        }
+        int convergence = id - BUTTON_CONVERGENCE_START;
+        if (convergence >= 0 && convergence <= 100) {
+            storage.setConvergencePercent(ownerId, convergence);
             refreshFromStorage();
             return true;
         }
@@ -148,6 +166,8 @@ public final class KingsTreasuryMenu extends AbstractContainerMenu {
         data.set(DATA_TOTAL, storage.totalCount(ownerId));
         data.set(DATA_AUTO, storage.autoCollect(ownerId) ? 1 : 0);
         data.set(DATA_PRIORITY, storage.volleyPriority(ownerId).ordinal());
+        data.set(DATA_CONVERGENCE, storage.convergencePercent(ownerId));
+        data.set(DATA_PATTERN, storage.summonPattern(ownerId).ordinal());
         List<TreasuryEntry> entries = storage.page(ownerId, page, TREASURY_SLOTS);
         display.clearContent();
         for (int i = 0; i < TREASURY_SLOTS; i++) {

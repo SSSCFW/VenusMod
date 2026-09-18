@@ -37,8 +37,8 @@ public final class TreasuryVolleyRulesChecks {
         for (int i = 0; i < 10000; i++) many.add(new Candidate(i, 1028, i + 1, false, i < 9999));
         check(TreasuryVolleyRules.select(many, 120, VolleyPriority.DURABILITY_LOW, b -> 0)
                 .stream().allMatch(i -> i == 9999), "最初の120スタックより後にある未保護刀も選べる");
-        check(TreasuryVolleyRules.select(many, 999, VolleyPriority.RANDOM, b -> 0).size() == 120,
-                "10000スタックの在庫でも絶対上限120本");
+        check(TreasuryVolleyRules.select(many, 999, VolleyPriority.RANDOM, b -> 0).size() == 440,
+                "10000スタックの在庫でも絶対上限440本");
         var equal = List.of(new Candidate(5, 1, 10, false, false), new Candidate(7, 1, 10, false, false));
         check(TreasuryVolleyRules.select(equal, 24, VolleyPriority.DURABILITY_LOW, b -> 0)
                 .equals(List.of(5, 7)), "同じ耐久ではスロット順で安定");
@@ -60,7 +60,7 @@ public final class TreasuryVolleyRulesChecks {
         }
         check(VolleyPriority.fromId("unknown") == VolleyPriority.RANDOM, "旧保存データの既定値はランダム");
         check(VolleyPriority.fromOrdinal(-1) == VolleyPriority.RANDOM, "負の同期値を拒否");
-        check(VolleyPriority.fromOrdinal(4) == VolleyPriority.RANDOM, "範囲外同期値を拒否");
+        check(VolleyPriority.fromOrdinal(5) == VolleyPriority.RANDOM, "範囲外同期値を拒否");
         var ranks = List.of(new Candidate(0, 1, 20, false, false, 3, 4),
                 new Candidate(1, 2, 20, false, false, 0, 2),
                 new Candidate(2, 1, 20, false, false, 0, 4),
@@ -71,6 +71,8 @@ public final class TreasuryVolleyRulesChecks {
         check(TreasuryVolleyRules.select(ranks, 120, VolleyPriority.RANK_LOW, b -> 0)
                 .equals(List.of(1, 1, 2, 3, 4, 0)), "木偶等→通常→印→妖刀。保護/破損は除外");
         check(TreasuryVolleyRules.select(ranks, 2, VolleyPriority.RANK_LOW, b -> 0).equals(List.of(1, 1)), "弱い在庫から先に使う");
+        check(TreasuryVolleyRules.select(ranks, 4, VolleyPriority.RANK_HIGH, b -> 0)
+                .equals(List.of(0, 4, 3, 2)), "高ランク順は妖刀→印→通常→消滅型通常刀");
         var tied = List.of(new Candidate(0, 1, 20, false, false, 0, 2), new Candidate(1, 1, 3, false, false, 0, 2));
         check(TreasuryVolleyRules.select(tied, 2, VolleyPriority.RANK_LOW, b -> 0).equals(List.of(1, 0)), "同ランク同威力は低耐久優先");
         System.out.println("TreasuryVolleyRulesChecks: " + checks + " passed");

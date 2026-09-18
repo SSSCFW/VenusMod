@@ -36,6 +36,10 @@ public final class TreasuryVolleyRules {
                 order = Comparator.comparingInt(Candidate::rank)
                         .thenComparingDouble(Candidate::baseDamage)
                         .thenComparingInt(Candidate::remainingDurability);
+            } else if (priority == VolleyPriority.RANK_HIGH) {
+                order = Comparator.comparingInt(Candidate::rank).reversed()
+                        .thenComparing(Comparator.comparingDouble(Candidate::baseDamage).reversed())
+                        .thenComparing(Comparator.comparingInt(Candidate::remainingDurability).reversed());
             }
             for (Candidate candidate : eligible.stream().sorted(order.thenComparingInt(Candidate::index)).toList()) {
                 int count = Math.min(candidate.count(), limit - result.size());
