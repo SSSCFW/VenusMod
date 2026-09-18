@@ -9,6 +9,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.Enchantments;
@@ -28,7 +29,7 @@ public final class RoyalBladeEffects {
         CompoundTag data = key.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
         data.putBoolean(PHANTASM_KEY, enabled);
         key.set(DataComponents.CUSTOM_DATA, CustomData.of(data));
-        if (enabled) key.set(DataComponents.CUSTOM_MODEL_DATA, 1);
+        if (enabled) key.set(DataComponents.CUSTOM_MODEL_DATA, new CustomModelData(1));
         else key.remove(DataComponents.CUSTOM_MODEL_DATA);
     }
 

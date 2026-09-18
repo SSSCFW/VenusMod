@@ -16,6 +16,7 @@ import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
@@ -69,7 +70,7 @@ public final class RoyalBladeEnchantmentGameTests {
         key.set(DataComponents.CUSTOM_DATA, CustomData.of(custom));
         RoyalBladeEffects.setPhantasm(key, true);
         helper.assertTrue(RoyalBladeEffects.isPhantasm(key), "モードON");
-        helper.assertTrue(key.getOrDefault(DataComponents.CUSTOM_MODEL_DATA, 0) == 1, "赤いモデルを同期");
+        helper.assertTrue(key.getOrDefault(DataComponents.CUSTOM_MODEL_DATA, CustomModelData.DEFAULT).value() == 1, "赤いモデルを同期");
         RoyalBladeEffects.setPhantasm(key, false);
         helper.assertTrue(!RoyalBladeEffects.isPhantasm(key), "モードOFF");
         helper.assertTrue(!key.has(DataComponents.CUSTOM_MODEL_DATA), "通常の金色モデルへ戻す");

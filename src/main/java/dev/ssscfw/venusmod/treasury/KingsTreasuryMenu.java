@@ -3,6 +3,7 @@ package dev.ssscfw.venusmod.treasury;
 import dev.ssscfw.venusmod.compat.SlashBladeEnchantmentCompat;
 import dev.ssscfw.venusmod.item.KingTreasuryItem;
 import dev.ssscfw.venusmod.registry.ModMenus;
+import dev.ssscfw.venusmod.treasure.TreasureRules;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.server.level.ServerPlayer;
