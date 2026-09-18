@@ -1,0 +1,44 @@
+def compileStorageBoxChecks = tasks.register('compileStorageBoxChecks', JavaCompile) {
+    source = files(
+            'src/main/java/dev/ssscfw/venusmod/storagebox/StorageBoxRules.java',
+            'tools/tests/StorageBoxRulesChecks.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('classes/storageBoxChecks')
+    javaCompiler = javaToolchains.compilerFor { languageVersion = JavaLanguageVersion.of(21) }
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+tasks.register('verifyStorageBoxRules', JavaExec) {
+    group = 'verification'
+    dependsOn compileStorageBoxChecks
+    classpath compileStorageBoxChecks.flatMap { it.destinationDirectory }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'StorageBoxRulesChecks'
+}
+tasks.named('check') { dependsOn 'verifyStorageBoxRules' }
+
+tasks.register('verifyStorageBoxCoreWiring') {
+    group = 'verification'
+    notCompatibleWithConfigurationCache('Validation inspects project source files')
+    doLast {
+        def root = 'src/main/java/dev/ssscfw/venusmod/'
+        def components = file(root + 'registry/ModDataComponents.java').text
+        def data = file(root + 'storagebox/StorageBoxData.java').text
+        def mod = file(root + 'VenusMod.java').text
+        if (!components.contains('ItemStack.SINGLE_ITEM_CODEC')
+                || !components.contains('ItemStack.STREAM_CODEC')
+                || !components.contains('ExtraCodecs.NON_NEGATIVE_INT')
+                || !components.contains('ByteBufCodecs.VAR_INT'))
+            throw new GradleException('Storage Box components must persist and network-sync template/count.')
+        if (!data.contains('ItemStack.isSameItemSameComponents')
+                || !data.contains('StorageBoxRules.accepted(')
+                || !data.contains('StorageBoxRules.extractable(')
+                || !data.contains('storage_box_blacklist'))
+            throw new GradleException('Storage Box mutations must use shared rules, full components and blacklist.')
+        if (!mod.contains('ModDataComponents.register(modBus)'))
+            throw new GradleException('Storage Box Data Components must register before item use.')
+        println 'Verified Storage Box core wiring.'
+    }
+}
+tasks.named('check') { dependsOn 'verifyStorageBoxCoreWiring' }

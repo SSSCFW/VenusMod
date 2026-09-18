@@ -8,6 +8,7 @@ import dev.ssscfw.venusmod.event.VenusEnchantmentEvents;
 import dev.ssscfw.venusmod.registry.ModBlockEntities;
 import dev.ssscfw.venusmod.registry.ModBlocks;
 import dev.ssscfw.venusmod.registry.ModCreativeTabs;
+import dev.ssscfw.venusmod.registry.ModDataComponents;
 import dev.ssscfw.venusmod.registry.ModEntities;
 import dev.ssscfw.venusmod.registry.ModItems;
 import dev.ssscfw.venusmod.registry.ModMenus;
@@ -25,6 +26,7 @@ public final class VenusMod {
     public static final String MOD_ID = "venusmod";
 
     public VenusMod(IEventBus modBus, ModContainer modContainer) {
+        ModDataComponents.register(modBus);
         ModBlocks.BLOCKS.register(modBus);
         ModBlockEntities.BLOCK_ENTITY_TYPES.register(modBus);
         ModEntities.ENTITY_TYPES.register(modBus);
