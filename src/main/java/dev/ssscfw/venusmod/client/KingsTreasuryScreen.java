@@ -195,17 +195,42 @@ public final class KingsTreasuryScreen extends AbstractContainerScreen<KingsTrea
             updateMessage();
         }
 
-        @Override
-        protected void updateMessage() {
-            setMessage(Component.literal("収束率: " + (int)Math.round(value * 100.0D) + "%"));
+        private int currentPercent() {
+            return (int)Math.round(value * 100.0D);
         }
 
-        @Override
-        protected void applyValue() {
-            int percent = (int)Math.round(value * 100.0D);
+        private void sendCurrentPercent() {
+            int percent = currentPercent();
             if (percent == sentPercent) return;
             sentPercent = percent;
             pressMenuButton(KingsTreasuryMenu.BUTTON_CONVERGENCE_START + percent);
+        }
+
+        @Override
+        protected void updateMessage() {
+            setMessage(Component.literal("収束率: " + currentPercent() + "%"));
+        }
+
+        /**
+         * AbstractSliderButton本体がクリック位置とドラッグ中のvalueを連続更新する。
+         * 通信はドロップ時だけ行い、ドラッグ中はローカル表示を滑らかに更新する。
+         */
+        @Override
+        protected void applyValue() {
+        }
+
+        @Override
+        public void onRelease(double mouseX, double mouseY) {
+            sendCurrentPercent();
+            super.onRelease(mouseX, mouseY);
+        }
+
+        @Override
+        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+            int before = currentPercent();
+            boolean handled = super.keyPressed(keyCode, scanCode, modifiers);
+            if (handled && currentPercent() != before) sendCurrentPercent();
+            return handled;
         }
     }
 }

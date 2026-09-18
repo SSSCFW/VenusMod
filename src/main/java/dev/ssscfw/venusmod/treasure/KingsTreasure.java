@@ -130,7 +130,8 @@ public final class KingsTreasure {
         for (int slot = 0; slot < selected.size(); slot++) {
             ItemStack template = selected.get(slot);
             RoyalBladeEntity blade = new RoyalBladeEntity(BLADE.get(), player.level());
-            blade.stage(player, template, slot, aimDirection, selected.size(), phantasm, brokenOnly, pattern);
+            blade.stage(player, template, slot, aimDirection, selected.size(),
+                    phantasm, brokenOnly, pattern, convergence);
             if (pattern == SummonPattern.VIEW_RING
                     && !player.serverLevel().noBlockCollision(blade, blade.getBoundingBox())) {
                 blade.discard();
@@ -149,7 +150,8 @@ public final class KingsTreasure {
         }
         if (pattern != SummonPattern.VIEW_RING && blades.size() != selected.size()) {
             for (int i = 0; i < blades.size(); i++) {
-                blades.get(i).stage(player, costs.get(i), i, aimDirection, blades.size(), phantasm, brokenOnly, pattern);
+                blades.get(i).stage(player, costs.get(i), i, aimDirection, blades.size(),
+                        phantasm, brokenOnly, pattern, convergence);
             }
         }
         FORMATIONS.computeIfAbsent(player.getUUID(), ignored -> new ArrayList<>())
@@ -327,7 +329,7 @@ public final class KingsTreasure {
             return InteractionResultHolder.sidedSuccess(player.getItemInHand(hand), level.isClientSide);
         }
         @Override public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> lines, TooltipFlag flag) {
-            lines.add(Component.literal("右クリック：平行射出を追加展開 / Shift＋右クリック：収束射出を追加展開"));
+            lines.add(Component.literal("右クリック/長押し：平行射出を連続展開 / Shift＋右クリック/長押し：収束射出を連続展開"));
             lines.add(Component.literal("左クリック：準備中の全セットを一斉射出"));
             lines.add(Component.literal("収納：王の宝物庫をShift＋右クリック"));
             lines.add(Component.literal("F：最大本数 8→24→48→80→120→168→224→288→360→440"));

@@ -2,6 +2,7 @@ package dev.ssscfw.venusmod.treasure;
 
 import dev.ssscfw.venusmod.compat.SlashBladeTreasuryCompat;
 import dev.ssscfw.venusmod.treasury.SummonPattern;
+import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.Registries;
@@ -38,6 +39,8 @@ public final class RoyalBladeEntity extends Projectile {
     private static final EntityDataAccessor<Boolean> PHANTASM = SynchedEntityData.defineId(RoyalBladeEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Vector3f> AIM_DIRECTION = SynchedEntityData.defineId(RoyalBladeEntity.class, EntityDataSerializers.VECTOR3);
     private static final double FAR_PARTICLE_RANGE_SQR = 512.0D * 512.0D;
+    private static final DustParticleOptions GOLD_TRAIL =
+            new DustParticleOptions(new Vector3f(1.0F, 0.70F, 0.08F), 0.85F);
     private int formationSlot;
     private int formationSize = TreasureRules.MAX_BLADES;
     private int flightTicks;
@@ -83,6 +86,12 @@ public final class RoyalBladeEntity extends Projectile {
 
     public void stage(LivingEntity owner, ItemStack template, int slot, Vec3 summonDirection,
                       int totalBlades, boolean phantasm, boolean brokenPhantasm, SummonPattern pattern) {
+        stage(owner, template, slot, summonDirection, totalBlades, phantasm, brokenPhantasm, pattern, 0.0D);
+    }
+
+    public void stage(LivingEntity owner, ItemStack template, int slot, Vec3 summonDirection,
+                      int totalBlades, boolean phantasm, boolean brokenPhantasm,
+                      SummonPattern pattern, double convergence) {
         setOwner(owner);
         entityData.set(BLADE, template.copyWithCount(1));
         entityData.set(PHANTASM, phantasm);
@@ -91,18 +100,19 @@ public final class RoyalBladeEntity extends Projectile {
         formationSlot = Math.max(0, Math.min(formationSize - 1, slot));
         setNoGravity(true);
         setDeltaMovement(Vec3.ZERO);
-        Vec3 direction = safeDirection(summonDirection, owner.getLookAngle());
-        setAimDirection(direction);
-        placeAtSummon(owner, direction, pattern == null ? SummonPattern.DEFAULT : pattern);
-        setAimRotation(direction);
+        Vec3 parallel = safeDirection(summonDirection, owner.getLookAngle());
+        placeAtSummon(owner, parallel, pattern == null ? SummonPattern.DEFAULT : pattern);
+        Vec3 focus = owner.getEyePosition().add(parallel.scale(TreasureRules.CONVERGENCE_DISTANCE));
+        Vec3 stagedDirection = convergedDirection(position(), parallel, focus, convergence);
+        setAimDirection(stagedDirection);
+        setAimRotation(stagedDirection);
     }
     public void launch(Vec3 target) { launch(target.subtract(position()), target, 1.0D); }
     public void launch(Vec3 parallelDirection, Vec3 focusPoint, double convergence) {
         if (launched() || isRemoved()) return;
         Vec3 parallel = safeDirection(parallelDirection, getOwner() == null ? Vec3.ZERO : getOwner().getLookAngle());
-        Vec3 towardFocus = safeDirection(focusPoint == null ? parallel : focusPoint.subtract(position()), parallel);
-        double factor = Math.max(0, Math.min(1, convergence));
-        Vec3 direction = safeDirection(parallel.scale(1 - factor).add(towardFocus.scale(factor)), parallel);
+        Vec3 focus = focusPoint == null ? position().add(parallel) : focusPoint;
+        Vec3 direction = convergedDirection(position(), parallel, focus, convergence);
         entityData.set(LAUNCHED, true);
         setAimDirection(direction);
         shoot(direction.x, direction.y, direction.z, (float)TreasureRules.SPEED, 0);
@@ -141,6 +151,14 @@ public final class RoyalBladeEntity extends Projectile {
                 : owner.getEyePosition().subtract(forward.scale(offset.back()));
         setPos(center.add(right.scale(offset.right())).add(up.scale(offset.up())));
     }
+    private static Vec3 convergedDirection(Vec3 position, Vec3 parallel, Vec3 focus, double convergence) {
+        RoyalVolleyControlRules.Direction direction = RoyalVolleyControlRules.direction(
+                position.x, position.y, position.z,
+                parallel.x, parallel.y, parallel.z,
+                focus.x, focus.y, focus.z, convergence);
+        return new Vec3(direction.x(), direction.y(), direction.z());
+    }
+
     private void setAimDirection(Vec3 direction) {
         Vec3 d = safeDirection(direction, new Vec3(0, 0, 1));
         entityData.set(AIM_DIRECTION, new Vector3f((float)d.x, (float)d.y, (float)d.z));
@@ -180,8 +198,11 @@ public final class RoyalBladeEntity extends Projectile {
             burst(owner, entity == null ? null : entity.getEntity());
         } else {
             setPos(end);
-            if ((flightTicks & 1) == 0 && level() instanceof ServerLevel server)
-                sendFarParticles(server, ParticleTypes.END_ROD, getX(), getY(), getZ(), 1, 0, 0, 0, 0);
+            if (level() instanceof ServerLevel server) {
+                // Dustのoffsetとspeedを使い、刀の軌道周辺で黄金粒子をランダムに揺らす。
+                sendFarParticles(server, GOLD_TRAIL, getX(), getY(), getZ(),
+                        2, 0.18D, 0.18D, 0.18D, 0.04D);
+            }
         }
     }
     public static boolean canDamage(LivingEntity owner, Entity candidate) {

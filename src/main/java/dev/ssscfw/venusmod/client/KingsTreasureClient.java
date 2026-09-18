@@ -2,6 +2,7 @@ package dev.ssscfw.venusmod.client;
 
 import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.treasure.KingsTreasure;
+import dev.ssscfw.venusmod.treasure.RoyalVolleyControlRules;
 import dev.ssscfw.venusmod.treasure.TreasureRules;
 import net.minecraft.client.Minecraft;
 import net.neoforged.api.distmarker.Dist;
@@ -23,6 +24,7 @@ public final class KingsTreasureClient {
     @EventBusSubscriber(modid = VenusMod.MOD_ID, value = Dist.CLIENT)
     public static final class Input {
         private static final TreasureRules.PressLatch LATCH = new TreasureRules.PressLatch();
+        private static int useHeldTicks;
         private Input() {}
 
         /** F=最大本数、Shift+F=壊れた幻想。バニラの持ち替えより前に入力を消費する。 */
@@ -39,9 +41,22 @@ public final class KingsTreasureClient {
         @SubscribeEvent public static void tick(ClientTickEvent.Post event) {
             Minecraft client = Minecraft.getInstance();
             if (client.player == null || client.screen != null || !KingsTreasure.isHeld(client.player)) {
+                useHeldTicks = 0;
                 LATCH.release(false, false);
-            } else {
-                LATCH.release(client.options.keyAttack.isDown(), client.options.keyUse.isDown());
+                return;
+            }
+
+            boolean attackDown = client.options.keyAttack.isDown();
+            boolean useDown = client.options.keyUse.isDown();
+            LATCH.release(attackDown, useDown);
+            if (!useDown) {
+                useHeldTicks = 0;
+                return;
+            }
+
+            useHeldTicks++;
+            if (RoyalVolleyControlRules.repeatDue(useHeldTicks)) {
+                PacketDistributor.sendToServer(new KingsTreasure.Action(false));
             }
         }
 
@@ -51,6 +66,7 @@ public final class KingsTreasureClient {
             if (!event.isAttack() && !event.isUseItem()) return;
             event.setCanceled(true);
             event.setSwingHand(false);
+            if (event.isUseItem()) useHeldTicks = 0;
             if (LATCH.press(event.isAttack())) PacketDistributor.sendToServer(new KingsTreasure.Action(event.isAttack()));
         }
     }

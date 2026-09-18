@@ -2,6 +2,7 @@
 def compileTreasureChecks = tasks.register('compileKingsTreasureChecks', JavaCompile) {
     source = files(
             'src/main/java/dev/ssscfw/venusmod/treasure/TreasureRules.java',
+            'src/main/java/dev/ssscfw/venusmod/treasure/RoyalVolleyControlRules.java',
             'src/main/java/dev/ssscfw/venusmod/treasure/RoyalBladeDamageRules.java',
             'src/main/java/dev/ssscfw/venusmod/treasure/RoyalBladeEffectsRules.java',
             'src/main/java/dev/ssscfw/venusmod/treasury/TreasuryBladeRules.java',
@@ -14,6 +15,7 @@ def compileTreasureChecks = tasks.register('compileKingsTreasureChecks', JavaCom
             'src/main/java/dev/ssscfw/venusmod/upgrade/ForgeScreenLayout.java',
             'tools/tests/TreasureRulesChecks.java',
             'tools/tests/TreasureRulesLimitChecks.java',
+            'tools/tests/RoyalVolleyControlRulesChecks.java',
             'tools/tests/RoyalBladeDamageRulesChecks.java',
             'tools/tests/RoyalBladeEffectsRulesChecks.java',
             'tools/tests/TreasuryBladeRulesChecks.java',
@@ -32,6 +34,7 @@ def compileTreasureChecks = tasks.register('compileKingsTreasureChecks', JavaCom
 [
     verifyKingsTreasureRules: 'TreasureRulesChecks',
     verifyKingsTreasureLimits: 'TreasureRulesLimitChecks',
+    verifyRoyalVolleyControls: 'RoyalVolleyControlRulesChecks',
     verifyRoyalBladeDamageRules: 'RoyalBladeDamageRulesChecks',
     verifyRoyalBladeEffectsRules: 'RoyalBladeEffectsRulesChecks',
     verifyTreasuryBladeRules: 'TreasuryBladeRulesChecks',
@@ -94,6 +97,10 @@ tasks.register('verifyKingsTreasureInteractionContracts') {
             throw new GradleException('King treasure must not use item cooldowns.')
         if (!client.contains('keySwapOffhand.consumeClick()') || !client.contains('keyShift.isDown()'))
             throw new GradleException('F/Shift+F controls must consume swap-offhand input.')
+        if (!client.contains('RoyalVolleyControlRules.repeatDue(useHeldTicks)')
+                || !client.contains('keyUse.isDown()')
+                || !client.contains('new KingsTreasure.Action(false)'))
+            throw new GradleException('Holding right click must repeatedly prepare additional royal-blade formations.')
         if (!events.contains('onCommand(CommandEvent') || !events.contains('context.withCommand(new CapturingGive(')
                 || !events.contains('context = context.getChild()') || !events.contains('GiveDeliveryRules.deliver('))
             throw new GradleException('Give capture must wrap executed give commands, including execute children.')
@@ -125,6 +132,9 @@ tasks.register('verifyKingsTreasureInteractionContracts') {
         if (!treasure.contains('.clientTrackingRange(32)') || !entity.contains('sendParticles(viewer, particle, true')
                 || !entity.contains('FAR_PARTICLE_RANGE_SQR'))
             throw new GradleException('Long-range particles and entity tracking must remain.')
+        if (!entity.contains('DustParticleOptions') || !entity.contains('GOLD_TRAIL')
+                || !entity.contains('0.18D, 0.18D, 0.18D, 0.04D'))
+            throw new GradleException('Launched blades must emit randomized golden trail particles.')
         if (!entity.contains('RoyalBladeEffectsRules.returnsBlade(phantasm(), impacted)')
                 || !entity.contains('KingsTreasure.returnSpentBlade(player, blade(), impacted ? position() : null)')
                 || !treasure.contains('RoyalBladeEffects.returnBladeResult(player.serverLevel(), original)')
@@ -203,12 +213,15 @@ tasks.register('verifyTreasurySelectionWiring') {
         if (!screen.contains('menu.isFavorite(index)') || !screen.contains('menu.isPhantasmProtected(index)')
                 || !screen.contains('0xFF205B2D') || !screen.contains('0xFF662020')
                 || !screen.contains('BUTTON_PRIORITY_START') || !screen.contains('AbstractSliderButton')
-                || !screen.contains('BUTTON_CONVERGENCE_START') || !screen.contains('BUTTON_PATTERN_START'))
-            throw new GradleException('GUI must show protection plus priority, convergence slider and summon-pattern controls.')
+                || !screen.contains('BUTTON_CONVERGENCE_START') || !screen.contains('BUTTON_PATTERN_START')
+                || !screen.contains('public void onRelease(double mouseX, double mouseY)')
+                || !screen.contains('sendCurrentPercent()'))
+            throw new GradleException('GUI must show protection plus a drag-and-drop convergence slider and summon-pattern controls.')
         if (!entity.contains('TreasureRules.formationOffset(formationSlot, formationSize)')
                 || !entity.contains('TreasureRules.circleOffset(formationSlot, formationSize)')
                 || !entity.contains('new Vec3(0, 1, 0).cross(forward)')
-                || !treasure.contains('blade.stage(player, template, slot, aimDirection, selected.size(), phantasm, brokenOnly, pattern)')
+                || !entity.contains('RoyalVolleyControlRules.direction(')
+                || !treasure.contains('phantasm, brokenOnly, pattern, convergence)')
                 || !treasure.contains('boolean phantasm = brokenOnly || RoyalBladeEffects.isPhantasm(')
                 || !treasure.contains('consumeVolleyUses(player.getUUID(), allUses)')
                 || !treasure.contains('noBlockCollision(blade, blade.getBoundingBox())'))
