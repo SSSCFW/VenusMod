@@ -27,6 +27,7 @@ import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 import java.lang.reflect.Method;
+import java.util.UUID;
 
 public class VenusZombie extends Zombie {
     public static final String NBT_SLASHBLADE_WIELDER = "VenusSlashBladeWielder";
@@ -76,6 +77,7 @@ public class VenusZombie extends Zombie {
     private EntityType<?> bladeDamageTargetType;
     private int bladeDamageTargetTicks;
     private boolean applyingBladeDamage;
+    private UUID bladeTechniqueTargetUuid;
     private final VenusBladeAnimationClock bladeAnimationClock = new VenusBladeAnimationClock();
 
     public VenusZombie(EntityType<? extends Zombie> entityType, Level level) {
@@ -212,6 +214,25 @@ public class VenusZombie extends Zombie {
         return bladeTechniqueCooldown;
     }
 
+    /**
+     * 攻撃時の低速追跡倍率。通常の抜刀剣持ちは攻撃中に停止し、将軍のみ上書きする。
+     */
+    public double getBladeTechniqueApproachSpeedMultiplier() {
+        return 0.0D;
+    }
+
+    /** ターゲットが倒れたり、入れ替わったり、壁の向こうへ消えたら連撃を中止する。 */
+    public boolean hasVisibleBladeTechniqueTarget() {
+        LivingEntity target = getTarget();
+        if (target == null || !target.isAlive() || bladeTechniqueTargetUuid == null
+                || !bladeTechniqueTargetUuid.equals(target.getUUID())) {
+            return false;
+        }
+        double maxDistance = getBladeTechnique() == BLADE_TECHNIQUE_IAI ? 26.0D : 12.0D;
+        return distanceToSqr(target) <= maxDistance * maxDistance
+                && getSensing().hasLineOfSight(target);
+    }
+
     public boolean isApplyingBladeDamage() {
         return applyingBladeDamage;
     }
@@ -221,6 +242,7 @@ public class VenusZombie extends Zombie {
             return;
         }
         bindBladeDamageTarget(target);
+        bladeTechniqueTargetUuid = target.getUUID();
         entityData.set(DATA_BLADE_TECHNIQUE, BLADE_TECHNIQUE_COMBO);
         entityData.set(DATA_BLADE_TECHNIQUE_TICK, 0);
     }
@@ -230,6 +252,7 @@ public class VenusZombie extends Zombie {
             return;
         }
         bindBladeDamageTarget(target);
+        bladeTechniqueTargetUuid = target.getUUID();
         entityData.set(DATA_BLADE_TECHNIQUE, BLADE_TECHNIQUE_RAPID_SLASH);
         entityData.set(DATA_BLADE_TECHNIQUE_TICK, 0);
     }
@@ -251,6 +274,12 @@ public class VenusZombie extends Zombie {
     private void tickBladeTechnique() {
         int technique = getBladeTechnique();
         if (technique == BLADE_TECHNIQUE_NONE) {
+            return;
+        }
+
+        // 毎ゲームtick、次の斬撃を発生させる前にサーバー側でターゲットを検証する。
+        if (!hasVisibleBladeTechniqueTarget()) {
+            finishBladeTechnique(8);
             return;
         }
 
@@ -289,10 +318,11 @@ public class VenusZombie extends Zombie {
         return RAPID_SLASH_COOLDOWN_MIN_TICKS + getRandom().nextInt(RAPID_SLASH_COOLDOWN_RANDOM_TICKS);
     }
 
-    protected void startIaiAnimation() {
-        if (level().isClientSide || isBladeTechniqueActive()) {
+    protected void startIaiAnimation(LivingEntity target) {
+        if (level().isClientSide || isBladeTechniqueActive() || target == null || !target.isAlive()) {
             return;
         }
+        bladeTechniqueTargetUuid = target.getUUID();
         entityData.set(DATA_BLADE_TECHNIQUE, BLADE_TECHNIQUE_IAI);
         entityData.set(DATA_BLADE_TECHNIQUE_TICK, 0);
     }
@@ -380,7 +410,15 @@ public class VenusZombie extends Zombie {
         Vec3 delta = target.position().subtract(position());
         Vec3 horizontal = new Vec3(delta.x, 0.0D, delta.z);
         if (horizontal.lengthSqr() > 1.0E-4D) {
-            Vec3 dash = horizontal.normalize().scale(1.45D);
+            double distance = Math.sqrt(horizontal.lengthSqr());
+            // 将軍の高速斬撃は突進も対象まで約3.4ブロック残す。
+            // 通常の抜刀剣ゾンビの既存のダッシュ速度は変更しない。
+            double dashDistance = getBladeTechniqueApproachSpeedMultiplier() > 0.0D
+                    ? Math.min(1.45D, Math.max(0.0D, distance - 3.4D)) : 1.45D;
+            if (dashDistance <= 0.01D) {
+                return;
+            }
+            Vec3 dash = horizontal.normalize().scale(dashDistance);
             setDeltaMovement(dash.x, Math.max(getDeltaMovement().y, 0.10D), dash.z);
             hasImpulse = true;
         }
@@ -389,6 +427,7 @@ public class VenusZombie extends Zombie {
     private void finishBladeTechnique(int cooldown) {
         entityData.set(DATA_BLADE_TECHNIQUE, BLADE_TECHNIQUE_NONE);
         entityData.set(DATA_BLADE_TECHNIQUE_TICK, 0);
+        bladeTechniqueTargetUuid = null;
         bladeTechniqueCooldown = cooldown;
     }
 

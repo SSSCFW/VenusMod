@@ -1,6 +1,8 @@
 package dev.ssscfw.venusmod.entity;
 
 import dev.ssscfw.venusmod.compat.SlashBladeCompat;
+import dev.ssscfw.venusmod.entity.ai.VenusGeneralHitStreak;
+import dev.ssscfw.venusmod.entity.ai.VenusGeneralTeleportRules;
 import dev.ssscfw.venusmod.world.VenusDimensionContent;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
@@ -38,7 +40,7 @@ public final class VenusGeneral extends VenusZombie {
     private int postureBrokenTicks;
     private int iaiCooldown = 80;
     private int phantomCooldown = 120;
-    private int behindCooldown = 100;
+    private final VenusGeneralHitStreak reactiveTeleportHits = new VenusGeneralHitStreak();
     private int guardCooldown = 80;
     private int guardTicks;
     private int lastPhase = 1;
@@ -52,6 +54,12 @@ public final class VenusGeneral extends VenusZombie {
     @Override
     protected int nextRapidSlashCooldownTicks() {
         return 20 + getRandom().nextInt(9); // 1.00～1.40秒
+    }
+
+    @Override
+    public double getBladeTechniqueApproachSpeedMultiplier() {
+        // 通常追跡の45%の速度。攻撃中は約3.8ブロックを目標に距離を保つ。
+        return 0.45D;
     }
 
     public VenusGeneral(EntityType<? extends net.minecraft.world.entity.monster.Zombie> type, Level level) {
@@ -128,14 +136,20 @@ public final class VenusGeneral extends VenusZombie {
         int phase = currentPhase();
         if (phase != lastPhase) { onPhaseChanged(server, phase); lastPhase = phase; }
         updatePhaseSpeed(phase); updatePostureBar(phase);
-        if (iaiCooldown > 0) iaiCooldown--; if (phantomCooldown > 0) phantomCooldown--; if (behindCooldown > 0) behindCooldown--; if (guardCooldown > 0) guardCooldown--; if (guardTicks > 0) guardTicks--;
+        if (iaiCooldown > 0) iaiCooldown--; if (phantomCooldown > 0) phantomCooldown--; if (guardCooldown > 0) guardCooldown--; if (guardTicks > 0) guardTicks--;
         if (postureBrokenTicks > 0) { postureBrokenTicks--; if (postureBrokenTicks == 0) posture = BossCombatRules.GENERAL_MAX_POSTURE; return; }
         LivingEntity target = getTarget(); if (target == null || !target.isAlive()) return;
         double distance = distanceTo(target);
         if (guardCooldown <= 0 && distance < 8.0D) { guardTicks = phase >= 2 ? 26 : 20; guardCooldown = phase >= 3 ? 70 : 100; playSound(SoundEvents.SHIELD_BLOCK, 1.0F, 0.8F); }
-        if (phase >= 2 && behindCooldown <= 0 && distance < 18.0D) { teleportBehind(target, server); behindCooldown = phase >= 3 ? 65 : 100; }
-        if (!isBladeTechniqueActive() && iaiCooldown <= 0 && distance >= 3.0D && distance <= 22.0D) { performIai(target, server, phase); iaiCooldown = phase >= 3 ? 55 : phase == 2 ? 75 : 100; }
-        else if (!isBladeTechniqueActive() && getBladeTechniqueCooldown() <= 0 && distance <= 8.0D) { if (phase >= 2 && getRandom().nextBoolean()) startRapidSlash(target); else startBladeCombo(target); }
+        if (!isBladeTechniqueActive() && iaiCooldown <= 0 && distance >= 3.0D && distance <= 22.0D
+                && getSensing().hasLineOfSight(target)) {
+            performIai(target, server, phase);
+            iaiCooldown = phase >= 3 ? 55 : phase == 2 ? 75 : 100;
+        } else if (!isBladeTechniqueActive() && getBladeTechniqueCooldown() <= 0 && distance <= 8.0D
+                && getSensing().hasLineOfSight(target)) {
+            if (phase >= 2 && getRandom().nextBoolean()) startRapidSlash(target);
+            else startBladeCombo(target);
+        }
         if (phantomCooldown <= 0 && distance <= 28.0D) { performPhantomSwords(target, server, phase >= 3 ? 8 : 4); phantomCooldown = phase >= 3 ? 70 : phase == 2 ? 105 : 145; }
     }
 
@@ -144,16 +158,65 @@ public final class VenusGeneral extends VenusZombie {
     private void updatePhaseSpeed(int phase) { AttributeInstance speed = getAttribute(Attributes.MOVEMENT_SPEED); if (speed != null) speed.setBaseValue(phase >= 3 ? 0.40D : phase == 2 ? 0.35D : 0.30D); }
     private void updatePostureBar(int phase) { if (phase < 3) { postureBoss.removeAllPlayers(); return; } postureBoss.setName(postureBrokenTicks > 0 ? Component.translatable("bossbar.venusmod.general_posture_broken") : Component.translatable("bossbar.venusmod.general_posture")); postureBoss.setProgress(postureBrokenTicks > 0 ? 0.0F : posture / (float) BossCombatRules.GENERAL_MAX_POSTURE); }
 
-    private void teleportBehind(LivingEntity target, ServerLevel server) {
-        Vec3 facing = target.getLookAngle(); Vec3 horizontal = new Vec3(facing.x, 0.0D, facing.z); if (horizontal.lengthSqr() < 1.0E-4D) return;
-        Vec3 destination = target.position().subtract(horizontal.normalize().scale(2.2D)); Vec3 delta = destination.subtract(position()); AABB moved = getBoundingBox().move(delta.x, delta.y, delta.z); if (!server.noCollision(this, moved)) return;
-        setPos(destination.x, destination.y, destination.z); getLookControl().setLookAt(target, 180.0F, 180.0F); server.sendParticles(ParticleTypes.PORTAL, getX(), getY() + 1.0D, getZ(), 28, 0.35D, 0.7D, 0.35D, 0.12D); playSound(SoundEvents.ENDERMAN_TELEPORT, 0.8F, 1.4F);
+    /**
+     * 連続被弾への反撃として、攻撃者の背後を探す。壁・床・身体の当たり判定を
+     * VenusGeneralTeleportRulesで検査し、通り抜けが必要ならテレポートしない。
+     */
+    private boolean teleportBehind(LivingEntity attacker, ServerLevel server) {
+        if (!attacker.isAlive() || distanceToSqr(attacker) > 16.0D * 16.0D) {
+            return false;
+        }
+
+        Vec3 look = attacker.getLookAngle();
+        Vec3 flatFacing = new Vec3(look.x, 0.0D, look.z);
+        if (flatFacing.lengthSqr() < 1.0E-4D) {
+            double yaw = Math.toRadians(attacker.getYRot());
+            flatFacing = new Vec3(-Math.sin(yaw), 0.0D, Math.cos(yaw));
+        }
+        Vec3 forward = flatFacing.normalize();
+        Vec3 right = new Vec3(-forward.z, 0.0D, forward.x);
+
+        // 真後ろが塞がれていても、斜め後方に安全な空間があればそこへ移動。
+        // レイキャストを含む判定なので壁の裏側へすり抜けることはない。
+        for (double distance : new double[]{2.6D, 3.2D, 3.8D}) {
+            for (double side : new double[]{0.0D, -0.9D, 0.9D}) {
+                Vec3 destination = attacker.position().subtract(forward.scale(distance))
+                        .add(right.scale(side));
+                if (!VenusGeneralTeleportRules.canTeleport(server, this, destination)) {
+                    continue;
+                }
+
+                Vec3 origin = position();
+                getNavigation().stop();
+                setDeltaMovement(Vec3.ZERO);
+                setPos(destination.x, destination.y, destination.z);
+                getLookControl().setLookAt(attacker, 180.0F, 180.0F);
+                server.sendParticles(ParticleTypes.PORTAL,
+                        origin.x, origin.y + 1.0D, origin.z,
+                        18, 0.3D, 0.65D, 0.3D, 0.12D);
+                server.sendParticles(ParticleTypes.PORTAL,
+                        getX(), getY() + 1.0D, getZ(),
+                        28, 0.35D, 0.7D, 0.35D, 0.12D);
+                playSound(SoundEvents.ENDERMAN_TELEPORT, 0.8F, 1.4F);
+                return true;
+            }
+        }
+        return false;
     }
 
     private void performIai(LivingEntity target, ServerLevel server, int phase) {
         Vec3 delta = target.position().subtract(position()); Vec3 horizontal = new Vec3(delta.x, 0.0D, delta.z);
-        if (horizontal.lengthSqr() > 1.0E-4D) { Vec3 dash = horizontal.normalize().scale(Math.min(3.0D, Math.sqrt(horizontal.lengthSqr()) * 0.65D)); setDeltaMovement(dash.x, 0.12D, dash.z); hasImpulse = true; }
-        startIaiAnimation(); swing(InteractionHand.MAIN_HAND, true);
+        if (horizontal.lengthSqr() > 1.0E-4D) {
+            double distance = Math.sqrt(horizontal.lengthSqr());
+            double dashLength = Math.min(3.0D, Math.min(distance * 0.65D, Math.max(0.0D, distance - 3.8D)));
+            if (dashLength > 0.01D) {
+                Vec3 dash = horizontal.normalize().scale(dashLength);
+                setDeltaMovement(dash.x, 0.12D, dash.z);
+                hasImpulse = true;
+            }
+        }
+        startIaiAnimation(target);
+        swing(InteractionHand.MAIN_HAND, true);
         SlashBladeCompat.doSlash(this, -18.0F, false, true, phase >= 3 ? 1.8D : 1.45D); server.sendParticles(ParticleTypes.SWEEP_ATTACK, target.getX(), target.getY() + 1.0D, target.getZ(), 5, 0.4D, 0.5D, 0.4D, 0.0D);
         target.invulnerableTime = 0; target.hurt(damageSources().mobAttack(this), phase >= 3 ? 32.0F : phase == 2 ? 28.0F : 24.0F); target.invulnerableTime = 0; playSound(SoundEvents.PLAYER_ATTACK_SWEEP, 1.4F, 0.6F);
     }
@@ -169,10 +232,23 @@ public final class VenusGeneral extends VenusZombie {
     @Override public boolean hurt(DamageSource source, float amount) {
         int phase = currentPhase(); boolean postureProtected = phase >= 3 && posture > 0 && postureBrokenTicks <= 0; float raw = amount;
         if (postureProtected) { int next = BossCombatRules.postureAfterHit(posture, raw); if (next == 0 && posture > 0) { posture = 0; postureBrokenTicks = 100; playSound(SoundEvents.ITEM_BREAK, 1.6F, 0.5F); } else posture = next; }
-        float adjusted = BossCombatRules.generalDamage(raw, phase, postureProtected ? Math.max(1, posture) : 0, guardTicks > 0); return super.hurt(source, adjusted);
+        float adjusted = BossCombatRules.generalDamage(raw, phase,
+                postureProtected ? Math.max(1, posture) : 0, guardTicks > 0);
+        boolean damaged = super.hurt(source, adjusted);
+        if (damaged && isAlive() && level() instanceof ServerLevel server
+                && source.getEntity() instanceof LivingEntity attacker
+                && attacker != this && attacker.isAlive()) {
+            boolean reached = reactiveTeleportHits.recordHit(attacker.getUUID(), server.getGameTime(),
+                    () -> VenusGeneralHitStreak.MIN_HITS + getRandom().nextInt(
+                            VenusGeneralHitStreak.MAX_HITS - VenusGeneralHitStreak.MIN_HITS + 1));
+            if (reached && teleportBehind(attacker, server)) {
+                reactiveTeleportHits.reset();
+            }
+        }
+        return damaged;
     }
     @Override public void knockback(double strength, double x, double z) { if (postureBrokenTicks > 0) super.knockback(strength * 0.6D, x, z); }
     @Override protected ResourceKey<LootTable> getDefaultLootTable() { return VenusDimensionContent.GENERAL.get().getDefaultLootTable(); }
-    @Override public void addAdditionalSaveData(CompoundTag tag) { super.addAdditionalSaveData(tag); tag.putInt("GeneralPosture", posture); tag.putInt("GeneralPostureBroken", postureBrokenTicks); tag.putInt("GeneralIai", iaiCooldown); tag.putInt("GeneralPhantom", phantomCooldown); tag.putInt("GeneralBehind", behindCooldown); tag.putInt("GeneralGuard", guardCooldown); }
-    @Override public void readAdditionalSaveData(CompoundTag tag) { super.readAdditionalSaveData(tag); posture = Math.clamp(tag.getInt("GeneralPosture"), 0, BossCombatRules.GENERAL_MAX_POSTURE); if (!tag.contains("GeneralPosture")) posture = BossCombatRules.GENERAL_MAX_POSTURE; postureBrokenTicks = Math.max(0, tag.getInt("GeneralPostureBroken")); iaiCooldown = Math.max(0, tag.getInt("GeneralIai")); phantomCooldown = Math.max(0, tag.getInt("GeneralPhantom")); behindCooldown = Math.max(0, tag.getInt("GeneralBehind")); guardCooldown = Math.max(0, tag.getInt("GeneralGuard")); setPersistenceRequired(); equipGeneralBlade(); }
+    @Override public void addAdditionalSaveData(CompoundTag tag) { super.addAdditionalSaveData(tag); tag.putInt("GeneralPosture", posture); tag.putInt("GeneralPostureBroken", postureBrokenTicks); tag.putInt("GeneralIai", iaiCooldown); tag.putInt("GeneralPhantom", phantomCooldown); tag.putInt("GeneralGuard", guardCooldown); }
+    @Override public void readAdditionalSaveData(CompoundTag tag) { super.readAdditionalSaveData(tag); posture = Math.clamp(tag.getInt("GeneralPosture"), 0, BossCombatRules.GENERAL_MAX_POSTURE); if (!tag.contains("GeneralPosture")) posture = BossCombatRules.GENERAL_MAX_POSTURE; postureBrokenTicks = Math.max(0, tag.getInt("GeneralPostureBroken")); iaiCooldown = Math.max(0, tag.getInt("GeneralIai")); phantomCooldown = Math.max(0, tag.getInt("GeneralPhantom")); guardCooldown = Math.max(0, tag.getInt("GeneralGuard")); setPersistenceRequired(); equipGeneralBlade(); }
 }
