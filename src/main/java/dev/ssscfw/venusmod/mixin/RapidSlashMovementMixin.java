@@ -92,7 +92,7 @@ public abstract class RapidSlashMovementMixin {
         venusmod$snappingDown = true;
         try {
             // Collision-limited vertical movement (including slabs and stairs),
-            // not teleportation and not setOnGround(true).
+            // neither teleportation nor a forced on-ground flag.
             ((Entity) (Object) this).move(MoverType.SELF, new Vec3(
                     0.0D, -RapidSlashSpeedRules.MAX_STEP_DOWN, 0.0D));
         } finally {
