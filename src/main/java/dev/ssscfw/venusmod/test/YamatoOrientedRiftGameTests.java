@@ -91,9 +91,22 @@ public final class YamatoOrientedRiftGameTests {
         h.assertTrue(entry.getDouble("x")==a.x&&entry.getDouble("y")==a.y&&entry.getDouble("z")==a.z,"プレイヤーや終点の位置に取り違えず出発端を記録");
         h.assertTrue(data.destination(owner,entry.getUUID("id"))!=null,"記録した履歴を移動先として解決");
         level.setBlock(BlockPos.containing(b),Blocks.STONE.defaultBlockState(),3);
-        h.assertTrue(rifts.openPair(owner,"塞がった場所",YamatoRifts.Endpoint.at(level,a,0),
-                YamatoRifts.Endpoint.at(level,b,0),3,2,1,server)==null,"塞がった移動先は生成しない");
-        h.assertTrue(data.snapshot(owner).getList("history",Tag.TAG_COMPOUND).size()==1,"失敗を履歴へ加えない");
+        // 新仕様では出口が塞がっていても裂け目を開き、開通成功として履歴へ加える。
+        // 旧端データの保存互換テストは最初のriftsに1組だけ残して検証する。
+        var embeddedRifts=new YamatoRifts();
+        h.assertTrue(embeddedRifts.openPair(owner,"塞がった場所",YamatoRifts.Endpoint.at(level,a,0),
+                YamatoRifts.Endpoint.at(level,b,0),3,2,1,server)!=null,"ブロック内の移動先も生成する");
+        var updatedHistory=data.snapshot(owner).getList("history",Tag.TAG_COMPOUND);
+        h.assertTrue(updatedHistory.size()==2
+                && updatedHistory.getCompound(0).getDouble("x")==a.x
+                && updatedHistory.getCompound(0).getDouble("y")==a.y,
+                "ブロックと重なる裂け目も成功履歴に追加する");
+        double borderX=level.getWorldBorder().getMaxX()-.1;
+        Vec3 outside=new Vec3(borderX,b.y,b.z);
+        h.assertTrue(embeddedRifts.openPair(owner,"境界外",YamatoRifts.Endpoint.at(level,a,0),
+                YamatoRifts.Endpoint.at(level,outside,0),3,2,1,server)==null,"ワールド境界外は生成しない");
+        h.assertTrue(data.snapshot(owner).getList("history",Tag.TAG_COMPOUND).size()==2,
+                "境界外で失敗した開通を履歴へ追加しない");
         CompoundTag saved=rifts.save(new CompoundTag(),level.registryAccess());
         CompoundTag savedPair=saved.getList("pairs",Tag.TAG_COMPOUND).getCompound(0);
         for(String side:new String[]{"source","target"}) {
@@ -103,7 +116,7 @@ public final class YamatoOrientedRiftGameTests {
         h.assertTrue(restored.getFloat("pitch")==0&&restored.getDouble("size")==1,"旧端データは縦向き1倍として読む");
         savedPair.getCompound("source").putDouble("size",Double.NaN);
         h.assertTrue(YamatoRifts.load(saved,level.registryAccess()).active(owner,server).isEmpty(),"不正な倍率の保存データを描画・転送しない");
-        rifts.releaseTickets(server);h.succeed();
+        rifts.releaseTickets(server);embeddedRifts.releaseTickets(server);h.succeed();
     }
 
     @GameTest(template="test/wide_empty")
