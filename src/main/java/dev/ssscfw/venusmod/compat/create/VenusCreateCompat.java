@@ -2,11 +2,11 @@ package dev.ssscfw.venusmod.compat.create;
 
 import com.simibubi.create.api.stress.BlockStressValues;
 import dev.ssscfw.venusmod.VenusMod;
+import dev.ssscfw.venusmod.item.MachineDescriptionItem;
 import dev.ssscfw.venusmod.registry.ModCreativeTabs;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.flag.FeatureFlags;
 import net.minecraft.world.inventory.MenuType;
-import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
@@ -72,21 +72,25 @@ public final class VenusCreateCompat {
     public static final DeferredHolder<Item, Item> NETHERITE_REINFORCED_MECHANISM =
             ITEMS.register("netherite_reinforced_mechanism", () -> new Item(new Item.Properties()));
 
-    public static final DeferredHolder<Item, BlockItem> BLADE_REPAIR_STATION_ITEM =
+    public static final DeferredHolder<Item, MachineDescriptionItem> BLADE_REPAIR_STATION_ITEM =
             ITEMS.register("blade_repair_station",
-                    () -> new BlockItem(BLADE_REPAIR_STATION.get(), new Item.Properties()));
+                    () -> new MachineDescriptionItem(BLADE_REPAIR_STATION.get(),
+                            new Item.Properties(), "blade_repair_station"));
 
-    public static final DeferredHolder<Item, BlockItem> BLADE_BREAKER_ITEM =
+    public static final DeferredHolder<Item, MachineDescriptionItem> BLADE_BREAKER_ITEM =
             ITEMS.register("blade_breaker",
-                    () -> new BlockItem(BLADE_BREAKER.get(), new Item.Properties()));
+                    () -> new MachineDescriptionItem(BLADE_BREAKER.get(),
+                            new Item.Properties(), "blade_breaker"));
 
-    public static final DeferredHolder<Item, BlockItem> METAL_SEPARATOR_ITEM =
+    public static final DeferredHolder<Item, MachineDescriptionItem> METAL_SEPARATOR_ITEM =
             ITEMS.register("metal_separator",
-                    () -> new BlockItem(METAL_SEPARATOR.get(), new Item.Properties()));
+                    () -> new MachineDescriptionItem(METAL_SEPARATOR.get(),
+                            new Item.Properties(), "metal_separator"));
 
-    public static final DeferredHolder<Item, BlockItem> VENUS_BLADE_FORGE_ITEM =
+    public static final DeferredHolder<Item, MachineDescriptionItem> VENUS_BLADE_FORGE_ITEM =
             ITEMS.register("venus_blade_forge",
-                    () -> new BlockItem(VENUS_BLADE_FORGE.get(), new Item.Properties()));
+                    () -> new MachineDescriptionItem(VENUS_BLADE_FORGE.get(),
+                            new Item.Properties(), "venus_blade_forge"));
 
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<BladeRepairStationBlockEntity>>
             BLADE_REPAIR_STATION_BE = BLOCK_ENTITY_TYPES.register(
