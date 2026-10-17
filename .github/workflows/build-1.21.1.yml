@@ -97,6 +97,8 @@ jobs:
               required_classes = (
                   "dev/ssscfw/venusmod/item/MachineDescriptionItem.class",
                   "dev/ssscfw/venusmod/client/MachineTooltipEvents.class",
+                  "dev/ssscfw/venusmod/item/PortableLifeSupportItem.class",
+                  "dev/ssscfw/venusmod/item/PressureArmorItem.class",
               )
               for path in required_classes:
                   assert path in jar.namelist(), f"Missing class in JAR: {path}"
@@ -107,7 +109,19 @@ jobs:
                       for field in ("description", "usage"):
                           key = f"tooltip.venusmod.machine.{machine_id}.{field}"
                           assert strings.get(key), f"Missing {locale} tooltip key: {key}"
-          print("Verified machine tooltip classes and both locale translations in built JAR.")
+                  equipment_ids = (
+                      "portable_life_support",
+                      "pressure_helmet",
+                      "pressure_chestplate",
+                      "pressure_leggings",
+                      "pressure_boots",
+                  )
+                  for equipment_id in equipment_ids:
+                      fields = ("description", "usage", "details") if equipment_id == "portable_life_support" else ("description", "usage")
+                      for field in fields:
+                          key = f"tooltip.venusmod.equipment.{equipment_id}.{field}"
+                          assert strings.get(key), f"Missing {locale} tooltip key: {key}"
+          print("Verified machine and equipment tooltip classes and both locale translations in built JAR.")
           PY
 
       - name: Prepare direct JAR

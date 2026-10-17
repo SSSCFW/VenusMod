@@ -4,6 +4,7 @@ import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.environment.VenusEnvironment;
 import dev.ssscfw.venusmod.environment.VenusEnvironmentConfig;
 import dev.ssscfw.venusmod.item.PortableLifeSupportItem;
+import dev.ssscfw.venusmod.item.PressureArmorItem;
 import dev.ssscfw.venusmod.world.AcidCondensateBlock;
 import java.util.List;
 import java.util.Map;
@@ -66,7 +67,8 @@ public final class VenusPhase2 {
             () -> new BucketItem(ACID.get(), new Item.Properties().craftRemainder(Items.BUCKET).stacksTo(1)));
     private VenusPhase2() {}
     private static DeferredItem<ArmorItem> armor(String name, ArmorItem.Type type) {
-        return ITEMS.register(name, () -> new ArmorItem(SUIT_MATERIAL, type, new Item.Properties().durability(type.getDurability(20))));
+        return ITEMS.register(name, () -> new PressureArmorItem(SUIT_MATERIAL, type,
+                new Item.Properties().durability(type.getDurability(20)), name));
     }
     private static BaseFlowingFluid.Properties fluidProperties() {
         return new BaseFlowingFluid.Properties(ACID_TYPE, ACID, FLOWING_ACID).bucket(ACID_BUCKET).block(ACID_BLOCK);
