@@ -10,6 +10,7 @@ public final class NetworkCli {
         if(input==null||input.length()>512||input.codePoints().anyMatch(Character::isISOControl))return reply(false,"コマンドは改行なし512文字以内です");
         var p=sim.nodes().get(id);if(p==null)return reply(false,"機器が読み込まれていません");
         String[] t=input.trim().split("\\s+");
+        if(StpCommands.handles(t)){var reply=StpCommands.run(sim,id,t);return new Reply(reply.changed(),reply.lines());}
         if(VrrpCommands.handles(t)){var reply=VrrpCommands.run(sim,id,t);return new Reply(reply.changed(),reply.lines());}
         String old=p.encode();
         try{
@@ -22,7 +23,7 @@ public final class NetworkCli {
                     text.add("安定化Lv"+p.stability+" / "+(p.stability==3?"内部故障率 0%":"修理・冗長化で保護"));
                     for(int i=0;i<6;i++)text.add("P"+i+" "+portName(i)+": "+sim.portStatus(id,i));
                     text.add("経路 "+p.routes.size()+"件 / 仮想転送 "+sim.flows().size()+"件");
-                    text.add("STP: 簡略木方式 (BPDU/収束タイマー未対応)");return new Reply(false,text);
+                    text.add("STP: "+(p.spanning.classic?"classic (BPDU/タイマー)":"simple (即時の簡略木方式)")+" / stp status で確認");return new Reply(false,text);
                 }
                 case "ports" -> {List<String> text=new ArrayList<>();for(int i=0;i<6;i++){var port=p.ports[i];text.add("P"+i+" "+portName(i)+" "+(port.enabled?"ON":"OFF")+" "+(port.trunk?"Trunk":"Access")+" VLAN "+port.vlan);text.add("  "+CableGrade.speed(port.capacity())+" "+(port.optical?"光":"銅線")+" "+port.address+"/"+port.prefix);}return new Reply(false,text);}
                 case "mac" -> {return new Reply(false,sim.macTable(id).entrySet().stream().map(e->e.getKey()+" → P"+e.getValue()).toList());}
@@ -57,7 +58,6 @@ public final class NetworkCli {
                 case "public" -> {need(t,2);p.publicService=on(t[1]);}
                 case "dns-record" -> {need(t,3);if(p.kind!=DeviceKind.SERVER&&!p.kind.routing())throw new IllegalArgumentException("DNSはサーバー/ルーターのみです");p.dnsRecords.put(t[1].toLowerCase(Locale.ROOT),Ipv4.normalize(t[2]));}
                 case "route" -> {if(!p.kind.routing())throw new IllegalArgumentException("経路追加はL3機器で行います");if(t.length==2&&t[1].equals("clear"))p.routes.clear();else{need(t,7);if(!t[1].equals("add")||!t[3].equals("via")||!t[5].equals("port"))throw new IllegalArgumentException("route add 10.0.0.0/24 via 192.168.1.1 port 0");var c=cidr(t[2]);p.routes.add(new NetworkProfile.Route(c[0],Integer.parseInt(c[1]),t[4],Integer.parseInt(t[6])));}}
-                case "stp" -> {need(t,2);if(!p.kind.bridge())throw new IllegalArgumentException("L2中継機器のみです");p.stp=on(t[1]);}
                 case "fault" -> {need(t,1);p.failed=true;}
                 case "ospf","bgp","ipv6","nat","ipsec","lacp" -> {return reply(false,"この版では未実装です。成功した通信として扱いません。");}
                 default -> {return reply(false,"不明なコマンドです。help で一覧を表示します");}
@@ -102,11 +102,11 @@ public final class NetworkCli {
         "共有: trust プレイヤー名 / untrust プレイヤー名",
         "vrrp 192.168.1.254 120 / vrrp port 0 (広告で選出)",
         "相手は同VIP・VRID。同じLANで広告を受信。vrrp helpを参照。",
-        "stp on: VLAN別の簡略木方式でループを遮断します。",
+        "stp mode simple|classic / stp status / stp help",
         "fault: 自分の機器を故障させて切替試験。修理キットで復旧。",
         "完全安定化で内部のランダム故障だけ0%。断線は防ぎません。",
         "通常採掘で設定・モジュール・故障を保持。置き直し修理不可。",
         "外部Web/OSコマンドは一切実行しません。",
-        "VRRPはIPv4・1機器1グループ。BGP/IPv6/LACP/BPDUは未対応。",
+        "VRRPはIPv4・1機器1グループ。BGP/IPv6/LACP/RSTP/TCNは未対応。",
         "8/24ポート筐体・PON分岐・惑星間通信は後続段階です。");}
 }

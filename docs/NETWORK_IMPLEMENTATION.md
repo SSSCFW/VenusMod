@@ -1,6 +1,6 @@
 # ネットワーク機能 — 初期実装と使い方
 
-> 追加実装: [OSPF](NETWORK_OSPF.md)、[ACL/DHCPリレー](NETWORK_SERVICES_GUIDE.md)、[NAT/NAPT](NETWORK_NAT.md)、[VRRP広告・タイマー](NETWORK_VRRP.md)。以下は初期段階の記録を含みます。現行の対応範囲は各機能の説明を参照してください。
+> 追加実装: [OSPF](NETWORK_OSPF.md)、[ACL/DHCPリレー](NETWORK_SERVICES_GUIDE.md)、[NAT/NAPT](NETWORK_NAT.md)、[VRRP広告・タイマー](NETWORK_VRRP.md)、[Classic STP](NETWORK_STP.md)。以下は初期段階の記録を含みます。現行の対応範囲は各機能の説明を参照してください。
 
 対象はMinecraft 1.21.1 / NeoForge 21.1.x。Createは不要、JEIは任意です。全体計画は [NETWORK_SYSTEM_SPEC.md](NETWORK_SYSTEM_SPEC.md) を参照してください。**本書は初期実装を記録するもので、設計書全体の完成を意味しません。**
 
@@ -98,7 +98,7 @@ nslookup base.local
 
 手動試験は`fault`、修理はネットワーク修理キットで右クリックです。採掘して置き直しても故障状態は残ります。
 
-`stp on`は**VLAN別の簡略スパニングツリー**です。ループ経路を遮断し、リンク断後に代替経路を開きます。VRRPは広告・期限によるMaster/Backup選出へ更新済みです。`vrrp 192.168.1.254 120`とLAN側の担当ポートを設定し、同じVIP・VRIDの広告で役割を決めます。**STPのBPDU/タイマー、IPv6 VRRPや複数グループ等は未対応**です。詳しくは [VRRP](NETWORK_VRRP.md) を参照してください。
+`stp on`は選択中の方式を有効にします。初期値のsimpleは即時の簡略木方式、`stp mode classic`はBPDU・役割・タイマーで選出する方式です。VRRPも広告・期限によるMaster/Backup選出へ更新済みです。`vrrp 192.168.1.254 120`とLAN側の担当ポートを設定し、同じVIP・VRIDの広告で役割を決めます。RSTP、IPv6 VRRPや複数グループ等は未対応です。詳しくは [STP](NETWORK_STP.md)、[VRRP](NETWORK_VRRP.md) を参照してください。
 
 ## 安全な設備操作と権限
 
@@ -130,3 +130,7 @@ GUIの「ガイド」から接続例・コマンド・制限を読めます。�
 ## VRRP広告・タイマー
 
 簡略VIP選出を、Master/Backupの広告・期限・preempt・仮想MAC・広告ACLの方式に更新しました。旧形式の設定と細いケーブルは維持します。手順と制限は [VRRPの構成と使い方](NETWORK_VRRP.md) を参照してください。従来の「VRRP広告タイマー未対応」という記述はこの更新より前の実装状況です。
+
+## STP追加段階
+
+BPDUでの選出とタイマーを使う`stp mode classic`を追加しました。従来の即時方式はsimpleとして残り、初期値もsimpleです。接続する全L2機器でclassicを選択してください。Root/Designated/Alternate、Listening/Learning/Forwarding、cost/priority、edge/guard、保存v6に対応します。[NETWORK_STP.md](NETWORK_STP.md) に操作・混在接続・物理配線変更時の制限を記載しています。上記の初期実装記録の「STPは簡略方式のみ」はこの追加により更新されます。

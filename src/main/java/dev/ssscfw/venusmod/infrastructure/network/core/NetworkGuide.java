@@ -39,7 +39,7 @@ public final class NetworkGuide {
         new Page("redundancy","故障に備える接続",List.of(new Node("network_l2_switch","SW-A",8,0),new Node("network_l2_switch","SW-B",152,0),new Node("network_l2_switch","SW-C",80,32)),List.of(new Edge(0,1,false),new Edge(0,2,false),new Edge(1,2,true)),List.of(
             step("1. L2の予備経路","stp on","3台のスイッチを環状に接続すると、簡略STPが1経路を遮断します。","使用中の経路が切れると予備経路へ切り替わります。"),
             step("2. ゲートウェイの予備機","Router-A: vrrp 10.0.1.254 120","Router-B: vrrp 10.0.1.254 100","両方を同じLANへ接続し、各機器の実IPは別に設定します。"),
-            step("3. この版での再現範囲","STPは簡略木方式。VRRPの広告・タイマー・設定はVRRPページを参照。","fault は自分の装置を故障させる試験操作。修理キットで復旧します。","予備機から先にも通信できる経路が必要です。"))),
+            step("3. この版での再現範囲","STPはsimple/Classic BPDU方式を選択。詳しくはSTPページを参照。","fault は自分の装置を故障させる試験操作。修理キットで復旧します。","予備機から先にも通信できる経路が必要です。"))),
         page("acl","ACLで通信を制御",chain("network_pc","Client","network_router","ACL","network_server","Server"),
             step("1. 通信を絞って許可","acl add 0 in 10 permit tcp 10.0.1.0/24 any 80","P0の入側でTCP宛先80番だけを許可します。","規則を設定した方向の未一致通信は、暗黙のdenyで停止します。"),
             step("2. 順序と方向を確認","acl","番号の小さい規則を先に検査し、最初の一致で決定します。","in=そのポートの受信、out=送信。返りの通信も別に検査します。"),
@@ -55,7 +55,7 @@ public final class NetworkGuide {
             step("2. レッドストーン出力","端末にIPを設定し、PCで redstone 192.168.1.30 15","通信と権限を確認して出力を変更します。0〜15を指定できます。","図は構成の概念図です。各端末はスイッチの別ポートへつなぎます。"),
             step("3. 他のプレイヤーと共有","trust プレイヤー名 / untrust プレイヤー名","オンラインのプレイヤーに管理権限を共有します。","public on は遠隔サービスだけを公開し、設定画面は公開しません。"))
     );
-    private static final List<Page> PAGES=java.util.stream.Stream.concat(BASE_PAGES.stream(),java.util.stream.Stream.of(OspfGuide.page(),NatGuide.page(),VrrpGuide.page())).toList();
+    private static final List<Page> PAGES=java.util.stream.Stream.concat(BASE_PAGES.stream(),java.util.stream.Stream.of(OspfGuide.page(),NatGuide.page(),VrrpGuide.page(),StpGuide.page())).toList();
     private NetworkGuide(){}
     public static List<Page> pages(){return PAGES;}
     public static List<Recipe> recipes(){List<Recipe> result=new ArrayList<>();for(Page page:PAGES)for(int i=0;i<page.steps.size();i++)result.add(new Recipe(page,i));return List.copyOf(result);}

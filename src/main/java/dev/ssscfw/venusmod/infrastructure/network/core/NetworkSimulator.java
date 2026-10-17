@@ -65,6 +65,12 @@ public final class NetworkSimulator {
     private final NatTable natTable=new NatTable();
     public NatTable nat(){return natTable;}
     public OspfEngine ospf(){return ospfRuntime.engine();}
+    private final StpSimulation stpRuntime=new StpSimulation(this);
+    public StpEngine stp(){return stpRuntime.engine();}
+    public List<StpEngine.Key> stpKeys(String id){return stpRuntime.keys(id);}
+    public String stpIssue(String id,int port){return stpRuntime.issue(id,port);}
+    public void clearStpGuard(String id,int port){stpRuntime.clearGuard(id,port);}
+    Link physicalLink(String id,int port){var row=ports.get(id);return row==null?null:row[port];}
     private final VrrpSimulation vrrpRuntime=new VrrpSimulation(this);
     public VrrpEngine vrrp(){return vrrpRuntime.engine();}
     public void shutdownVrrp(String id){vrrpRuntime.shutdown(id);}
@@ -77,7 +83,7 @@ public final class NetworkSimulator {
         if(!nodes.containsKey(id)&&nodes.size()>=MAX_NODES)throw new IllegalStateException("機器数上限");
         Objects.requireNonNull(id);Objects.requireNonNull(profile);
         natTable.clear();nodes.put(id,profile);macAddresses.computeIfAbsent(id,NetworkSimulator::macAddress);
-        ports.computeIfAbsent(id,k->new Link[6]);forestDirty=true;ospfRuntime.changed();vrrpRuntime.changed();
+        ports.computeIfAbsent(id,k->new Link[6]);forestDirty=true;ospfRuntime.changed();vrrpRuntime.changed();stpRuntime.changed();
     }
     public void remove(String id){new ArrayList<>(links.values()).stream().filter(l->l.a.equals(id)||l.b.equals(id)).forEach(l->unlink(l.id));nodes.remove(id);ports.remove(id);macAddresses.remove(id);mac.remove(id);arp.remove(id);logs.remove(id);invalidate();}
     public void link(Link link){
@@ -88,7 +94,7 @@ public final class NetworkSimulator {
         links.put(link.id,link);ports.get(link.a)[link.ap]=link;ports.get(link.b)[link.bp]=link;invalidate();
     }
     public void unlink(String id){Link link=links.remove(id);if(link!=null){ports.get(link.a)[link.ap]=null;ports.get(link.b)[link.bp]=null;invalidate();}}
-    public void invalidate(){natTable.clear();ospfRuntime.changed();vrrpRuntime.changed();forestDirty=true;mac.clear();arp.clear();for(var flow:flows)log(flow.source,"転送 #"+flow.id+": 構成変更で中断");flows.clear();}
+    public void invalidate(){stpRuntime.changed();natTable.clear();ospfRuntime.changed();vrrpRuntime.changed();forestDirty=true;mac.clear();arp.clear();for(var flow:flows)log(flow.source,"転送 #"+flow.id+": 構成変更で中断");flows.clear();}
     public Map<String,NetworkProfile> nodes(){return Collections.unmodifiableMap(nodes);}
     public Collection<Link> links(){return Collections.unmodifiableCollection(links.values());}
     public List<Flow> flows(){return List.copyOf(flows);}
@@ -111,7 +117,7 @@ public final class NetworkSimulator {
         return limit;
     }
     public String portStatus(String node,int port){Link link=ports.getOrDefault(node,new Link[6])[port];if(link==null)return "未接続";long bps=linkCapacity(link);return bps==0?"Link Down (媒体/距離/固定速度/故障/無効)":CableGrade.speed(bps)+" → "+nodes.get(link.peer(node)).name;}
-    private static int receivedVlan(NetworkProfile.Port out,int vlan,NetworkProfile.Port in){
+    static int receivedVlan(NetworkProfile.Port out,int vlan,NetworkProfile.Port in){
         int wire=out.trunk&&vlan!=out.vlan?vlan:0;
         if(wire!=0&&!in.trunk)return -1;
         return wire==0?in.vlan:wire;
@@ -129,7 +135,7 @@ public final class NetworkSimulator {
         List<Link> sorted=new ArrayList<>(links.values());sorted.sort(Comparator.comparing(Link::id));
         int work=0;
         for(Link link:sorted){NetworkProfile a=nodes.get(link.a),b=nodes.get(link.b);
-            if(!a.kind.bridge()||!b.kind.bridge()||linkCapacity(link)==0)continue;
+            if(!a.kind.bridge()||!b.kind.bridge()||a.spanning.classic||b.spanning.classic||linkCapacity(link)==0)continue;
             var ap=a.ports[link.ap];var bp=b.ports[link.bp];Set<Integer> candidates=new LinkedHashSet<>();candidates.add(ap.vlan);if(ap.trunk&&bp.trunk)candidates.addAll(vlans);
             for(int av:candidates){
                 if(++work>MAX_FOREST_WORK){forestLimit="ループ保護の計算量上限です";blocked=Set.of();forestDirty=false;return;}
@@ -163,6 +169,11 @@ public final class NetworkSimulator {
                 Link link=ports.get(current.id)[p];if(link==null)continue;long speed=linkCapacity(link);if(speed==0)continue;
                 String peerId=link.peer(current.id);int peerPort=link.peerPort(current.id);var peer=nodes.get(peerId);
                 int nextVlan=receivedVlan(output,current.vlan,peer.ports[peerPort]);if(nextVlan<0||blocked(link,current.id,current.vlan,nextVlan))continue;
+                if(!stpRuntime.forwarding(current.id,p,current.vlan))continue;
+                if(!stpRuntime.forwarding(peerId,peerPort,nextVlan)){
+                    if(stpRuntime.learning(peerId,peerPort,nextVlan))learn(mac,peerId,nextVlan+" "+macAddresses.get(source),peerPort);
+                    continue;
+                }
                 if(current.path.contains(peerId))continue;
                 budget.path(current.path.size()+1);
                 if(queue.size()>=MAX_STEPS)throw new SearchLimit("通信待ち行列の上限です");
@@ -439,6 +450,12 @@ public final class NetworkSimulator {
     }
     public void advance(long ticks){
         if(ticks<=0)return;
+        stpRuntime.advance(ticks);
+        if(stpRuntime.drainChanges()){
+            // 転送状態だけ変化した場合、STP自身の待ち時間はリセットしない。
+            mac.clear();arp.clear();natTable.clear();ospfRuntime.changed();vrrpRuntime.changed();
+            for(var flow:flows)log(flow.source,"転送 #"+flow.id+": STP状態変更で中断。再送できます");flows.clear();
+        }
         vrrpRuntime.advance(ticks);
         if(!vrrpRuntime.drainOwners().isEmpty()){
             // 役割変更だけでOSPF/VRRP自体を再起動しない。動的転送は再確立する。

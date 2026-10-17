@@ -106,3 +106,7 @@ Add registries and mod-bus listeners from `VenusMod.java` as features are implem
 ## VRRP広告・タイマー
 
 簡略VIP選出を、Master/Backupの広告・期限・preempt・仮想MAC・広告ACLの方式に更新しました。旧形式の設定と細いケーブルは維持します。手順と制限は [VRRPの構成と使い方](docs/NETWORK_VRRP.md) を参照してください。従来の「VRRP広告タイマー未対応」という記述はこの更新より前の実装状況です。
+
+## BPDUによるClassic STP
+
+VLAN別のルート選出、Root/Designated/Alternate、Listening/Learning/Forwarding、edgeとBPDU guardを追加しました。旧来のsimpleと選択式です。[STPの操作と再現範囲](docs/NETWORK_STP.md)、[検証記録](docs/NETWORK_STP_VERIFICATION.md) を参照してください。細い4/16幅ケーブルと既存テクスチャは維持します。
