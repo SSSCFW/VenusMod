@@ -31,8 +31,11 @@
 - [x] StpSettings / StpEngine: BID・BPDU・ルート/ポート役割・期限・edge/guardを単体試験と実装。
 - [x] StpSimulation / CLI / 保存v6: 物理リンク/VLANへ統合。コスト/優先度/状態表示を追加。
 - [x] 共通GUI/JEIガイドと実ブロック・機器アイテムGameTestを追加。
-- [ ] 全体ビルド・純Java回帰・既存アセット・GameTestを実行し、pushとJAR公開を確認。
+- [x] 全体ビルド・純Java回帰・既存アセット・GameTestを実行し、pushとJAR公開を確認。
 
 ## 実行記録
 
 初回CLI契約は未対応で失敗、状態機械試験も未実装クラスで失敗を確認。実装後は新規136検査と既存全ネットワーク試験、174 JSON/74 PNG参照検査が成功。cost変更によるedge再昇格、最大コスト境界、不正CLIを再現して修正した。全体ビルドとGameTestは既存CIで確認する。独立サブエージェントなしの自己レビュー。
+
+
+7f69771をpush後、既存CI run39053252213のBuild/check、必須115 GameTests、JAR公開が成功。診断artifactの変更24ファイルは検査済みローカル入力と全てバイト一致。結果をdocs/NETWORK_STP_VERIFICATION.mdへ追記。実クライアント目視/JEI実操作/実マルチプレイ/TPSは未実施。
