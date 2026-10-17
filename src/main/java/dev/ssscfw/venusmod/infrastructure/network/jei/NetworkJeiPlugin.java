@@ -19,7 +19,7 @@ public final class NetworkJeiPlugin implements IModPlugin {
     }
     @Override public void registerRecipes(IRecipeRegistration registration){
         registration.addRecipes(NetworkGuideCategory.TYPE,NetworkGuide.recipes());
-        Component[] common=NetworkCli.guide().stream().map(Component::literal).toArray(Component[]::new);
+        Component[] common=NetworkHelp.lines().stream().map(Component::literal).toArray(Component[]::new);
         for(var entry:NetworkContent.NETWORK_ITEMS.entrySet())registration.addItemStackInfo(new ItemStack(entry.getValue().get()),common);
         for(var grade:CableGrade.values())registration.addItemStackInfo(new ItemStack(NetworkContent.CABLES.get(grade).get()),
                 Component.literal("接続: 機器ポート → ケーブル → 機器ポート"),

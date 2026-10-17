@@ -55,6 +55,8 @@ public final class NetworkSimulator {
     private boolean forestDirty=true;
     private String forestLimit="";
     private long nextFlow=1;
+    private final OspfSimulation ospfRuntime=new OspfSimulation(this);
+    public OspfEngine ospf(){return ospfRuntime.engine();}
     private final Set<String> changedProfiles=new LinkedHashSet<>();
     public static final int WEB_PORT=80, TRANSFER_PORT=5000, CONTROL_PORT=25570;
     /** DHCPサーバー側の予約変更もBlockEntityの保存対象にする。 */
@@ -63,7 +65,7 @@ public final class NetworkSimulator {
         if(!nodes.containsKey(id)&&nodes.size()>=MAX_NODES)throw new IllegalStateException("機器数上限");
         Objects.requireNonNull(id);Objects.requireNonNull(profile);
         nodes.put(id,profile);macAddresses.computeIfAbsent(id,NetworkSimulator::macAddress);
-        ports.computeIfAbsent(id,k->new Link[6]);forestDirty=true;
+        ports.computeIfAbsent(id,k->new Link[6]);forestDirty=true;ospfRuntime.changed();
     }
     public void remove(String id){new ArrayList<>(links.values()).stream().filter(l->l.a.equals(id)||l.b.equals(id)).forEach(l->unlink(l.id));nodes.remove(id);ports.remove(id);macAddresses.remove(id);mac.remove(id);arp.remove(id);logs.remove(id);invalidate();}
     public void link(Link link){
@@ -74,7 +76,7 @@ public final class NetworkSimulator {
         links.put(link.id,link);ports.get(link.a)[link.ap]=link;ports.get(link.b)[link.bp]=link;invalidate();
     }
     public void unlink(String id){Link link=links.remove(id);if(link!=null){ports.get(link.a)[link.ap]=null;ports.get(link.b)[link.bp]=null;invalidate();}}
-    public void invalidate(){forestDirty=true;mac.clear();arp.clear();for(var flow:flows)log(flow.source,"転送 #"+flow.id+": 構成変更で中断");flows.clear();}
+    public void invalidate(){ospfRuntime.changed();forestDirty=true;mac.clear();arp.clear();for(var flow:flows)log(flow.source,"転送 #"+flow.id+": 構成変更で中断");flows.clear();}
     public Map<String,NetworkProfile> nodes(){return Collections.unmodifiableMap(nodes);}
     public Collection<Link> links(){return Collections.unmodifiableCollection(links.values());}
     public List<Flow> flows(){return List.copyOf(flows);}
@@ -194,6 +196,10 @@ public final class NetworkSimulator {
         for(int i=0;i<6;i++){var port=p.ports[i];if(!port.address.isBlank()&&Ipv4.sameSubnet(port.address,target,port.prefix)&&port.prefix>=best){
             if(port.prefix>best)choices.clear();best=port.prefix;staticRoute=null;choices.add(new Decision(i,target,port.address));}}
         if(staticRoute!=null){var port=p.ports[staticRoute.port()];if(!port.address.isBlank()&&Ipv4.sameSubnet(port.address,staticRoute.gateway(),port.prefix))choices.add(new Decision(staticRoute.port(),staticRoute.gateway(),port.address));}
+        for(var route:ospfRuntime.routes(node))if(route.prefix()>best&&Ipv4.sameSubnet(route.network(),target,route.prefix())
+                &&p.ports[route.port()].enabled&&portSpeed(node,route.port())>0){
+            best=route.prefix();choices.clear();choices.add(new Decision(route.port(),route.gateway(),p.ports[route.port()].address));
+        }
         return choices;
     }
     public Result route(String source,String address){
@@ -249,7 +255,7 @@ public final class NetworkSimulator {
     public Result request(String source,String target,String protocol,int destinationPort){
         try {
             var type=NetworkPolicy.Protocol.valueOf(protocol.toUpperCase(Locale.ROOT));
-            if(type==NetworkPolicy.Protocol.IP||type==NetworkPolicy.Protocol.ICMP&&destinationPort!=0)throw new IllegalArgumentException("requestはicmp(0), tcp, udpです");
+            if(type==NetworkPolicy.Protocol.IP||type==NetworkPolicy.Protocol.OSPF||type==NetworkPolicy.Protocol.ICMP&&destinationPort!=0)throw new IllegalArgumentException("requestはicmp(0), tcp, udpです");
             return exchange(source,replyAddress(source,target),target,protocol,type==NetworkPolicy.Protocol.ICMP?0:49152,destinationPort,new SearchBudget());
         }catch(SearchLimit|IllegalArgumentException e){return Result.fail(e.getMessage());}
     }
@@ -351,8 +357,33 @@ public final class NetworkSimulator {
         if(flows.stream().filter(f->f.source.equals(source)).count()>=4+Math.clamp(sender.buffer,0,6)*4)return Result.fail("送信バッファ満杯: バッファモジュールで同時転送枠を増設できます");
         Result path=request(source,destination,"tcp",TRANSFER_PORT);if(!path.success)return path;var flow=new Flow(nextFlow++,bytes,source,path);flows.add(flow);log(source,"仮想転送 #"+flow.id+": "+bytes+" bytes");return new Result(true,"転送 #"+flow.id+" 開始 (実ファイルは生成しません)",path.bps,path.milliseconds,path.nodes,path.links,path.destination);
     }
+    /** OSPFのローカルリンク帯域。経路探索やチャンク読み込みはしない。 */
+    long portSpeed(String id,int port){var row=ports.get(id);if(row==null||row[port]==null)return 0;return linkCapacity(row[port]);}
+    /** 設定/配線変更後に予算を分割して呼ばれるL2マルチキャスト到達判定。 */
+    List<OspfEngine.Peer> findOspfPeers(String id,int port){
+        try{
+            var local=nodes.get(id);if(local==null||local.failed||local.ports[port].address.isBlank())return List.of();
+            var budget=new SearchBudget();var packet=NetworkPolicy.Packet.of("ospf",local.ports[port].address,"224.0.0.5",0,0);
+            Set<OspfEngine.Peer> peers=new LinkedHashSet<>();
+            for(Step path:segment(id,port,(peer,in)->nodes.get(peer).kind.routing(),budget)){
+                var remote=nodes.get(path.id);var remotePort=remote.ports[path.ingress];
+                if(!remote.ospf.enabled||remote.ospf.modes[path.ingress]!=OspfSettings.Mode.ACTIVE||remotePort.address.isBlank())continue;
+                if(remotePort.prefix!=local.ports[port].prefix||!Ipv4.sameSubnet(remotePort.address,local.ports[port].address,remotePort.prefix))continue;
+                if(filterPath(path.path,path.wires,packet,budget)==null)peers.add(new OspfEngine.Peer(path.id,path.ingress));
+                if(peers.size()>OspfEngine.MAX_NEIGHBORS)throw new IllegalStateException("OSPF隣接候補上限");
+            }
+            return List.copyOf(peers);
+        }catch(SearchLimit limit){throw new IllegalStateException(limit.getMessage());}
+    }
     public void advance(long ticks){
-        if(ticks<=0)return;Map<String,Integer> use=new HashMap<>();for(var f:flows){for(String link:new HashSet<>(f.links))use.merge("l"+link,1,Integer::sum);for(String node:new HashSet<>(f.nodes))use.merge("n"+node,1,Integer::sum);}
+        if(ticks<=0)return;
+        ospfRuntime.advance(ticks);
+        Set<String> changedRoutes=ospf().drainRouteChanges();
+        if(!changedRoutes.isEmpty())flows.removeIf(flow->{
+            boolean affected=flow.nodes.stream().anyMatch(changedRoutes::contains);
+            if(affected)log(flow.source,"転送 #"+flow.id+": OSPF経路変更で中断。再送できます");return affected;
+        });
+        Map<String,Integer> use=new HashMap<>();for(var f:flows){for(String link:new HashSet<>(f.links))use.merge("l"+link,1,Integer::sum);for(String node:new HashSet<>(f.nodes))use.merge("n"+node,1,Integer::sum);}
         for(var it=flows.iterator();it.hasNext();){var f=it.next();double time=Math.max(0,ticks-f.delayTicks);f.delayTicks=Math.max(0,f.delayTicks-ticks);double rate=f.capacity;boolean live=true;
             for(String id:f.links){Link link=links.get(id);if(link==null||linkCapacity(link)==0){live=false;break;}rate=Math.min(rate,(double)linkCapacity(link)/use.get("l"+id));}
             for(String id:f.nodes){var p=nodes.get(id);if(p==null||p.failed){live=false;break;}rate=Math.min(rate,(double)p.capacity()/use.get("n"+id));}

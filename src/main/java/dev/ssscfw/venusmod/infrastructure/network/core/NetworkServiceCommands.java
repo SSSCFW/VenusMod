@@ -9,7 +9,10 @@ public final class NetworkServiceCommands {
     private NetworkServiceCommands(){}
     public static Reply run(NetworkSimulator simulator,String id,String input){
         if(input==null||input.length()>512||input.codePoints().anyMatch(Character::isISOControl))return reply(true,false,"改行なし512文字以内で入力してください");
-        String[] t=input.trim().split("\\s+");if(!COMMANDS.contains(t[0]))return new Reply(false,false,List.of());
+        String[] t=input.trim().split("\\s+");
+        if(t.length==1&&t[0].equals("help"))return new Reply(true,false,NetworkHelp.lines());
+        if(OspfCommands.handles(t))return OspfCommands.run(simulator,id,t);
+        if(!COMMANDS.contains(t[0]))return new Reply(false,false,List.of());
         NetworkProfile old=simulator.nodes().get(id);if(old==null)return reply(true,false,"機器が未登録です");
         try {
             NetworkProfile p=NetworkProfile.decode(old.kind,old.encode());p.stability=old.stability;p.processor=old.processor;p.buffer=old.buffer;p.wanTier=old.wanTier;

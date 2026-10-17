@@ -11,7 +11,7 @@ public final class NetworkGuide {
         public Page{nodes=List.copyOf(nodes);edges=List.copyOf(edges);steps=List.copyOf(steps);}
     }
     public record Recipe(Page page,int step){public Recipe{if(step<0||step>=page.steps.size())throw new IllegalArgumentException("guide step");}}
-    private static final List<Page> PAGES=List.of(
+    private static final List<Page> BASE_PAGES=List.of(
         page("basic","LANの基本接続",chain("network_pc","PC-A","network_l2_switch","L2SW","network_pc","PC-B"),
             step("1. 独立したケーブルで接続","PC-AとL2SW、L2SWとPC-Bを別々のCat5eケーブルで接続します。","途中のT字分岐は不可。配線に分岐がある場合はスイッチを置きます。"),
             step("2. IPを設定","PC-A: ip 192.168.1.10/24","PC-B: ip 192.168.1.20/24","機器を右クリックしてコンソールへ入力します。"),
@@ -23,7 +23,7 @@ public final class NetworkGuide {
         page("routing","ルーターでLANを接続",chain("network_pc","LAN-A","network_router","Router","network_server","LAN-B"),
             step("1. 2つのLAN側IP","Router: port 0 ip 10.0.1.1/24","Router: port 1 ip 10.0.2.1/24","初期ルーターの自動DHCPを止めるときは dhcp-server off。"),
             step("2. 両端に戻りの経路","PC: ip 10.0.1.10/24","PC: gateway 10.0.1.1","Serverは10.0.2.10/24、gateway 10.0.2.1を指定します。"),
-            step("3. 遠くのLANへの静的経路","route add 10.0.3.0/24 via 10.0.2.2 port 1","routes で一覧を確認。相手側にも戻りの経路が必要です。","この版ではOSPF/BGPの自動経路交換は未対応です。")),
+            step("3. 遠くのLANへの静的経路","route add 10.0.3.0/24 via 10.0.2.2 port 1","routes で一覧を確認。相手側にも戻りの経路が必要です。","OSPFのエリア内自動学習はOSPFページを参照。BGPは未対応です。")),
         page("optical","光ファイバーを接続",chain("network_l2_switch","光ポート","om3_fiber_cable","OM3","network_l2_switch","光ポート"),
             step("1. 対応モジュールを装着","通常機器の光接続には10G以上のポートモジュールが必要です。","GUI左のP0〜P5で、配線する面の専用枠に装着します。"),
             step("2. 両端を光に変更","port 0 media fiber","銅線に戻す場合: port 0 media copper","ONU/OLTのP0は標準で光対応。光Ethernet同士の接続にONUは不要です。"),
@@ -55,6 +55,7 @@ public final class NetworkGuide {
             step("2. レッドストーン出力","端末にIPを設定し、PCで redstone 192.168.1.30 15","通信と権限を確認して出力を変更します。0〜15を指定できます。","図は構成の概念図です。各端末はスイッチの別ポートへつなぎます。"),
             step("3. 他のプレイヤーと共有","trust プレイヤー名 / untrust プレイヤー名","オンラインのプレイヤーに管理権限を共有します。","public on は遠隔サービスだけを公開し、設定画面は公開しません。"))
     );
+    private static final List<Page> PAGES=java.util.stream.Stream.concat(BASE_PAGES.stream(),java.util.stream.Stream.of(OspfGuide.page())).toList();
     private NetworkGuide(){}
     public static List<Page> pages(){return PAGES;}
     public static List<Recipe> recipes(){List<Recipe> result=new ArrayList<>();for(Page page:PAGES)for(int i=0;i<page.steps.size();i++)result.add(new Recipe(page,i));return List.copyOf(result);}
