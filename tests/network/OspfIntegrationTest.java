@@ -46,7 +46,7 @@ public final class OspfIntegrationTest {
         String original=s.nodes().get("a").encode();for(String bad:List.of("ospf cost 0 -1","ospf cost 0 0","ospf cost 6 1","ospf router-id 224.0.0.5","ospf area -1","ospf timers 1 1","ospf timers 999999999 999999999")){
             var out=NetworkServiceCommands.run(s,"a",bad);ok(!out.changed()&&s.nodes().get("a").encode().equals(original),"bad command transactional: "+bad);
         }
-        var plain=new NetworkProfile(DeviceKind.PC);byte[] v3=Base64.getDecoder().decode(plain.encode());var suffix=new ByteArrayOutputStream();plain.ospf.write(new DataOutputStream(suffix));
+        var plain=new NetworkProfile(DeviceKind.PC);byte[] v3=Base64.getDecoder().decode("AAAAAwAKbmV0d29ya19wYwAAAAAAGAAAAAAAAAABAAAAAAAAZAEAAAAAAAEAAAAAABgAAAAAAAAAAAEAAAAAAAEAAAAAABgAAAAAAAAAAAEAAAAAAAEAAAAAABgAAAAAAAAAAAEAAAAAAAEAAAAAABgAAAAAAAAAAAEAAAAAAAEAAAAAABgAAAAAAAAAAAEAAAAAAAEAAAAAABgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAUAAAAUAADT0ZGAAAAAAADT0ZGAAAAAAADT0ZGAAAAAAADT0ZGAAAAAAADT0ZGAAAAAAADT0ZGAAAAAA==");var suffix=new ByteArrayOutputStream();plain.ospf.write(new DataOutputStream(suffix));
         byte[] v2=Arrays.copyOf(v3,v3.length-suffix.size());java.nio.ByteBuffer.wrap(v2).putInt(2);var legacy=NetworkProfile.decode(DeviceKind.PC,Base64.getEncoder().encodeToString(v2));ok(!legacy.ospf.enabled,"v2 migration remains OSPF disabled");
         // 保存 v1 は v2末尾のservicesを持たない。
         suffix=new ByteArrayOutputStream();plain.services.write(new DataOutputStream(suffix));byte[] v1=Arrays.copyOf(v2,v2.length-suffix.size());java.nio.ByteBuffer.wrap(v1).putInt(1);

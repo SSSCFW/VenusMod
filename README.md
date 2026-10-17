@@ -97,4 +97,8 @@ Add registries and mod-bus listeners from `VenusMod.java` as features are implem
 
 4/16幅のLAN・光ケーブル8種類、ネットワーク機器8種類、Java製の仮想通信、ポート強化、故障・設定保存、機器GUI・JEI説明を追加しています。操作例と実装範囲は [ネットワーク機能の使い方と実装状況](docs/NETWORK_IMPLEMENTATION.md) を参照してください。
 
-全体計画は [ネットワークインフラ仕様書](docs/NETWORK_SYSTEM_SPEC.md) です。**現段階は初期実装であり、全仕様の完成ではありません。OSPF/BGP/IPv6や完全なSTP/VRRP等の未対応項目は実装状況に明記しています。**
+全体計画は [ネットワークインフラ仕様書](docs/NETWORK_SYSTEM_SPEC.md) です。**現段階は初期実装であり、全仕様の完成ではありません。BGP/IPv6、複数エリアOSPF、完全なSTP/VRRPなどの未対応項目は各機能の実装状況に明記しています。**
+
+### 動的経路・仮想アドレス変換
+
+[OSPFによるエリア内経路学習](docs/NETWORK_OSPF.md) と [NAT/NAPT・ポート転送](docs/NETWORK_NAT.md) に対応しています。NATは既定OFFで、GUI/JEIガイドから内外ポート・公開設定・制約を確認できます。これらはMinecraft内だけの仮想通信です。

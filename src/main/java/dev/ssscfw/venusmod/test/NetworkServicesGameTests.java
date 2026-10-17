@@ -67,7 +67,9 @@ public final class NetworkServicesGameTests {
             var item=NetworkContent.NETWORK_ITEMS.get(node.item());
             h.assertTrue(item!=null&&!new ItemStack(item.get()).isEmpty(),"ガイドの機器アイコンが実在: "+node.item());
         }
-        h.assertTrue(NetworkGuide.pages().size()==11&&NetworkGuide.recipes().size()==36,"OSPF追加後の11トピック36手順をJEIへ登録");
+        int steps=NetworkGuide.pages().stream().mapToInt(page->page.steps().size()).sum();
+        h.assertTrue(NetworkGuide.recipes().size()==steps,"各ガイド手順を漏れなくJEIへ登録");
+        h.assertTrue(NetworkGuide.pages().stream().map(NetworkGuide.Page::id).collect(java.util.stream.Collectors.toSet()).containsAll(java.util.List.of("basic","vlan","routing","optical","wan","upgrades","redundancy","acl","dhcp_relay","services","ospf","nat")),"既存ページとOSPF/NATを維持");
         h.assertTrue(NetworkGuide.pages().stream().anyMatch(page->page.id().equals("ospf")&&page.steps().size()==4),"OSPFの設定・隣接・迂回を4手順で案内");
         h.succeed();
     }

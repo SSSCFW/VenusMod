@@ -30,7 +30,12 @@ public final class NetworkSimulator {
         int peerPort(String id){return a.equals(id)?bp:ap;}
         int port(String id){return a.equals(id)?ap:bp;}
     }
-    public record Result(boolean success,String message,long bps,double milliseconds,List<String> nodes,List<String> links,String destination){
+    public record Result(boolean success,String message,long bps,double milliseconds,List<String> nodes,List<String> links,String destination,
+                         int servicePort,List<Long> natBindings){
+        public Result(boolean success,String message,long bps,double milliseconds,List<String> nodes,List<String> links,String destination){
+            this(success,message,bps,milliseconds,nodes,links,destination,0,List.of());
+        }
+        public Result{nodes=List.copyOf(nodes);links=List.copyOf(links);natBindings=List.copyOf(natBindings);}
         public static Result fail(String reason){return new Result(false,reason,0,0,List.of(),List.of(),"");}
     }
     public static final class Flow {
@@ -38,9 +43,10 @@ public final class NetworkSimulator {
         public final String source,destination;
         public final List<String> links,nodes;
         public final long capacity;
+        public final List<Long> natBindings;
         public double remaining,delayTicks;
         Flow(long id,long bytes,String source,Result path){this.id=id;this.totalBytes=bytes;this.source=source;this.destination=path.destination;
-            this.links=path.links;this.nodes=path.nodes;this.capacity=path.bps;remaining=bytes;delayTicks=path.milliseconds/50;}
+            this.links=path.links;this.nodes=path.nodes;this.capacity=path.bps;this.natBindings=path.natBindings;remaining=bytes;delayTicks=path.milliseconds/50;}
         public double progress(){return Math.clamp(1-remaining/totalBytes,0.0,1.0);}
     }
     private final Map<String,NetworkProfile> nodes=new LinkedHashMap<>();
@@ -56,6 +62,8 @@ public final class NetworkSimulator {
     private String forestLimit="";
     private long nextFlow=1;
     private final OspfSimulation ospfRuntime=new OspfSimulation(this);
+    private final NatTable natTable=new NatTable();
+    public NatTable nat(){return natTable;}
     public OspfEngine ospf(){return ospfRuntime.engine();}
     private final Set<String> changedProfiles=new LinkedHashSet<>();
     public static final int WEB_PORT=80, TRANSFER_PORT=5000, CONTROL_PORT=25570;
@@ -64,7 +72,7 @@ public final class NetworkSimulator {
     public void put(String id,NetworkProfile profile){
         if(!nodes.containsKey(id)&&nodes.size()>=MAX_NODES)throw new IllegalStateException("機器数上限");
         Objects.requireNonNull(id);Objects.requireNonNull(profile);
-        nodes.put(id,profile);macAddresses.computeIfAbsent(id,NetworkSimulator::macAddress);
+        natTable.clear();nodes.put(id,profile);macAddresses.computeIfAbsent(id,NetworkSimulator::macAddress);
         ports.computeIfAbsent(id,k->new Link[6]);forestDirty=true;ospfRuntime.changed();
     }
     public void remove(String id){new ArrayList<>(links.values()).stream().filter(l->l.a.equals(id)||l.b.equals(id)).forEach(l->unlink(l.id));nodes.remove(id);ports.remove(id);macAddresses.remove(id);mac.remove(id);arp.remove(id);logs.remove(id);invalidate();}
@@ -76,7 +84,7 @@ public final class NetworkSimulator {
         links.put(link.id,link);ports.get(link.a)[link.ap]=link;ports.get(link.b)[link.bp]=link;invalidate();
     }
     public void unlink(String id){Link link=links.remove(id);if(link!=null){ports.get(link.a)[link.ap]=null;ports.get(link.b)[link.bp]=null;invalidate();}}
-    public void invalidate(){ospfRuntime.changed();forestDirty=true;mac.clear();arp.clear();for(var flow:flows)log(flow.source,"転送 #"+flow.id+": 構成変更で中断");flows.clear();}
+    public void invalidate(){natTable.clear();ospfRuntime.changed();forestDirty=true;mac.clear();arp.clear();for(var flow:flows)log(flow.source,"転送 #"+flow.id+": 構成変更で中断");flows.clear();}
     public Map<String,NetworkProfile> nodes(){return Collections.unmodifiableMap(nodes);}
     public Collection<Link> links(){return Collections.unmodifiableCollection(links.values());}
     public List<Flow> flows(){return List.copyOf(flows);}
@@ -203,38 +211,54 @@ public final class NetworkSimulator {
         return choices;
     }
     public Result route(String source,String address){
-        try{return route(source,address,new SearchBudget(),NetworkPolicy.Packet.of("ip",replyAddress(source,address),address,0,0));}
-        catch(SearchLimit|IllegalArgumentException limit){return Result.fail(limit.getMessage());}
+        try(var transaction=natTable.begin()){
+            var packet=NetworkPolicy.Packet.of("ip",replyAddress(source,address),address,0,0);
+            // 一方向の診断だけではNATを確定しない。
+            return walk(source,new SearchBudget(),packet,transaction).result;
+        }catch(SearchLimit|IllegalArgumentException limit){return Result.fail(limit.getMessage());}
     }
-    private Result route(String source,String address,SearchBudget budget,NetworkPolicy.Packet packet){
-        requireForest();
-        final String target;try{target=Ipv4.normalize(address);}catch(IllegalArgumentException e){return Result.fail(e.getMessage());}
-        var original=nodes.get(source);if(original==null||original.failed)return Result.fail("送信元が停止しています");
-        if(owns(source,target))return new Result(true,"ローカルアドレス",original.capacity(),0,List.of(source),List.of(),source);
-        String current=source;List<String> path=new ArrayList<>();path.add(source);List<String> wires=new ArrayList<>();long bps=Long.MAX_VALUE;double delay=0;Set<String> routed=new HashSet<>();
+    private record Delivery(Result result,NetworkPolicy.Packet packet){}
+    /** 各ホップの受信ACLは変換前、送信ACLは変換後のパケットを検査する。 */
+    private Delivery walk(String source,SearchBudget budget,NetworkPolicy.Packet packet,NatTable.Transaction transaction){
+        requireForest();var original=nodes.get(source);
+        if(original==null||original.failed)return new Delivery(Result.fail("送信元が停止しています"),packet);
+        String current=source;int ingress=-1;
+        List<String> path=new ArrayList<>();path.add(source);List<String> wires=new ArrayList<>();
+        long bps=original.capacity();double delay=0;Set<String> routed=new HashSet<>();
         for(int ttl=0;ttl<32;ttl++){
-            if(!routed.add(current))return Result.fail("TTL超過: ルーティングループ");Step reached=null;String resolvedIp="";
+            if(!routed.add(current))return new Delivery(Result.fail("TTL超過: ルーティングループ"),packet);
+            var profile=nodes.get(current);
+            var translated=transaction.ingress(current,profile,ingress,packet);packet=translated.packet();
+            String target=Ipv4.format(packet.destination());
+            if(owns(current,target)){
+                if(translated.forward()!=null||translated.expectedInside()>=0)
+                    return new Delivery(Result.fail("NAT内部宛先がルーター自身と競合しています"),packet);
+                return new Delivery(new Result(true,"到達",bps,delay,List.copyOf(path),List.copyOf(wires),current),packet);
+            }
+            if(ingress>=0&&!profile.kind.routing())return new Delivery(Result.fail("次ホップがルーターではありません"),packet);
+            Step reached=null;Decision selected=null;
             for(Decision choice:decisions(current,target)){
-                final String sought=choice.nextHop;var hits=segment(current,choice.port,(id,port)->answersArp(id,port,sought),budget);
+                final String sought=choice.nextHop;
+                var hits=segment(current,choice.port,(id,port)->answersArp(id,port,sought),budget);
                 if(hits.isEmpty())continue;
                 Map<String,Step> unique=new LinkedHashMap<>();for(Step hit:hits)unique.putIfAbsent(hit.id,hit);
-                boolean virtual=unique.values().stream().allMatch(s->sought.equals(nodes.get(s.id).vip));
-                if(unique.size()>1&&!virtual)return Result.fail("ARP応答競合: IPアドレスが重複しています");
-                reached=unique.values().stream().sorted(Comparator.<Step>comparingInt(s->nodes.get(s.id).vrrpPriority).reversed().thenComparing(Step::id)).findFirst().orElseThrow();
-                resolvedIp=sought;learn(arp,current,sought,macAddresses.get(reached.id));break;
+                boolean virtual=unique.values().stream().allMatch(step->sought.equals(nodes.get(step.id).vip));
+                if(unique.size()>1&&!virtual)return new Delivery(Result.fail("ARP応答競合: IPアドレスが重複しています"),packet);
+                reached=unique.values().stream().sorted(Comparator.<Step>comparingInt(step->nodes.get(step.id).vrrpPriority).reversed().thenComparing(Step::id)).findFirst().orElseThrow();
+                selected=choice;learn(arp,current,sought,macAddresses.get(reached.id));break;
             }
-            if(reached==null)return Result.fail("到達不能: IP/経路/VLAN/媒体/断線を確認してください");
+            if(reached==null)return new Delivery(Result.fail("到達不能: IP/経路/VLAN/媒体/断線を確認してください"),packet);
+            packet=transaction.egress(current,profile,ingress,selected.port,translated);
             String denied=filterPath(reached.path,reached.wires,packet,budget);
-            if(denied!=null){log(source,denied);return Result.fail(denied);}
+            if(denied!=null){log(source,denied);return new Delivery(Result.fail(denied),packet);}
             budget.path(path.size()+reached.path.size()-1);
-            for(int i=1;i<reached.path.size();i++)path.add(reached.path.get(i));wires.addAll(reached.wires);bps=Math.min(bps,reached.bps);delay+=reached.delay;
-            current=reached.id;if(owns(current,target))return new Result(true,"到達",bps,delay,List.copyOf(path),List.copyOf(wires),current);
-            if(!nodes.get(current).kind.routing())return Result.fail("次ホップがルーターではありません: "+resolvedIp);
+            path.addAll(reached.path.subList(1,reached.path.size()));wires.addAll(reached.wires);
+            bps=Math.min(bps,reached.bps);delay+=reached.delay;current=reached.id;ingress=reached.ingress;
         }
-        return Result.fail("TTL超過");
+        return new Delivery(Result.fail("TTL超過"),packet);
     }
     private String replyAddress(String source,String target){var p=nodes.get(source);if(p==null)return "";if(!p.address.isBlank())return p.address;var ds=decisions(source,target);return ds.isEmpty()?"":ds.getFirst().sourceIp;}
-    /** ステートレスACLは各実経路の出側/入側で評価。宛先まで元のIP/ポートを維持する。 */
+    /** ステートレスACLは実際のリンク上で見えるIP/ポートを出側/入側で評価する。 */
     private String filterPath(List<String> path,List<String> wires,NetworkPolicy.Packet packet,SearchBudget budget){
         for(int i=0;i<wires.size();i++){
             Link link=links.get(wires.get(i));String from=path.get(i),to=path.get(i+1);
@@ -253,21 +277,38 @@ public final class NetworkSimulator {
     public Result ping(String source,String target){return request(source,target,"icmp",0);}
     /** メタデータによる往復検査。実TCPハンドシェイクや外部ソケットは生成しない。 */
     public Result request(String source,String target,String protocol,int destinationPort){
+        return requestService(source,target,protocol,destinationPort,-1);
+    }
+    /** 転送後のポートが実サービスと違う場合、変換表を確定せず拒否する。 */
+    public Result requestService(String source,String target,String protocol,int destinationPort,int expectedServicePort){
         try {
+            if(expectedServicePort< -1||expectedServicePort>65535)throw new IllegalArgumentException("サービスのポート番号が不正です");
             var type=NetworkPolicy.Protocol.valueOf(protocol.toUpperCase(Locale.ROOT));
             if(type==NetworkPolicy.Protocol.IP||type==NetworkPolicy.Protocol.OSPF||type==NetworkPolicy.Protocol.ICMP&&destinationPort!=0)throw new IllegalArgumentException("requestはicmp(0), tcp, udpです");
-            return exchange(source,replyAddress(source,target),target,protocol,type==NetworkPolicy.Protocol.ICMP?0:49152,destinationPort,new SearchBudget());
+            return exchange(source,replyAddress(source,target),target,protocol,type==NetworkPolicy.Protocol.ICMP?0:49152,destinationPort,new SearchBudget(),expectedServicePort);
         }catch(SearchLimit|IllegalArgumentException e){return Result.fail(e.getMessage());}
     }
     private Result exchange(String source,String local,String target,String protocol,int sourcePort,int destinationPort,SearchBudget budget){
+        return exchange(source,local,target,protocol,sourcePort,destinationPort,budget,-1);
+    }
+    private Result exchange(String source,String local,String target,String protocol,int sourcePort,int destinationPort,SearchBudget budget,int expectedServicePort){
         if(local.isBlank()||!owns(source,local))return Result.fail("送信元IPが未設定または機器に属していません");
         var packet=NetworkPolicy.Packet.of(protocol,local,target,sourcePort,destinationPort);
-        Result forward=route(source,target,budget,packet);if(!forward.success)return forward;
-        Result reverse=route(forward.destination,local,budget,packet.reverse());
-        if(!reverse.success)return Result.fail("応答経路なし: "+reverse.message);
-        if(!reverse.destination.equals(source))return Result.fail("応答先IPが別の機器と競合しています");
-        var result=new Result(true,"Reply from "+target+" ["+protocol.toUpperCase(Locale.ROOT)+"] RTT="+String.format(Locale.ROOT,"%.2f ms",forward.milliseconds+reverse.milliseconds),Math.min(forward.bps,reverse.bps),forward.milliseconds+reverse.milliseconds,forward.nodes,forward.links,forward.destination);
-        log(source,result.message+" / "+CableGrade.speed(result.bps));return result;
+        try(var transaction=natTable.begin()){
+            transaction.localOrigin(source,packet);
+            var forward=walk(source,budget,packet,transaction);if(!forward.result.success)return forward.result;
+            if(expectedServicePort>=0&&forward.packet.destinationPort()!=expectedServicePort)
+                return Result.fail("NAT転送先ポートが実サービスと一致しません (必要: "+expectedServicePort+")");
+            var reverse=walk(forward.result.destination,budget,forward.packet.reverse(),transaction);
+            if(!reverse.result.success)return Result.fail("応答経路なし: "+reverse.result.message);
+            if(!reverse.result.destination.equals(source)||!reverse.packet.equals(packet.reverse()))
+                return Result.fail("応答先IP/ポートが競合またはNAT状態と一致しません");
+            var bindings=transaction.commit();
+            var a=forward.result;var b=reverse.result;
+            var result=new Result(true,"Reply from "+target+" ["+protocol.toUpperCase(Locale.ROOT)+"] RTT="+String.format(Locale.ROOT,"%.2f ms",a.milliseconds+b.milliseconds),
+                    Math.min(a.bps,b.bps),a.milliseconds+b.milliseconds,a.nodes,a.links,a.destination,forward.packet.destinationPort(),bindings);
+            log(source,result.message+" / "+CableGrade.speed(result.bps)+(bindings.isEmpty()?"":" / NAT "+bindings.size()+"段"));return result;
+        }
     }
     public Result dhcp(String source){
         try{return dhcp(source,new SearchBudget());}catch(SearchLimit|IllegalArgumentException limit){return Result.fail(limit.getMessage());}
@@ -347,7 +388,7 @@ public final class NetworkSimulator {
     }
     public Result resolve(String source,String name){
         var p=nodes.get(source);if(p==null||p.dns.isBlank())return Result.fail("DNSサーバー未設定");
-        Result path=request(source,p.dns,"udp",53);if(!path.success)return path;
+        Result path=requestService(source,p.dns,"udp",53,53);if(!path.success)return path;
         String ip=nodes.get(path.destination).dnsRecords.get(name.toLowerCase(Locale.ROOT));
         return ip==null?Result.fail("NXDOMAIN (仮想DNS)"):new Result(true,name+" = "+ip,path.bps,path.milliseconds,path.nodes,path.links,ip);
     }
@@ -355,7 +396,8 @@ public final class NetworkSimulator {
         if(bytes<=0||bytes>1_000_000_000_000L)return Result.fail("転送量は1〜1TBです");if(flows.size()>=MAX_FLOWS)return Result.fail("同時転送の上限です");
         var sender=nodes.get(source);if(sender==null)return Result.fail("送信元なし");
         if(flows.stream().filter(f->f.source.equals(source)).count()>=4+Math.clamp(sender.buffer,0,6)*4)return Result.fail("送信バッファ満杯: バッファモジュールで同時転送枠を増設できます");
-        Result path=request(source,destination,"tcp",TRANSFER_PORT);if(!path.success)return path;var flow=new Flow(nextFlow++,bytes,source,path);flows.add(flow);log(source,"仮想転送 #"+flow.id+": "+bytes+" bytes");return new Result(true,"転送 #"+flow.id+" 開始 (実ファイルは生成しません)",path.bps,path.milliseconds,path.nodes,path.links,path.destination);
+        final ServiceAddress endpoint;try{endpoint=ServiceAddress.parse(destination,TRANSFER_PORT);}catch(IllegalArgumentException e){return Result.fail(e.getMessage());}
+        Result path=requestService(source,endpoint.address(),"tcp",endpoint.port(),TRANSFER_PORT);if(!path.success)return path;var flow=new Flow(nextFlow++,bytes,source,path);flows.add(flow);log(source,"仮想転送 #"+flow.id+": "+bytes+" bytes");return new Result(true,"転送 #"+flow.id+" 開始 (実ファイルは生成しません)",path.bps,path.milliseconds,path.nodes,path.links,path.destination);
     }
     /** OSPFのローカルリンク帯域。経路探索やチャンク読み込みはしない。 */
     long portSpeed(String id,int port){var row=ports.get(id);if(row==null||row[port]==null)return 0;return linkCapacity(row[port]);}
@@ -383,8 +425,10 @@ public final class NetworkSimulator {
             boolean affected=flow.nodes.stream().anyMatch(changedRoutes::contains);
             if(affected)log(flow.source,"転送 #"+flow.id+": OSPF経路変更で中断。再送できます");return affected;
         });
+        Set<Long> activeNat=new HashSet<>();for(var flow:flows)activeNat.addAll(flow.natBindings);
+        natTable.advance(ticks,activeNat);
         Map<String,Integer> use=new HashMap<>();for(var f:flows){for(String link:new HashSet<>(f.links))use.merge("l"+link,1,Integer::sum);for(String node:new HashSet<>(f.nodes))use.merge("n"+node,1,Integer::sum);}
-        for(var it=flows.iterator();it.hasNext();){var f=it.next();double time=Math.max(0,ticks-f.delayTicks);f.delayTicks=Math.max(0,f.delayTicks-ticks);double rate=f.capacity;boolean live=true;
+        for(var it=flows.iterator();it.hasNext();){var f=it.next();double time=Math.max(0,ticks-f.delayTicks);f.delayTicks=Math.max(0,f.delayTicks-ticks);double rate=f.capacity;boolean live=f.natBindings.stream().allMatch(natTable::alive);
             for(String id:f.links){Link link=links.get(id);if(link==null||linkCapacity(link)==0){live=false;break;}rate=Math.min(rate,(double)linkCapacity(link)/use.get("l"+id));}
             for(String id:f.nodes){var p=nodes.get(id);if(p==null||p.failed){live=false;break;}rate=Math.min(rate,(double)p.capacity()/use.get("n"+id));}
             if(!live){log(f.source,"転送 #"+f.id+": リンク断で中断");it.remove();continue;}

@@ -9,6 +9,7 @@ public final class NetworkServiceCommands {
     private NetworkServiceCommands(){}
     public static Reply run(NetworkSimulator simulator,String id,String input){
         if(input==null||input.length()>512||input.codePoints().anyMatch(Character::isISOControl))return reply(true,false,"改行なし512文字以内で入力してください");
+        var nat=NatCommands.run(simulator,id,input);if(nat.handled())return nat;
         String[] t=input.trim().split("\\s+");
         if(t.length==1&&t[0].equals("help"))return new Reply(true,false,NetworkHelp.lines());
         if(OspfCommands.handles(t))return OspfCommands.run(simulator,id,t);

@@ -21,7 +21,7 @@ public final class NetworkGuideTest {
                 if(a<0||a>=nodes.size()||b<0||b>=nodes.size()||a==b)throw new AssertionError("不正な接続: "+id);cases++;}
             for(Object step:steps){List<?> lines=(List<?>)step.getClass().getMethod("lines").invoke(step);if(lines.isEmpty())throw new AssertionError("説明なし");cases++;}
         }
-        if(!ids.containsAll(List.of("acl","dhcp_relay","optical","upgrades","basic")))throw new AssertionError("必須トピックなし");
+        if(!ids.containsAll(List.of("acl","dhcp_relay","optical","upgrades","basic","ospf","nat")))throw new AssertionError("必須トピックなし");
         System.out.println("NetworkGuideTest: "+pages.size()+" topics / "+cases+" diagram and text checks passed");
     }
 }

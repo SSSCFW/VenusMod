@@ -27,12 +27,15 @@ public final class NetworkHelp {
         "ospf neighbors / ospf database / show ip route / ospf help",
         "OSPFはHello/Dead・単一エリア内LSA/SPF。全隣接方式です。",
         "stp on / vrrp 192.168.1.254 120 (STP/VRRPは簡略選出)",
-        "open IP (外部Webではない固定管理画面)",
-        "redstone IP 15 / transfer IP 100 (仮想100MB) / flows",
+        "open IP[:PORT] (外部Webではない固定管理画面)",
+        "nat port 0 inside / nat port 1 outside / nat on",
+        "nat forward add 1 tcp 8080 192.168.10.20 80",
+        "nat sessions / nat clear / nat help (動的変換表は保存しません)",
+        "redstone IP[:PORT] 15 / transfer IP[:PORT] 100 (仮想100MB) / flows",
         "trust プレイヤー名 / untrust プレイヤー名 / public on|off",
         "完全安定化で内部ランダム故障だけ0%。故障は修理キットで復旧。",
         "通常採掘で設定・アップグレード・故障・権限を保持します。",
-        "未対応: BGP/IPv6/NAT/IPsec/LACP、OSPFのABR/DR/BDR/ECMP。",
+        "未対応: BGP/IPv6/IPsec/LACP、OSPFのABR/DR/BDR/ECMP。",
         "STP/VRRPの本来のタイマー、8/24ポート、PON分岐、惑星間通信は後続段階。",
         "実OSシェル・ソケット・外部Web・JavaScriptは使用しません。");}
 }

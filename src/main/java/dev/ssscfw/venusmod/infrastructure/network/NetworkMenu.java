@@ -66,8 +66,10 @@ public final class NetworkMenu extends AbstractContainerMenu {
                 else if(t.length!=2){output="trust プレイヤー名 / untrust プレイヤー名";}
                 else{var other=sender.getServer().getPlayerList().getPlayerByName(t[1]);output=other==null?"対象プレイヤーがオンラインではありません":target.trust(other.getUUID(),t[0].equals("trust"))?"共有権限を変更しました":"共有人数の上限です";}
             }else if(t[0].equals("open")||t[0].equals("redstone")){
-                if(t.length!=(t[0].equals("open")?2:3))throw new IllegalArgumentException("open IP / redstone IP 0〜15");
-                NetworkSimulator.Result route=simulator.request(target.id(),t[1],"tcp",t[0].equals("open")?NetworkSimulator.WEB_PORT:NetworkSimulator.CONTROL_PORT);
+                if(t.length!=(t[0].equals("open")?2:3))throw new IllegalArgumentException("open IP[:PORT] / redstone IP[:PORT] 0〜15");
+                int expectedPort=t[0].equals("open")?NetworkSimulator.WEB_PORT:NetworkSimulator.CONTROL_PORT;
+                ServiceAddress endpoint=ServiceAddress.parse(t[1],expectedPort);
+                NetworkSimulator.Result route=simulator.requestService(target.id(),endpoint.address(),"tcp",endpoint.port(),expectedPort);
                 if(!route.success())output=route.message();else{var other=world.device(route.destination());
                     if(other==null||!other.canControl(sender))output="通信先のサービス利用権限がありません";
                     else if(t[0].equals("open")){output=other.profile().kind==DeviceKind.SERVER&&other.profile().web?"[ゲーム内管理画面]\n"+other.profile().name+"\n状態: "+(other.profile().failed?"故障":"正常")+"\nIP: "+other.profile().address+"\n上限: "+CableGrade.speed(route.bps())+"\n外部HTML・JavaScriptは使用しません":"仮想Webサービスが停止しています";}
