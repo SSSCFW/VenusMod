@@ -2,8 +2,10 @@ package dev.ssscfw.venusmod.compat.create;
 
 import com.simibubi.create.api.stress.BlockStressValues;
 import dev.ssscfw.venusmod.VenusMod;
+import dev.ssscfw.venusmod.item.MachineDescriptionItem;
 import dev.ssscfw.venusmod.registry.ModCreativeTabs;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -21,7 +23,8 @@ public final class VenusAtmosphereMachines {
     private static final DeferredRegister<BlockEntityType<?>> ENTITIES = DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, VenusMod.MOD_ID);
     public static final DeferredBlock<AtmosphericCondenserBlock> CONDENSER = BLOCKS.register("atmospheric_condenser",
             () -> new AtmosphericCondenserBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.IRON_BLOCK).strength(3.5F)));
-    public static final DeferredItem<net.minecraft.world.item.BlockItem> CONDENSER_ITEM = ITEMS.registerSimpleBlockItem(CONDENSER);
+    public static final DeferredItem<MachineDescriptionItem> CONDENSER_ITEM = ITEMS.register("atmospheric_condenser",
+            () -> new MachineDescriptionItem(CONDENSER.get(), new Item.Properties(), "atmospheric_condenser"));
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<AtmosphericCondenserBlockEntity>> CONDENSER_ENTITY = ENTITIES.register(
             "atmospheric_condenser", () -> BlockEntityType.Builder.of(AtmosphericCondenserBlockEntity::new, CONDENSER.get()).build(null));
     private VenusAtmosphereMachines() {}
