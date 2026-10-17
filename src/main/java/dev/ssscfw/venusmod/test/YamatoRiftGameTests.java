@@ -8,10 +8,14 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.vehicle.Boat;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
@@ -23,6 +27,56 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class YamatoRiftGameTests {
     private YamatoRiftGameTests() {}
+
+
+    @GameTest(template = "test/wide_empty")
+    public static void fallingThroughHorizontalRiftsPreservesMomentumOnRepeatedTrips(GameTestHelper h) {
+        var level = h.getLevel(); var server = level.getServer(); var data = new YamatoRifts();
+        Vec3 lower = Vec3.atBottomCenterOf(h.absolutePos(new BlockPos(2,3,2)));
+        Vec3 upper = lower.add(0,5,0);
+        var pair = data.openPair(UUID.randomUUID(),"fall loop",
+                YamatoRifts.Endpoint.at(level,lower,0,90,1),
+                YamatoRifts.Endpoint.at(level,upper,0,90,1),3,2,1,server);
+        h.assertTrue(pair!=null,"Horizontal portals could not be created above each other");
+        Pig pig=h.spawn(EntityType.PIG,new BlockPos(2,3,2));
+        pig.setNoAi(true); pig.setNoGravity(true); pig.moveTo(lower.x,lower.y,lower.z,0,0);
+        Vec3 falling=new Vec3(.17,-3.75,-.11);
+        pig.setDeltaMovement(falling);
+        data.tick(server,level.getGameTime()+7);
+        h.assertTrue(pig.position().distanceToSqr(upper)<.01,"Falling entity did not arrive at upper portal");
+        h.assertTrue(pig.getDeltaMovement().distanceToSqr(falling)<1.0E-12,"First teleport erased falling or lateral momentum");
+        // 到着面から一度離れ、落下して下側へ戻る動きを模擬する。
+        pig.moveTo(upper.x,upper.y-2,upper.z,0,0);
+        data.tick(server,level.getGameTime()+8);
+        pig.moveTo(lower.x,lower.y,lower.z,0,0);
+        data.tick(server,level.getGameTime()+9);
+        h.assertTrue(pig.position().distanceToSqr(upper)<.01,"Looping fall was blocked after leaving arrival portal");
+        h.assertTrue(pig.getDeltaMovement().distanceToSqr(falling)<1.0E-12,"Second teleport reset accumulated velocity");
+        data.releaseTickets(server);h.succeed();
+    }
+
+    @GameTest(template = "test/wide_empty")
+    public static void itemAndExperiencePortalsPreserveTheirOwnVelocity(GameTestHelper h) {
+        var level=h.getLevel();var server=level.getServer();var data=new YamatoRifts();
+        Vec3 lower=Vec3.atBottomCenterOf(h.absolutePos(new BlockPos(2,3,2)));
+        Vec3 upper=lower.add(6,4,0);
+        var pair=data.openPair(UUID.randomUUID(),"drops",
+                YamatoRifts.Endpoint.at(level,lower,0,90,1),
+                YamatoRifts.Endpoint.at(level,upper,0,90,1),6,2,1,server);
+        h.assertTrue(pair!=null,"Item and experience portal could not be created");
+        ItemEntity item=new ItemEntity(level,lower.x,lower.y,lower.z,new ItemStack(Items.STONE));
+        ExperienceOrb orb=new ExperienceOrb(level,lower.x,lower.y,lower.z,7);
+        item.setNoGravity(true);orb.setNoGravity(true);
+        Vec3 itemVelocity=new Vec3(.24,-1.8,.09),orbVelocity=new Vec3(-.13,-2.4,-.06);
+        item.setDeltaMovement(itemVelocity);orb.setDeltaMovement(orbVelocity);
+        level.addFreshEntity(item);level.addFreshEntity(orb);
+        data.tick(server,level.getGameTime()+7);
+        h.assertTrue(item.position().distanceToSqr(upper)<.01,"Item did not pass through the drop-only portal");
+        h.assertTrue(orb.position().distanceToSqr(upper)<.01,"Experience did not pass through the drop-only portal");
+        h.assertTrue(item.getDeltaMovement().distanceToSqr(itemVelocity)<1.0E-12,"Item lost momentum");
+        h.assertTrue(orb.getDeltaMovement().distanceToSqr(orbVelocity)<1.0E-12,"Experience lost momentum");
+        data.releaseTickets(server);h.succeed();
+    }
 
     @GameTest(template = "test/wide_empty", timeoutTicks = 100)
     public static void arrivalMustLeaveBeforeReturning(GameTestHelper h) {
@@ -131,6 +185,8 @@ public final class YamatoRiftGameTests {
         Zombie first=h.spawn(EntityType.ZOMBIE,new BlockPos(2,3,2));first.setNoAi(true);first.setNoGravity(true);
         Zombie second=h.spawn(EntityType.ZOMBIE,new BlockPos(2,3,2));second.setNoAi(true);second.setNoGravity(true);
         h.assertTrue(first.startRiding(boat,true)&&second.startRiding(boat,true),"Both riders mount");
+        Vec3 boatVelocity=new Vec3(.21,-.75,.08);
+        boat.setDeltaMovement(boatVelocity);
         boat.positionRider(first);boat.positionRider(second);
         BlockPos obstruction=BlockPos.containing(b).offset(1,1,0);
         level.setBlock(obstruction,Blocks.STONE.defaultBlockState(),3);
@@ -139,6 +195,8 @@ public final class YamatoRiftGameTests {
         level.setBlock(obstruction,Blocks.AIR.defaultBlockState(),3);
         data.tick(server,level.getGameTime()+8);
         h.assertTrue(boat.position().distanceTo(b)<.1 && first.getVehicle()==boat && second.getVehicle()==boat,"Allowed mounted group did not transfer intact");
+        h.assertTrue(boat.getDeltaMovement().distanceToSqr(boatVelocity)<1.0E-12,
+                "Boat velocity was reset while carrying passengers");
         Vec3 expected=boat.getPassengerRidingPosition(second).subtract(second.getVehicleAttachmentPoint(boat));
         h.assertTrue(second.position().distanceTo(expected)<.001,"Arrival must immediately use final rotated seat position");
         h.assertTrue(level.noCollision(second,second.getBoundingBox()),"Passenger arrived inside blocks");
@@ -175,11 +233,15 @@ public final class YamatoRiftGameTests {
                     +", blockTicking="+target.getChunkSource().isPositionTicking(destinationChunk.toLong()));
         }).thenExecute(() -> {
             Pig pig=h.spawn(EntityType.PIG,new BlockPos(2,3,2));pig.setNoAi(true);pig.setNoGravity(true);pig.moveTo(a.x,a.y,a.z,0,0);
+            Vec3 incomingVelocity=new Vec3(.23,-2.65,.07);
+            pig.setDeltaMovement(incomingVelocity);
             UUID id=pig.getUUID();
             h.assertTrue(level.getEntity(id)==pig,"Source fixture must track the test entity");
             data.tick(server,level.getGameTime()+7);
             var arrived=target.getEntity(id);
             h.assertTrue(arrived!=null && arrived.position().distanceTo(b)<.1,"Did not arrive at exact counterpart in Nether with same UUID");
+            h.assertTrue(arrived.getDeltaMovement().distanceToSqr(incomingVelocity)<1.0E-12,
+                    "Cross-dimensional teleport lost incoming velocity");
             h.assertTrue(level.getEntity(id)==null,"Source dimension kept a duplicate entity");
             data.tick(server,level.getGameTime()+1000);
             h.assertTrue(target.getEntity(id)==arrived,"Cross-dimension arrival immediately returned");

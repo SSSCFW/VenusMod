@@ -257,17 +257,19 @@ public final class YamatoRifts extends SavedData {
                 if (entity instanceof ServerPlayer player && pair.warned.add(entity.getUUID())) YamatoNetwork.message(player, "obstructed");
                 continue;
             }
+            // 降車や次元移動時に乗客の速度が変わることがあるため、全員の入射速度を先に保存する。
+            Map<UUID, Vec3> entryVelocities = new HashMap<>();
+            for (Entity member : group) entryVelocities.put(member.getUUID(), member.getDeltaMovement());
             entity.stopRiding();
-            Entity arrived = transferGroup(entity, new DimensionTransition(target, to.feet, Vec3.ZERO,
-                    to.yaw, entity.getXRot(), result -> {
-                        result.fallDistance = 0;
-                        result.setDeltaMovement(Vec3.ZERO);
-                        // UUIDは次元移動時にEntityが作り直されても同じ。乗客もコールバックを通る。
-                        transferred.add(result.getUUID());
-                        arrivalLocks.arrived(result.getUUID(), to.id);
-                        blockOverlapping(result);
-                        if (result instanceof ServerPlayer player) YamatoNetwork.sendWorld(player);
-                    }));
+            Entity arrived = transferGroup(entity, target, to, entryVelocities, result -> {
+                // 加速したまま落下できるよう移動速度は維持する。落下距離だけ従来どおりリセットする。
+                result.fallDistance = 0;
+                // UUIDは次元移動時にEntityが作り直されても同じ。乗客もコールバックを通る。
+                transferred.add(result.getUUID());
+                arrivalLocks.arrived(result.getUUID(), to.id);
+                blockOverlapping(result);
+                if (result instanceof ServerPlayer player) YamatoNetwork.sendWorld(player);
+            });
             if (arrived == null) continue;
             // startRidingだけでは次tickまで座席位置へ動かないため、直ちに位置を確定する。
             positionPassengers(arrived);
@@ -384,19 +386,32 @@ public final class YamatoRifts extends SavedData {
         }
     }
 
-    /** ServerPlayerの次元移動は乗客を運ばないため、全Entityで同じ順序に統一する。 */
-    private static Entity transferGroup(Entity entity, DimensionTransition transition) {
+    /** ServerPlayerの次元移動は乗客を運ばないため、各Entityの入射速度を保持しながら順に転送する。 */
+    private static Entity transferGroup(Entity entity, ServerLevel target, Endpoint endpoint,
+                                        Map<UUID, Vec3> entryVelocities,
+                                        java.util.function.Consumer<Entity> onArrival) {
         List<Entity> passengers = List.copyOf(entity.getPassengers());
+        Vec3 velocity = entryVelocities.getOrDefault(entity.getUUID(), entity.getDeltaMovement());
         entity.ejectPassengers();
-        Entity arrived = entity.changeDimension(transition);
+        // DimensionTransition自身に速度を渡すことで、サーバーとクライアントの転送時の速度も合わせる。
+        Entity arrived = entity.changeDimension(new DimensionTransition(target, endpoint.feet, velocity,
+                endpoint.yaw, entity.getXRot(), result -> {
+                    result.setDeltaMovement(velocity);
+                    onArrival.accept(result);
+                }));
         if (arrived == null) {
             // 他Modが転送を拒否した場合、元の乗車関係を戻す。
             for (Entity passenger : passengers) if (!passenger.isRemoved()) passenger.startRiding(entity, true);
             return null;
         }
+        // 同次元と異次元でchangeDimensionの内部処理順が違っても速度を失わないようにする。
+        arrived.setDeltaMovement(velocity);
         for (Entity passenger : passengers) {
-            Entity moved = transferGroup(passenger, transition);
-            if (moved != null) moved.startRiding(arrived, true);
+            Entity moved = transferGroup(passenger, target, endpoint, entryVelocities, onArrival);
+            if (moved != null) {
+                moved.startRiding(arrived, true);
+                moved.setDeltaMovement(entryVelocities.getOrDefault(passenger.getUUID(), velocity));
+            }
         }
         return arrived;
     }
