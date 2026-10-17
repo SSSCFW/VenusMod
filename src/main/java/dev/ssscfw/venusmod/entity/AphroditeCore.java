@@ -1,14 +1,12 @@
 package dev.ssscfw.venusmod.entity;
 
-import dev.ssscfw.venusmod.world.PressureShieldControllerBlockEntity;
-import dev.ssscfw.venusmod.world.VenusDimensionContent;
 import java.util.UUID;
-import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerBossEvent;
+import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
@@ -26,7 +24,7 @@ import org.joml.Vector3f;
 
 /**
  * 最終ボス「金星圧力生命体 アフロディーテ・コア」。
- * 1500HP、Create回転力で圧力シールドを解除し、周囲3つの圧力コア破壊で段階的に弱体化する。
+ * 1500HP。攻撃で耐久値200の圧力シールドを破壊すると10秒間だけ本体にダメージが通る。
  */
 public final class AphroditeCore extends Blaze {
     private static final DustParticleOptions GOLD = new DustParticleOptions(new Vector3f(1.0F, 0.58F, 0.08F), 1.4F);
@@ -36,12 +34,7 @@ public final class AphroditeCore extends Blaze {
     private final ServerBossEvent shieldBoss = new ServerBossEvent(Component.translatable("bossbar.venusmod.aphrodite_shield"),
             BossEvent.BossBarColor.BLUE, BossEvent.BossBarOverlay.NOTCHED_10);
 
-    private boolean arenaBound;
-    private BlockPos arenaCenter = BlockPos.ZERO;
-    private int pressureCores;
-    private boolean shieldUnlocked;
-    private int controllerCharge;
-    private int arenaRefreshTicks;
+    private BossCombatRules.AphroditeShield shield = BossCombatRules.AphroditeShield.full();
     private int waveCooldown = 80;
     private int beamCooldown = 120;
     private int beamWindup;
@@ -64,11 +57,9 @@ public final class AphroditeCore extends Blaze {
                 .add(Attributes.MOVEMENT_SPEED, 0.24D);
     }
 
-    public void bindArena(BlockPos altarPos) {
-        arenaBound = true;
-        arenaCenter = altarPos.immutable();
-        arenaRefreshTicks = 0;
-    }
+    /** 検証・デバッグ用。シールド残量と復活までの残りtick数。 */
+    public float shieldDurability() { return shield.durability(); }
+    public int shieldRecoveryTicks() { return shield.recoveryTicks(); }
 
     @Override public boolean removeWhenFarAway(double distance) { return false; }
     @Override protected boolean shouldDespawnInPeaceful() { return false; }
@@ -79,7 +70,7 @@ public final class AphroditeCore extends Blaze {
     @Override public void startSeenByPlayer(ServerPlayer player) {
         super.startSeenByPlayer(player);
         boss.addPlayer(player);
-        if (arenaBound && !shieldUnlocked) shieldBoss.addPlayer(player);
+        if (shield.active()) shieldBoss.addPlayer(player);
     }
 
     @Override public void stopSeenByPlayer(ServerPlayer player) {
@@ -98,31 +89,23 @@ public final class AphroditeCore extends Blaze {
         super.tick();
         if (!(level() instanceof ServerLevel server)) return;
         boss.setProgress(Math.max(0.0F, getHealth() / getMaxHealth()));
+        // ブロックやCreateに依存せず、毎tickシールドの復活を進める。
+        shield = shield.tick();
         if (!isAlive() || server.getDifficulty() == Difficulty.PEACEFUL) {
             setTarget(null);
             return;
         }
-
-        if (arenaBound) {
-            if (arenaRefreshTicks-- <= 0) {
-                refreshArenaState(server);
-                arenaRefreshTicks = 10;
-            }
-            if (!shieldUnlocked) {
-                renderShield(server);
-                boss.setName(Component.translatable("bossbar.venusmod.aphrodite_core_shielded"));
-                shieldBoss.setName(Component.translatable("bossbar.venusmod.aphrodite_shield", controllerCharge));
-                shieldBoss.setProgress(Math.max(0.0F, 1.0F - controllerCharge / 100.0F));
-                for (ServerPlayer player : boss.getPlayers()) shieldBoss.addPlayer(player);
-            } else {
-                shieldBoss.removeAllPlayers();
-                boss.setName(Component.translatable("bossbar.venusmod.aphrodite_core", pressureCores));
-            }
+        if (shield.active()) {
+            renderShield(server);
+            boss.setName(Component.translatable("bossbar.venusmod.aphrodite_core_shielded"));
+            shieldBoss.setName(Component.translatable("bossbar.venusmod.aphrodite_shield",
+                    (int) Math.ceil(shield.durability()), (int) BossCombatRules.APHRODITE_SHIELD_CAPACITY));
+            shieldBoss.setProgress(shield.durability() / BossCombatRules.APHRODITE_SHIELD_CAPACITY);
+            for (ServerPlayer player : boss.getPlayers()) shieldBoss.addPlayer(player);
         } else {
-            // スポーンエッグ/コマンドでのテスト時は不死化させない。
-            shieldUnlocked = true;
-            pressureCores = 0;
-            boss.setName(getDisplayName());
+            shieldBoss.removeAllPlayers();
+            boss.setName(Component.translatable("bossbar.venusmod.aphrodite_core_exposed",
+                    (shield.recoveryTicks() + 19) / 20));
         }
 
         if (waveCooldown > 0) waveCooldown--;
@@ -135,30 +118,13 @@ public final class AphroditeCore extends Blaze {
 
         if (waveCooldown <= 0 && distanceToSqr(target) <= (enraged ? 196.0D : 121.0D)) {
             pressureWave(server, enraged);
-            waveCooldown = enraged ? 55 : pressureCores == 0 ? 75 : 95;
+            waveCooldown = enraged ? 55 : 75;
         }
-        if (shieldUnlocked && beamCooldown <= 0 && beamWindup <= 0 && distanceToSqr(target) <= 900.0D) {
+        if (!shield.active() && beamCooldown <= 0 && beamWindup <= 0 && distanceToSqr(target) <= 900.0D) {
             beamWindup = enraged ? 18 : 28;
             beamTarget = target.getUUID();
             beamCooldown = enraged ? 75 : 110;
             playSound(SoundEvents.BEACON_POWER_SELECT, 1.3F, 0.65F);
-        }
-    }
-
-    private void refreshArenaState(ServerLevel server) {
-        int cores = 0;
-        PressureShieldControllerBlockEntity controller = null;
-        BlockPos min = arenaCenter.offset(-18, -5, -18);
-        BlockPos max = arenaCenter.offset(18, 8, 18);
-        for (BlockPos scan : BlockPos.betweenClosed(min, max)) {
-            if (server.getBlockState(scan).is(VenusDimensionContent.PRESSURE_CORE.get())) cores++;
-            if (controller == null && server.getBlockState(scan).is(VenusDimensionContent.SHIELD_CONTROLLER.get())
-                    && server.getBlockEntity(scan) instanceof PressureShieldControllerBlockEntity found) controller = found;
-        }
-        pressureCores = Math.min(3, cores);
-        if (controller != null) {
-            controllerCharge = controller.charge();
-            if (controller.isUnlocked()) shieldUnlocked = true;
         }
     }
 
@@ -232,25 +198,31 @@ public final class AphroditeCore extends Blaze {
 
     @Override
     public boolean hurt(DamageSource source, float amount) {
-        if (arenaBound && !shieldUnlocked) {
-            if (!level().isClientSide && level() instanceof ServerLevel server && tickCount % 4 == 0)
-                server.sendParticles(SHIELD, getX(), getY() + 1.0D, getZ(), 18, 0.65D, 0.9D, 0.65D, 0.02D);
-            playSound(SoundEvents.SHIELD_BLOCK, 0.8F, 0.55F);
-            return false;
+        // 防御貫通の管理コマンドなどは通常通り処理する。通常の攻撃はシールドへ。
+        if (!level().isClientSide && shield.active() && Float.isFinite(amount) && amount > 0.0F
+                && !source.is(DamageTypeTags.BYPASSES_INVULNERABILITY) && !isInvulnerableTo(source)) {
+            shield = shield.absorb(amount);
+            if (level() instanceof ServerLevel server) {
+                server.sendParticles(SHIELD, getX(), getY() + 1.0D, getZ(), 18,
+                        0.65D, 0.9D, 0.65D, 0.02D);
+            }
+            if (shield.active()) {
+                playSound(SoundEvents.SHIELD_BLOCK, 0.8F, 0.65F);
+            } else {
+                playSound(SoundEvents.SHIELD_BREAK, 1.5F, 0.75F);
+            }
+            // シールドを破った攻撃は本体へ貫通しない。次の攻撃から本体HPが減る。
+            return true;
         }
-        float adjusted = BossCombatRules.aphroditeDamage(amount, pressureCores);
-        if (pressureCores == 0) adjusted *= 1.15F;
-        return super.hurt(source, adjusted);
+        return super.hurt(source, amount);
     }
 
     @Override public void knockback(double strength, double x, double z) { /* 圧力核はノックバックしない */ }
 
     @Override public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
-        tag.putBoolean("ArenaBound", arenaBound);
-        tag.putLong("ArenaCenter", arenaCenter.asLong());
-        tag.putBoolean("ShieldUnlocked", shieldUnlocked);
-        tag.putInt("PressureCores", pressureCores);
+        tag.putFloat("ShieldDurability", shield.durability());
+        tag.putInt("ShieldRecoveryTicks", shield.recoveryTicks());
         tag.putInt("WaveCooldown", waveCooldown);
         tag.putInt("BeamCooldown", beamCooldown);
         tag.putInt("BeamWindup", beamWindup);
@@ -259,10 +231,11 @@ public final class AphroditeCore extends Blaze {
 
     @Override public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
-        arenaBound = tag.getBoolean("ArenaBound");
-        if (tag.contains("ArenaCenter")) arenaCenter = BlockPos.of(tag.getLong("ArenaCenter"));
-        shieldUnlocked = tag.getBoolean("ShieldUnlocked");
-        pressureCores = Math.clamp(tag.getInt("PressureCores"), 0, 3);
+        // 旧ワールドのShieldUnlocked/PressureCores/Controller情報は読まない。
+        // 新しいシールドタグのない旧ボスは完全に充填されたシールドで再開する。
+        shield = tag.contains("ShieldDurability")
+                ? new BossCombatRules.AphroditeShield(tag.getFloat("ShieldDurability"), tag.getInt("ShieldRecoveryTicks"))
+                : BossCombatRules.AphroditeShield.full();
         waveCooldown = Math.max(0, tag.getInt("WaveCooldown"));
         beamCooldown = Math.max(0, tag.getInt("BeamCooldown"));
         beamWindup = Math.max(0, tag.getInt("BeamWindup"));

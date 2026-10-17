@@ -5,6 +5,8 @@ package dev.ssscfw.venusmod.entity;
  */
 public final class BossCombatRules {
     public static final int GENERAL_MAX_POSTURE = 100;
+    public static final float APHRODITE_SHIELD_CAPACITY = 200.0F;
+    public static final int APHRODITE_SHIELD_RECOVERY_TICKS = 20 * 10;
 
     private BossCombatRules() {}
 
@@ -30,13 +32,46 @@ public final class BossCombatRules {
         return Math.max(0, posture - loss);
     }
 
-    /** 圧力コアが1個残るごとに15%軽減。3個で45%軽減。 */
+    /**
+     * アフロディーテの自己完結型シールド。0になった瞬間から200tick後に全回復。
+     * 破壊した攻撃の余剰ダメージは本体へ貫通しない。
+     */
+    public record AphroditeShield(float durability, int recoveryTicks) {
+        public AphroditeShield {
+            durability = Float.isFinite(durability)
+                    ? Math.clamp(durability, 0.0F, APHRODITE_SHIELD_CAPACITY)
+                    : APHRODITE_SHIELD_CAPACITY;
+            recoveryTicks = durability > 0.0F ? 0 : Math.clamp(recoveryTicks, 0, APHRODITE_SHIELD_RECOVERY_TICKS);
+        }
+
+        public static AphroditeShield full() {
+            return new AphroditeShield(APHRODITE_SHIELD_CAPACITY, 0);
+        }
+
+        public boolean active() {
+            return durability > 0.0F;
+        }
+
+        public AphroditeShield absorb(float damage) {
+            if (!active() || !Float.isFinite(damage) || damage <= 0.0F) return this;
+            float remaining = Math.max(0.0F, durability - damage);
+            return new AphroditeShield(remaining, remaining > 0.0F ? 0 : APHRODITE_SHIELD_RECOVERY_TICKS);
+        }
+
+        public AphroditeShield tick() {
+            if (active()) return this;
+            return recoveryTicks <= 1 ? full() : new AphroditeShield(0.0F, recoveryTicks - 1);
+        }
+    }
+
+    /** 旧バージョン用の計算。新しいアフロディーテ戦では使用しない。 */
+
     public static float aphroditeDamage(float amount, int pressureCores) {
         int cores = Math.clamp(pressureCores, 0, 3);
         return Math.max(0.0F, amount) * (1.0F - cores * 0.15F);
     }
 
-    /** 128RPM以上を5秒維持するとシールド解除。停止時は2倍速で放電する。 */
+    /** 旧制御ブロックの動作を保つ互換処理。ボスのシールドには影響しない。 */
     public static int controllerCharge(int current, float rpm, boolean createInstalled, boolean fallbackRedstone) {
         int charge = Math.clamp(current, 0, 100);
         boolean powered = createInstalled ? Float.isFinite(rpm) && Math.abs(rpm) >= 128.0F : fallbackRedstone;

@@ -54,7 +54,11 @@ public final class KingsTreasureGameTests {
         boss.setHealth(1.0F);
         AABB dropArea = boss.getBoundingBox().inflate(4.0D);
         helper.assertTrue(boss.hurt(helper.getLevel().damageSources().generic(), 1000.0F),
-                "アフロディーテ・コアを倒せる");
+                "アフロディーテのシールドを破壊できる");
+        helper.assertTrue(boss.shieldDurability() == 0.0F,
+                "シールド耐久がゼロになる");
+        helper.assertTrue(boss.hurt(helper.getLevel().damageSources().generic(), 1000.0F),
+                "シールド破壊後はアフロディーテ・コアを倒せる");
         helper.runAfterDelay(1, () -> {
             var drops = helper.getLevel().getEntitiesOfClass(ItemEntity.class, dropArea);
             int kingsTreasure = drops.stream().filter(drop -> drop.getItem().is(KingsTreasure.ITEM.get()))

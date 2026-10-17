@@ -290,11 +290,11 @@ public final class VenusAssetGenerator {
         t.spawner(5,18,"venusmod:venus_creeper"); t.spawner(25,18,"venusmod:venus_enderman");
         t.box(1,4,31,29,10,31,"minecraft:reinforced_deepslate");
         t.box(13,4,31,17,8,31,air);
-        t.put(15,4,34,"venusmod:pressure_shield_controller", properties("powered","false"),
-                tags("id", text("venusmod:pressure_shield_controller"), "Charge", integer(0)));
+        // 旧制御装置を撤去。既存ワールドに残る旧装置もボス攻略には不要。
+        t.put(15,4,34,"minecraft:sea_lantern");
         t.box(14,3,33,16,3,35,"minecraft:gold_block");
         for (int[] p : new int[][]{{6,40},{24,40},{15,48}}) {
-            t.put(p[0],4,p[1],"venusmod:pressure_core");
+            t.put(p[0],4,p[1],"minecraft:crying_obsidian");
             t.box(p[0]-1,3,p[1]-1,p[0]+1,3,p[1]+1,"minecraft:crying_obsidian");
             t.box(p[0],5,p[1],p[0],8,p[1],"minecraft:end_rod", properties("facing","up"));
         }

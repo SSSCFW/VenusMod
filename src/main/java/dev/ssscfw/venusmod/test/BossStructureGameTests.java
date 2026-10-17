@@ -3,8 +3,6 @@ package dev.ssscfw.venusmod.test;
 import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.world.BossAltarBlock;
 import dev.ssscfw.venusmod.world.BossAltarBlockEntity;
-import dev.ssscfw.venusmod.world.PressureShieldControllerBlock;
-import dev.ssscfw.venusmod.world.PressureShieldControllerBlockEntity;
 import dev.ssscfw.venusmod.world.VenusDimensionContent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
@@ -14,6 +12,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.Structure;
@@ -23,14 +22,14 @@ import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
-/** 実際に配置されたボス施設の祭壇・召喚空間・圧力設備を四方向から検査する。 */
+/** 実際に配置したボス施設の祭壇・召喚空間と旧装置の除去を4方向から検査。 */
 @GameTestHolder(VenusMod.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class BossStructureGameTests {
     private static final BlockPos GENERAL_ALTAR = new BlockPos(20, 4, 47);
     private static final BlockPos APHRODITE_ALTAR = new BlockPos(24, 4, 41);
-    private static final BlockPos APHRODITE_CONTROLLER = new BlockPos(24, 4, 29);
-    private static final BlockPos[] APHRODITE_CORES = {
+    private static final BlockPos APHRODITE_DECORATIVE_LIGHT = new BlockPos(24, 4, 29);
+    private static final BlockPos[] APHRODITE_DECORATIVE_PEDESTALS = {
             new BlockPos(12, 4, 39), new BlockPos(36, 4, 39), new BlockPos(24, 4, 51)
     };
 
@@ -101,36 +100,16 @@ public final class BossStructureGameTests {
         assertAltar(helper, altarPos, VenusDimensionContent.APHRODITE_ALTAR.get(), BossAltarBlock.Kind.APHRODITE);
         assertBossClearance(helper, VenusDimensionContent.APHRODITE_CORE.get(), altarPos, "Aphrodite Core");
 
-        for (BlockPos localCore : APHRODITE_CORES) {
-            BlockPos corePos = templatePos(helper, localCore);
-            helper.assertTrue(level.getBlockState(corePos).is(VenusDimensionContent.PRESSURE_CORE.get()),
-                    "Pressure core missing at " + localCore);
+        for (BlockPos pedestal : APHRODITE_DECORATIVE_PEDESTALS) {
+            BlockPos pos = templatePos(helper, pedestal);
+            helper.assertTrue(level.getBlockState(pos).is(Blocks.CRYING_OBSIDIAN),
+                    "Old pressure core is now decorative at " + pedestal);
         }
-
-        int pressureCoresInScan = 0;
-        BlockPos scanMin = altarPos.offset(-18, -5, -18);
-        BlockPos scanMax = altarPos.offset(18, 8, 18);
-        for (BlockPos scanPos : BlockPos.betweenClosed(scanMin, scanMax)) {
-            if (level.getBlockState(scanPos).is(VenusDimensionContent.PRESSURE_CORE.get())) pressureCoresInScan++;
-        }
-        helper.assertTrue(pressureCoresInScan == 3,
-                "Aphrodite altar scan must contain exactly three pressure cores, found " + pressureCoresInScan);
-
-        BlockPos controllerPos = templatePos(helper, APHRODITE_CONTROLLER);
-        BlockState controllerState = level.getBlockState(controllerPos);
-        helper.assertTrue(controllerState.is(VenusDimensionContent.SHIELD_CONTROLLER.get()),
-                "Pressure shield controller missing at its altar-relative position");
-        helper.assertTrue(!controllerState.getValue(PressureShieldControllerBlock.POWERED),
-                "Pressure shield controller must start unpowered");
-        BlockEntity controllerEntity = level.getBlockEntity(controllerPos);
-        helper.assertTrue(controllerEntity instanceof PressureShieldControllerBlockEntity,
-                "Pressure shield controller block entity was not restored by the structure template");
-        if (controllerEntity instanceof PressureShieldControllerBlockEntity controller) {
-            helper.assertTrue(controller.getType() == VenusDimensionContent.SHIELD_CONTROLLER_ENTITY.get(),
-                    "Pressure shield controller has the wrong block entity type");
-            helper.assertTrue(controller.charge() == 0 && !controller.isUnlocked(),
-                    "Pressure shield controller must load at zero charge and locked");
-        }
+        BlockPos lightPos = templatePos(helper, APHRODITE_DECORATIVE_LIGHT);
+        helper.assertTrue(level.getBlockState(lightPos).is(Blocks.SEA_LANTERN),
+                "Old shield controller is now decorative lighting");
+        helper.assertTrue(level.getBlockEntity(lightPos) == null,
+                "The decorative block must not restore the old controller block entity");
         helper.succeed();
     }
 

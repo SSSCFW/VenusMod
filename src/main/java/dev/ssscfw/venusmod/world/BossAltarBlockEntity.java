@@ -52,7 +52,6 @@ public final class BossAltarBlockEntity extends BlockEntity {
             boss = general;
         } else {
             AphroditeCore core = VenusDimensionContent.APHRODITE_CORE.get().create(server);
-            if (core != null) core.bindArena(pos);
             boss = core;
         }
         if (boss == null) return;

@@ -93,7 +93,7 @@ public final class BossStructureAssets {
         t.box(18, 4, 24, 30, 12, 24, AIR);
         t.box(17, 13, 24, 31, 13, 24, "minecraft:gold_block");
 
-        // 前室と、遮蔽制御装置・圧力コア3基を持つ主神殿。
+        // 前室と、機械を操作せず戦える広いボス部屋。
         t.spawner(9, 16, "venusmod:venus_skeleton");
         t.spawner(39, 16, "venusmod:venus_enderman");
         for (int x : new int[]{7, 41}) for (int z : new int[]{10, 20, 33, 52}) {
@@ -107,12 +107,11 @@ public final class BossStructureAssets {
             if (radius >= 12.5D && radius <= 14.0D) t.put(x, 3, z, "minecraft:crying_obsidian");
         }
         t.box(22, 3, 27, 26, 3, 31, "minecraft:gold_block");
-        t.put(24, 4, 29, "venusmod:pressure_shield_controller", VenusAssetGenerator.properties("powered", "false"),
-                VenusAssetGenerator.tags("id", VenusAssetGenerator.text("venusmod:pressure_shield_controller"),
-                        "Charge", VenusAssetGenerator.integer(0)));
+        // 旧制御装置の位置は装飾照明へ。新シールドは直接攻撃で削る。
+        t.put(24, 4, 29, "minecraft:sea_lantern");
         for (int[] p : new int[][]{{12, 39}, {36, 39}, {24, 51}}) {
             t.box(p[0] - 1, 3, p[1] - 1, p[0] + 1, 3, p[1] + 1, "minecraft:crying_obsidian");
-            t.put(p[0], 4, p[1], "venusmod:pressure_core");
+            t.put(p[0], 4, p[1], "minecraft:crying_obsidian");
             t.box(p[0], 5, p[1], p[0], 8, p[1], "minecraft:end_rod", VenusAssetGenerator.properties("facing", "up"));
         }
         altar(t, 24, 41, "venusmod:aphrodite_altar");

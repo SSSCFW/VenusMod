@@ -57,3 +57,21 @@ tasks.register('verifyBossStructureRegistration') {
     }
 }
 tasks.named('check') { dependsOn 'verifyBossStructures', 'verifyBossStructureRegistration' }
+
+// シールドの耐久・10秒復活をMinecraft非依存のルールテストで毎回検証する。
+def compileAphroditeShieldRulesTest = tasks.register('compileAphroditeShieldRulesTest', JavaCompile) {
+    source = files('src/main/java/dev/ssscfw/venusmod/entity/BossCombatRules.java', 'tests/BossCombatRulesTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('classes/aphroditeShieldRulesTest')
+    javaCompiler = javaToolchains.compilerFor { languageVersion = JavaLanguageVersion.of(21) }
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+tasks.register('verifyAphroditeShieldRules', JavaExec) {
+    group = 'verification'
+    dependsOn compileAphroditeShieldRulesTest
+    classpath compileAphroditeShieldRulesTest.flatMap { it.destinationDirectory }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'BossCombatRulesTest'
+}
+tasks.named('check') { dependsOn 'verifyAphroditeShieldRules' }

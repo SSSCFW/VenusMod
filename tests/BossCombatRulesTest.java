@@ -16,6 +16,24 @@ public final class BossCombatRulesTest {
         require(BossCombatRules.postureAfterHit(20, 30) == 0, "posture clamp");
         require(Math.abs(BossCombatRules.aphroditeDamage(100, 3) - 55) < 0.001F, "three core reduction");
         require(Math.abs(BossCombatRules.aphroditeDamage(100, 0) - 100) < 0.001F, "zero core reduction");
+        var shield = BossCombatRules.AphroditeShield.full();
+        require(shield.active() && shield.durability() == 200.0F, "shield starts full");
+        require(shield.absorb(0.0F).equals(shield), "zero damage cannot drain the shield");
+        require(shield.absorb(Float.NaN).equals(shield), "invalid damage cannot drain the shield");
+        shield = shield.absorb(70.0F);
+        require(shield.active() && shield.durability() == 130.0F, "shield loses actual incoming damage");
+        shield = shield.absorb(999.0F);
+        require(!shield.active() && shield.durability() == 0.0F
+                && shield.recoveryTicks() == 200, "shield breaks, discards overkill and starts 10s cooldown");
+        require(shield.absorb(50.0F).equals(shield), "shield does not absorb attacks while broken");
+        for (int i = 0; i < 199; i++) shield = shield.tick();
+        require(!shield.active() && shield.recoveryTicks() == 1, "shield stays down through tick 199");
+        shield = shield.tick();
+        require(shield.active() && shield.durability() == 200.0F
+                && shield.recoveryTicks() == 0, "shield returns at exactly 200 ticks");
+        require(shield.absorb(200.0F).recoveryTicks() == 200, "next shield can break again");
+        require(new BossCombatRules.AphroditeShield(0.0F, 57).tick().recoveryTicks() == 56,
+                "saved cooldown resumes after reload");
         int charge = 0;
         for (int i = 0; i < 100; i++) charge = BossCombatRules.controllerCharge(charge, 128, true, false);
         require(charge == 100, "five second Create charge");

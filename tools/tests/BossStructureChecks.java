@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.zip.GZIPInputStream;
 
-/** 実際に生成したNBTを検査し、閉じた外壁・到達経路・ボス用設備を固定する。 */
+/** 生成NBTの外壁・到達経路と旧ボス機械に依存しない構成を検査する。 */
 public final class BossStructureChecks {
     private record Pos(int x, int y, int z) {
         Pos offset(int dx, int dy, int dz) { return new Pos(x + dx, y + dy, z + dz); }
@@ -39,7 +39,7 @@ public final class BossStructureChecks {
             checkExistingShell(existing, "venus_general_keep", 11, 13, 35, 7);
             checkExistingShell(existing, "aphrodite_reactor", 13, 15, 32, 8);
         }
-        System.out.println("Verified both generated boss structures: shell, entrances, paths, spawn clearance and arena equipment.");
+        System.out.println("Verified both generated boss structures: shell, entrances, paths, spawn clearance and no required machinery.");
     }
 
     private static void checkExistingShell(Path root, String id, int lowRoof, int highRoof, int step, int doorTop) throws Exception {
@@ -66,6 +66,13 @@ public final class BossStructureChecks {
         } else {
             int doorway = id.equals("venus_general_keep") ? 34 : 31;
             for (int y = 4; y <= 7; y++) require(t.name(new Pos(15, y, doorway)).equals("minecraft:air"), id + ": preserve arena entrance");
+        }
+        if (id.equals("aphrodite_reactor")) {
+            require(t.positions("venusmod:pressure_core").isEmpty()
+                            && t.positions("venusmod:pressure_shield_controller").isEmpty(),
+                    id + ": no obsolete boss-control machinery should spawn");
+            require(t.name(new Pos(15, 4, 34)).equals("minecraft:sea_lantern"),
+                    id + ": old controller position is now decorative");
         }
         System.out.println("PASS " + id + ": original shell is closed, doorways and stairs preserved");
     }
@@ -109,24 +116,15 @@ public final class BossStructureChecks {
             require(((Map<?, ?>) spawnData.get("entity")).get("id").toString().startsWith("venusmod:venus_"), id + ": spawner entity");
         }
         if (id.equals("aphrodite_sanctum")) {
-            List<Pos> cores = t.positions("venusmod:pressure_core");
-            List<Pos> controllers = t.positions("venusmod:pressure_shield_controller");
-            require(cores.size() == 3 && controllers.size() == 1, id + ": three cores and one controller required");
-            List<Pos> equipment = new ArrayList<>(cores);
-            equipment.addAll(controllers);
-            for (Pos p : equipment) {
-                int dx = p.x - altar.x, dz = p.z - altar.z;
-                require(Math.abs(dx) <= 18 && Math.abs(dz) <= 18 && p.y >= altar.y - 5 && p.y <= altar.y + 8,
-                        id + ": equipment outside boss scan " + p);
-                reachableNeighbour(visited, p, id + ": inaccessible arena equipment " + p);
+            require(t.positions("venusmod:pressure_core").isEmpty()
+                            && t.positions("venusmod:pressure_shield_controller").isEmpty(),
+                    id + ": no obsolete boss-control machinery should spawn");
+            require(t.name(new Pos(24, 4, 29)).equals("minecraft:sea_lantern"),
+                    id + ": former controller is decorative lighting");
+            for (Pos p : List.of(new Pos(12, 4, 39), new Pos(36, 4, 39), new Pos(24, 4, 51))) {
+                require(t.name(p).equals("minecraft:crying_obsidian"),
+                        id + ": former pressure cores are decorative");
             }
-            Pos controller = controllers.getFirst();
-            require(nbt(t, controller).get("id").equals("venusmod:pressure_shield_controller"), id + ": controller block entity");
-            require(nbt(t, controller).get("Charge").equals(0), id + ": controller must start uncharged");
-            require(((Map<?, ?>) t.palette.get((Integer) t.blocks.get(controller).get("state")).get("Properties"))
-                    .get("powered").equals("false"), id + ": controller must start unpowered");
-            for (Pos p : neighbours(controller))
-                require(t.name(p).equals("minecraft:air"), id + ": reserve adjacent controller space for power input");
         }
         System.out.println("PASS " + id + ": " + t.blocks.size() + " blocks, " + visited.size() + " walkable floor positions");
     }
