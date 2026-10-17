@@ -1,0 +1,27 @@
+// 実描画/転送と共有する純粋規則を、毎回のbuild/checkで検証する。
+def compileYamatoChecks = tasks.register('compileYamatoChecks', JavaCompile) {
+    source = files(
+        'src/main/java/dev/ssscfw/venusmod/yamato/YamatoRiftGeometry.java',
+        'src/main/java/dev/ssscfw/venusmod/yamato/YamatoRiftRules.java',
+        'src/main/java/dev/ssscfw/venusmod/yamato/YamatoTravelRules.java',
+        'src/main/java/dev/ssscfw/venusmod/client/YamatoScreenLayout.java',
+        'tools/tests/YamatoRiftRulesChecks.java',
+        'tools/tests/YamatoArrivalLockCleanupChecks.java',
+        'tools/tests/YamatoTravelRulesChecks.java',
+        'tools/tests/YamatoScreenLayoutChecks.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('classes/yamatoChecks')
+    javaCompiler = javaToolchains.compilerFor { languageVersion = JavaLanguageVersion.of(21) }
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+['YamatoRiftRulesChecks', 'YamatoArrivalLockCleanupChecks', 'YamatoTravelRulesChecks', 'YamatoScreenLayoutChecks'].each { checkClass ->
+    def verification = tasks.register('verify' + checkClass, JavaExec) {
+        group = 'verification'
+        dependsOn compileYamatoChecks
+        classpath compileYamatoChecks.flatMap { it.destinationDirectory }
+        javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+        mainClass = checkClass
+    }
+    tasks.named('check') { dependsOn verification }
+}

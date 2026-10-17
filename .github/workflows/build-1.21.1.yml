@@ -34,6 +34,28 @@ jobs:
       - name: Build
         run: gradle build --build-cache --stacktrace
 
+      - name: Native GameTests with Create
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle runGameTestServer -PvenusTestCreate=true --stacktrace 2>&1 | tee gametest-server.log
+
+      - name: Upload GameTest diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gametest-diagnostics
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            gametest-server.log
+            run/gameTestServer/logs/
+            run/gameTestServer/crash-reports/
+            run/gameTestServer/*.xml
+            build/reports/
+            build/test-results/
+
       - name: Dedicated server smoke test
         if: ${{ inputs.server_smoke_test }}
         shell: bash

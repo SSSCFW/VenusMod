@@ -7,6 +7,9 @@
     "NaturalSpawnerMixin",
     "SpawnStateAccessor"
   ],
+  "client": [
+    "YamatoHumanoidAnimationMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }

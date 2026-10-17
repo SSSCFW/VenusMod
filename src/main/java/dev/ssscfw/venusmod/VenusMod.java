@@ -39,6 +39,7 @@ public final class VenusMod {
         dev.ssscfw.venusmod.registry.VenusPhase2.register(modBus, modContainer);
         KingsTreasure.register(modBus);
         StorageBoxNetwork.register(modBus);
+        dev.ssscfw.venusmod.yamato.YamatoNetwork.register(modBus);
 
         modBus.addListener(ModEntities::registerAttributes);
         modBus.addListener(ModItems::addCreativeTabContents);
