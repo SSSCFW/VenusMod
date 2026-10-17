@@ -18,6 +18,8 @@ public final class NetworkWorld {
     private NetworkSimulator simulator=new NetworkSimulator();
     private boolean dirty=true;
     private Scan scan;
+    private final NetworkRequestBudget requestBudget=new NetworkRequestBudget(4,2);
+    public boolean admitRequest(UUID player){return requestBudget.tryAcquire(level.getGameTime(),player);}
     private String diagnostic="配線情報を準備しています";
     private Set<Long> cableChunks=Set.of(),waitingChunks=Set.of();
     private final PriorityQueue<FailureEvent> failures=new PriorityQueue<>(Comparator.comparingLong(FailureEvent::due));

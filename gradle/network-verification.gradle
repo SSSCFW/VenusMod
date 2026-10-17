@@ -36,5 +36,16 @@ def verifyNetworkAssets = tasks.register('verifyNetworkAssets', JavaExec) {
 }
 tasks.named('check') { dependsOn verifyNetworkCore, verifyNetworkAssets }
 
+// マルチプレイ境界値と要求連打の回帰検査を通常のbuildにも含める。
+['NetworkContinuationTest', 'NetworkRequestBudgetTest'].each { checkClassName ->
+    def verification = tasks.register('verify' + checkClassName.replace('Test', ''), JavaExec) {
+        dependsOn compileNetworkTests
+        classpath = files(layout.buildDirectory.dir('classes/networkTests'))
+        javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+        mainClass = checkClassName
+    }
+    tasks.named('check') { dependsOn verification }
+}
+
 repositories { maven { url = 'https://maven.blamejared.com' } }
 dependencies { compileOnly 'mezz.jei:jei-1.21.1-common-api:19.21.0.247' }

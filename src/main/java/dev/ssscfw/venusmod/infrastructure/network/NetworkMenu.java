@@ -53,6 +53,9 @@ public final class NetworkMenu extends AbstractContainerMenu {
         if(sender!=player||target==null||!stillValid(sender)||text==null||text.length()>512)return;
         long now=sender.serverLevel().getGameTime();if(lastCommandTick==now){if(++commandsThisTick>2)return;}else{if(lastCommandTick!=Long.MIN_VALUE&&now-lastCommandTick<2)return;lastCommandTick=now;commandsThisTick=1;}
         var world=NetworkWorld.get(sender.serverLevel());if(!world.ready()){output=world.diagnostic();sendSnapshot(sender);return;}
+        // メニューを開き直しても、ディメンション/プレイヤー共通の予算を使う。
+        if(!world.admitRequest(sender.getUUID())){output="同一tickの通信操作上限です。再試行してください";return;}
+        if(!world.simulator().nodes().containsKey(target.id())){output="機器数上限または未登録の機器です";sendSnapshot(sender);return;}
         String[] t=text.trim().split("\\s+");var simulator=world.simulator();
         try{
             if(t[0].equals("trust")||t[0].equals("untrust")){
