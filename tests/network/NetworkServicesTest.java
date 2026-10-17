@@ -123,9 +123,18 @@ public final class NetworkServicesTest {
             var p=NetworkProfile.decode(DeviceKind.ROUTER,"AAAAAQAJ5pen6Kit5a6aAAAAAAAYAAAAAAEBAAEAAAAAAABkAQAAAAAACgALMTkyLjE2OC4xLjEAAAAYAAAAAAAAAAABAAAAAAABAAsxOTIuMTY4LjIuMQAAABgAAAAAAAAAAAEAAAAAAAEAAAAAABgAAAAAAAAAAAEAAAAAAAEAAAAAABgAAAAAAAAAAAEAAAAAAAEAAAAAABgAAAAAAAAAAAEAAAAAAAEAAAAAABgAAAAAAAAAAAAAAAAAAAAA");
             check(p.name.equals("旧設定")&&p.failed&&p.ports[0].vlan==10,"v1 state retained");
             check(p.services.policy.rules().isEmpty()&&p.services.pools().isEmpty(),"legacy has no accidental ACL");
-            byte[] raw=Base64.getDecoder().decode(p.encode());raw[3]=3;
+            // v3はOSPF追加で正式対応済み。未知形式は将来の隣接番号でなく不正な値で検査する。
+            String migrated=p.encode();
+            check(NetworkProfile.decode(DeviceKind.ROUTER,migrated).encode().equals(migrated),"migrated current version remains readable");
+            check(!p.ospf.enabled,"migration does not enable OSPF on legacy devices");
+            byte[] raw=Base64.getDecoder().decode(migrated);
+            java.nio.ByteBuffer.wrap(raw).putInt(Integer.MAX_VALUE);
             boolean rejected=false;try{NetworkProfile.decode(DeviceKind.ROUTER,Base64.getEncoder().encodeToString(raw));}catch(IllegalArgumentException e){rejected=true;}
             check(rejected,"unknown config version rejected");
+            raw=Base64.getDecoder().decode(migrated);
+            byte[] truncated=Arrays.copyOf(raw,raw.length-1);
+            rejected=false;try{NetworkProfile.decode(DeviceKind.ROUTER,Base64.getEncoder().encodeToString(truncated));}catch(IllegalArgumentException e){rejected=true;}
+            check(rejected,"truncated current config must not silently lose OSPF settings");
         });
         test("duplicate sequence and ACL ceiling",()->{
             var f=new Fixture();check(config(f.sim,"r","acl add 0 in 1 permit ip any any"),"first rule");
