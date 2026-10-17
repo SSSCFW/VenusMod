@@ -5,10 +5,14 @@ import dev.ssscfw.venusmod.registry.ModDataComponents;
 import dev.ssscfw.venusmod.registry.ModItems;
 import dev.ssscfw.venusmod.storagebox.StorageBoxData;
 import dev.ssscfw.venusmod.storagebox.StorageBoxRules;
+import io.netty.buffer.Unpooled;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.Tag;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -68,6 +72,72 @@ public final class StorageBoxGameTests {
         h.assertTrue(StorageBoxData.autoCollect(box), "自動回収は初期ON");
         h.assertTrue(StorageBoxData.template(box).isEmpty(), "空箱はテンプレート未設定");
         // Pickupイベント側はtemplate.isEmpty()を明示的に除外する。空箱を拾得物で初期化しない。
+        h.succeed();
+    }
+
+    @GameTest(template = "test/empty")
+    public static void templateUsesValueEqualityAndDefensiveCopies(GameTestHelper h) {
+        ItemStack original = new ItemStack(Items.DIAMOND, 32);
+        original.set(DataComponents.CUSTOM_NAME, Component.literal("immutable-template"));
+        ItemStack first = new ItemStack(ModItems.STORAGE_BOX.get());
+        ItemStack second = new ItemStack(ModItems.STORAGE_BOX.get());
+        h.assertTrue(StorageBoxData.insert(first, original, 32) == 32
+                && StorageBoxData.insert(second, original.copy(), 32) == 32, "別個体から同じ収納状態を作成");
+        var firstValue = first.get(ModDataComponents.STORAGE_BOX_TEMPLATE.get());
+        var secondValue = second.get(ModDataComponents.STORAGE_BOX_TEMPLATE.get());
+        h.assertTrue(firstValue != null && firstValue.equals(secondValue), "テンプレートComponentは参照ではなく内容で等価");
+        int hash = firstValue.hashCode();
+        h.assertTrue(hash == secondValue.hashCode(), "等しいComponentのhashCodeは等しい");
+        h.assertTrue(ItemStack.isSameItemSameComponents(first, second), "同じ中身を持つ箱のComponent比較も一致");
+
+        original.set(DataComponents.CUSTOM_NAME, Component.literal("changed-input"));
+        original.setCount(1);
+        ItemStack returned = StorageBoxData.template(first);
+        returned.set(DataComponents.CUSTOM_NAME, Component.literal("changed-copy"));
+        returned.shrink(1);
+        firstValue.copyOne().set(DataComponents.CUSTOM_NAME, Component.literal("changed-component-copy"));
+        h.assertTrue(StorageBoxData.template(first).getHoverName().getString().equals("immutable-template"),
+                "入力・取得したItemStackの変更が保存Componentへ伝播しない");
+        h.assertTrue(StorageBoxData.storedCount(first) == 32, "コピー変更で論理個数が変わらない");
+        h.assertTrue(firstValue.hashCode() == hash && firstValue.equals(secondValue), "外部変更後も等価性とハッシュが安定");
+        h.succeed();
+    }
+
+    @GameTest(template = "test/empty")
+    public static void immutableTemplateKeepsLegacyNbtAndNetworkShape(GameTestHelper h) {
+        ItemStack template = new ItemStack(Items.DIAMOND);
+        template.set(DataComponents.CUSTOM_NAME, Component.literal("legacy-template"));
+        var operations = h.getLevel().registryAccess().createSerializationContext(NbtOps.INSTANCE);
+        Tag oldTemplate = ItemStack.SINGLE_ITEM_CODEC.encodeStart(operations, template).getOrThrow();
+        CompoundTag oldBox = (CompoundTag)new ItemStack(ModItems.STORAGE_BOX.get()).save(h.getLevel().registryAccess());
+        CompoundTag components = new CompoundTag();
+        components.put("venusmod:storage_box_template", oldTemplate);
+        components.putInt("venusmod:storage_box_count", 37);
+        components.putBoolean("venusmod:storage_box_auto_collect", false);
+        oldBox.put("components", components);
+
+        ItemStack loaded = ItemStack.parseOptional(h.getLevel().registryAccess(), oldBox);
+        h.assertTrue(!loaded.isEmpty() && StorageBoxData.storedCount(loaded) == 37, "従来のItemStack形状で保存された箱を読み込む");
+        h.assertTrue(ItemStack.isSameItemSameComponents(StorageBoxData.template(loaded), template), "従来の全Componentを維持");
+        h.assertTrue(!StorageBoxData.autoCollect(loaded), "従来の自動回収設定も維持");
+        CompoundTag savedAgain = (CompoundTag)loaded.save(h.getLevel().registryAccess());
+        h.assertTrue(oldTemplate.equals(savedAgain.getCompound("components").get("venusmod:storage_box_template")),
+                "保存形式をコンテナのslotリストへ変更しない");
+
+        RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(Unpooled.buffer(), h.getLevel().registryAccess());
+        try {
+            ItemStack.STREAM_CODEC.encode(buffer, template);
+            var wrapped = ModDataComponents.STORAGE_BOX_TEMPLATE.get().streamCodec().decode(buffer);
+            h.assertTrue(ItemStack.isSameItemSameComponents(wrapped.copyOne(), template) && !buffer.isReadable(),
+                    "従来のItemStack通信形式からラッパーを復号");
+            buffer.clear();
+            ModDataComponents.STORAGE_BOX_TEMPLATE.get().streamCodec().encode(buffer, wrapped);
+            ItemStack oldReader = ItemStack.STREAM_CODEC.decode(buffer);
+            h.assertTrue(ItemStack.isSameItemSameComponents(oldReader, template) && oldReader.getCount() == 1
+                    && !buffer.isReadable(), "ラッパーの出力を従来のItemStack通信形式で復号");
+        } finally {
+            buffer.release();
+        }
         h.succeed();
     }
 }

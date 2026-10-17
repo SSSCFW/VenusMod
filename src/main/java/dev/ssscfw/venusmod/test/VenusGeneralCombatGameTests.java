@@ -104,7 +104,8 @@ public final class VenusGeneralCombatGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = "test/empty")
+    // 着地点は相対x=7.5。7幅のテンプレートではx=7の外周バリア内になってしまう。
+    @GameTest(template = "test/wide_empty")
     public static void teleportRejectsWallAndMissingFloor(GameTestHelper helper) {
         var level = helper.getLevel();
         VenusGeneral general = VenusDimensionContent.GENERAL.get().create(level);

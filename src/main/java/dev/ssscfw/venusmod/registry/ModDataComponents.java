@@ -2,12 +2,14 @@ package dev.ssscfw.venusmod.registry;
 
 import com.mojang.serialization.Codec;
 import dev.ssscfw.venusmod.VenusMod;
+import java.util.List;
 import java.util.function.Supplier;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.util.ExtraCodecs;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.ItemContainerContents;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
@@ -16,10 +18,13 @@ public final class ModDataComponents {
     public static final DeferredRegister.DataComponents DATA_COMPONENTS =
             DeferredRegister.createDataComponents(Registries.DATA_COMPONENT_TYPE, VenusMod.MOD_ID);
 
-    public static final Supplier<DataComponentType<ItemStack>> STORAGE_BOX_TEMPLATE =
+    // 値はバニラの不変コンテナで保持する。既存ワールドと通信には従来の単一ItemStack形式を使う。
+    public static final Supplier<DataComponentType<ItemContainerContents>> STORAGE_BOX_TEMPLATE =
             DATA_COMPONENTS.registerComponentType("storage_box_template",
-                    builder -> builder.persistent(ItemStack.SINGLE_ITEM_CODEC)
-                            .networkSynchronized(ItemStack.STREAM_CODEC));
+                    builder -> builder.persistent(ItemStack.SINGLE_ITEM_CODEC.xmap(
+                                    ModDataComponents::singleTemplate, ItemContainerContents::copyOne))
+                            .networkSynchronized(ItemStack.STREAM_CODEC.map(
+                                    ModDataComponents::singleTemplate, ItemContainerContents::copyOne)));
 
     public static final Supplier<DataComponentType<Integer>> STORAGE_BOX_COUNT =
             DATA_COMPONENTS.registerComponentType("storage_box_count",
@@ -32,6 +37,10 @@ public final class ModDataComponents {
                             .networkSynchronized(ByteBufCodecs.BOOL));
 
     private ModDataComponents() {}
+
+    private static ItemContainerContents singleTemplate(ItemStack stack) {
+        return ItemContainerContents.fromItems(List.of(stack.copyWithCount(1)));
+    }
 
     public static void register(IEventBus modBus) {
         DATA_COMPONENTS.register(modBus);

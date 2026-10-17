@@ -23,7 +23,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class YamatoRiftGameTests {
     private YamatoRiftGameTests() {}
 
-    @GameTest(template = "test/empty", timeoutTicks = 100)
+    @GameTest(template = "test/wide_empty", timeoutTicks = 100)
     public static void arrivalMustLeaveBeforeReturning(GameTestHelper h) {
         var level = h.getLevel(); var server = level.getServer();
         var data = new YamatoRifts(); UUID owner = UUID.randomUUID();
@@ -51,7 +51,7 @@ public final class YamatoRiftGameTests {
         restored.releaseTickets(server); h.succeed();
     }
 
-    @GameTest(template = "test/empty")
+    @GameTest(template = "test/wide_empty")
     public static void pairLifetimeAndOwnerControlSurviveSave(GameTestHelper h) {
         var level = h.getLevel(); var server = level.getServer(); var data = new YamatoRifts();
         UUID owner = UUID.randomUUID(); Vec3 a = Vec3.atBottomCenterOf(h.absolutePos(new BlockPos(2,3,2)));
@@ -70,7 +70,7 @@ public final class YamatoRiftGameTests {
         data.releaseTickets(server);copy.releaseTickets(server);h.succeed();
     }
 
-    @GameTest(template = "test/empty")
+    @GameTest(template = "test/wide_empty")
     public static void friendlyModeDoesNotCarryHostilePassengers(GameTestHelper h) {
         var level=h.getLevel();var server=level.getServer();var data=new YamatoRifts();
         Vec3 a=Vec3.atBottomCenterOf(h.absolutePos(new BlockPos(2,3,2)));
@@ -89,7 +89,7 @@ public final class YamatoRiftGameTests {
         data.releaseTickets(server);h.succeed();
     }
 
-    @GameTest(template = "test/empty")
+    @GameTest(template = "test/wide_empty")
     public static void obstructedDestinationNeverMovesEntity(GameTestHelper h) {
         var level=h.getLevel();var server=level.getServer();var data=new YamatoRifts();
         Vec3 a=Vec3.atBottomCenterOf(h.absolutePos(new BlockPos(2,3,2))),b=a.add(6,0,0);
@@ -103,7 +103,7 @@ public final class YamatoRiftGameTests {
         data.releaseTickets(server);h.succeed();
     }
 
-    @GameTest(template = "test/empty")
+    @GameTest(template = "test/wide_empty")
     public static void openingRequiresRoomForEntirePortal(GameTestHelper h) {
         var level=h.getLevel();var server=level.getServer();var data=new YamatoRifts();
         Vec3 a=Vec3.atBottomCenterOf(h.absolutePos(new BlockPos(2,3,2))),b=a.add(6,0,0);
@@ -119,7 +119,7 @@ public final class YamatoRiftGameTests {
         data.releaseTickets(server);h.succeed();
     }
 
-    @GameTest(template = "test/empty")
+    @GameTest(template = "test/wide_empty")
     public static void rotatedBoatChecksAndPositionsBothPassengers(GameTestHelper h) {
         var level=h.getLevel();var server=level.getServer();var data=new YamatoRifts();
         Vec3 a=Vec3.atBottomCenterOf(h.absolutePos(new BlockPos(2,3,2))),b=a.add(5.7,0,0);
@@ -146,7 +146,7 @@ public final class YamatoRiftGameTests {
         data.releaseTickets(server);h.succeed();
     }
 
-    @GameTest(template = "test/empty", timeoutTicks = 200)
+    @GameTest(template = "test/wide_empty", timeoutTicks = 200)
     public static void crossDimensionArrivalKeepsIdentityAndRequiresExit(GameTestHelper h) {
         var level=h.getLevel();var server=level.getServer();var target=server.getLevel(Level.NETHER);var data=new YamatoRifts();
         h.assertTrue(target!=null,"Nether dimension available");
@@ -158,19 +158,26 @@ public final class YamatoRiftGameTests {
         var pair=data.openPair(UUID.randomUUID(),"dimension",YamatoRifts.Endpoint.at(level,a,0),
                 YamatoRifts.Endpoint.at(target,b,0),3,2,1,server);
         h.assertTrue(pair!=null,"Cross-dimension pair");
-        Pig pig=h.spawn(EntityType.PIG,new BlockPos(2,3,2));pig.setNoAi(true);pig.setNoGravity(true);pig.moveTo(a.x,a.y,a.z,0,0);
-        UUID id=pig.getUUID();
-        data.tick(server,level.getGameTime()+7);
-        var arrived=target.getEntity(id);
-        h.assertTrue(arrived!=null && arrived.position().distanceTo(b)<.1,"Did not arrive at exact counterpart in Nether with same UUID");
-        h.assertTrue(level.getEntity(id)==null,"Source dimension kept a duplicate entity");
-        data.tick(server,level.getGameTime()+1000);
-        h.assertTrue(target.getEntity(id)==arrived,"Cross-dimension arrival immediately returned");
-        arrived.moveTo(b.x,b.y,b.z+2,0,0);data.tick(server,level.getGameTime()+1001);
-        arrived.moveTo(b.x,b.y,b.z,0,0);data.tick(server,level.getGameTime()+1002);
-        var returned=level.getEntity(id);
-        h.assertTrue(returned!=null && returned.position().distanceTo(a)<.1,"Exit then re-entry did not return across dimensions");
-        h.assertTrue(target.getEntity(id)==null,"Destination kept a duplicate on return");
-        data.releaseTickets(server);h.succeed();
+        // 新規Netherチャンクのブロック読込とEntityの可視化は別段階。転送前に追跡可能になるまで待つ。
+        h.startSequence().thenWaitUntil(() -> {
+            data.tick(server,level.getGameTime());
+            h.assertTrue(target.isPositionEntityTicking(BlockPos.containing(b)),"Destination chunk not entity-ticking yet");
+        }).thenExecute(() -> {
+            Pig pig=h.spawn(EntityType.PIG,new BlockPos(2,3,2));pig.setNoAi(true);pig.setNoGravity(true);pig.moveTo(a.x,a.y,a.z,0,0);
+            UUID id=pig.getUUID();
+            h.assertTrue(level.getEntity(id)==pig,"Source fixture must track the test entity");
+            data.tick(server,level.getGameTime()+7);
+            var arrived=target.getEntity(id);
+            h.assertTrue(arrived!=null && arrived.position().distanceTo(b)<.1,"Did not arrive at exact counterpart in Nether with same UUID");
+            h.assertTrue(level.getEntity(id)==null,"Source dimension kept a duplicate entity");
+            data.tick(server,level.getGameTime()+1000);
+            h.assertTrue(target.getEntity(id)==arrived,"Cross-dimension arrival immediately returned");
+            arrived.moveTo(b.x,b.y,b.z+2,0,0);data.tick(server,level.getGameTime()+1001);
+            arrived.moveTo(b.x,b.y,b.z,0,0);data.tick(server,level.getGameTime()+1002);
+            var returned=level.getEntity(id);
+            h.assertTrue(returned!=null && returned.position().distanceTo(a)<.1,"Exit then re-entry did not return across dimensions");
+            h.assertTrue(target.getEntity(id)==null,"Destination kept a duplicate on return");
+            data.releaseTickets(server);
+        }).thenSucceed();
     }
 }

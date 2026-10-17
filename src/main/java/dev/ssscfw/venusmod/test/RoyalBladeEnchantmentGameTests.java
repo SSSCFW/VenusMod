@@ -3,6 +3,7 @@ package dev.ssscfw.venusmod.test;
 import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.treasure.KingsTreasure;
 import dev.ssscfw.venusmod.treasure.RoyalBladeEffects;
+import dev.ssscfw.venusmod.treasure.RoyalBladeEffectsRules;
 import dev.ssscfw.venusmod.treasure.RoyalBladeEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
@@ -18,7 +19,9 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.item.enchantment.Enchantments;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -55,11 +58,31 @@ public final class RoyalBladeEnchantmentGameTests {
         helper.assertTrue(shot.phantasm(), "召喚時のモードを投影に保存");
         helper.runAfterDelay(6, () -> {
             helper.assertTrue(direct.getHealth() < 100F, "幻想の直撃ダメージ");
-            helper.assertTrue(distant.getHealth() < 100F, "通常の半径2より遠い相手にも幻想の爆風");
+            helper.assertTrue(distant.getHealth() < 100F,
+                    "通常の半径2より遠い相手にも幻想の爆風: " + blastDiagnostic(helper, owner, distant, shot));
             helper.assertTrue(owner.getHealth() == 100F, "所有者を攻撃しない");
             helper.assertBlockPresent(Blocks.TNT, new BlockPos(4, 1, 2));
             helper.succeed();
         });
+    }
+
+    /** 失敗時に、未追跡/外部除去・爆心ずれ・遮蔽・半径判定を区別できる証拠を残す。 */
+    private static String blastDiagnostic(GameTestHelper helper, Cow owner, Cow target, RoyalBladeEntity shot) {
+        var level = helper.getLevel();
+        Vec3 center = shot.position().subtract(shot.getDeltaMovement().normalize().scale(0.03D));
+        double radius = RoyalBladeEffectsRules.blastRadius(shot.phantasm());
+        var clip = level.clip(new ClipContext(center, target.getEyePosition(), ClipContext.Block.COLLIDER,
+                ClipContext.Fluid.NONE, shot));
+        return "hp=" + target.getHealth() + "/" + target.getMaxHealth()
+                + ", target=" + helper.relativeVec(target.position())
+                + ", removed=" + target.getRemovalReason()
+                + ", shotRemoved=" + shot.isRemoved() + ", phantasm=" + shot.phantasm()
+                + ", impact=" + helper.relativeVec(shot.position())
+                + ", radius=" + radius + ", distance=" + target.getBoundingBox().getCenter().distanceTo(center)
+                + ", canDamage=" + RoyalBladeEntity.canDamage(owner, target)
+                + ", indexed=" + level.getEntitiesOfClass(Cow.class, new AABB(center, center).inflate(radius)).contains(target)
+                + ", ray=" + clip.getType() + "@" + helper.relativePos(clip.getBlockPos())
+                + ":" + level.getBlockState(clip.getBlockPos());
     }
 
     @GameTest(template = "test/empty")

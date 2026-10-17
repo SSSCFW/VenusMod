@@ -2,11 +2,13 @@ package dev.ssscfw.venusmod.storagebox;
 
 import dev.ssscfw.venusmod.registry.ModDataComponents;
 import dev.ssscfw.venusmod.registry.ModItems;
+import java.util.List;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.ItemContainerContents;
 
 /** Storage Boxの全状態変更を集約する。呼び出し側は収納数を直接Componentへ書かない。 */
 public final class StorageBoxData {
@@ -17,8 +19,10 @@ public final class StorageBoxData {
 
     public static ItemStack template(ItemStack box) {
         if (box == null || box.isEmpty()) return ItemStack.EMPTY;
-        ItemStack stored = box.get(ModDataComponents.STORAGE_BOX_TEMPLATE.get());
-        return stored == null || stored.isEmpty() ? ItemStack.EMPTY : stored.copyWithCount(1);
+        ItemContainerContents stored = box.get(ModDataComponents.STORAGE_BOX_TEMPLATE.get());
+        ItemStack copy = stored == null ? ItemStack.EMPTY : stored.copyOne();
+        if (!copy.isEmpty()) copy.setCount(1);
+        return copy;
     }
 
     public static int storedCount(ItemStack box) {
@@ -45,7 +49,8 @@ public final class StorageBoxData {
         int accepted = StorageBoxRules.accepted(storedCount(box), request);
         if (accepted <= 0) return 0;
         if (template(box).isEmpty()) {
-            box.set(ModDataComponents.STORAGE_BOX_TEMPLATE.get(), incoming.copyWithCount(1));
+            box.set(ModDataComponents.STORAGE_BOX_TEMPLATE.get(),
+                    ItemContainerContents.fromItems(List.of(incoming.copyWithCount(1))));
         }
         box.set(ModDataComponents.STORAGE_BOX_COUNT.get(), storedCount(box) + accepted);
         return accepted;

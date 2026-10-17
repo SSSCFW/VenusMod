@@ -25,7 +25,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class YamatoRiftLifecycleGameTests {
     private YamatoRiftLifecycleGameTests() {}
 
-    @GameTest(template = "test/empty")
+    @GameTest(template = "test/wide_empty")
     public static void destroyedArrivalsAreRemovedFromSavedLocks(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         YamatoRifts data = YamatoRifts.get(level.getServer());
@@ -52,7 +52,7 @@ public final class YamatoRiftLifecycleGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = "test/empty")
+    @GameTest(template = "test/wide_empty")
     public static void temporaryRemovalPreservesArrivalLocks(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         YamatoRifts data = YamatoRifts.get(level.getServer());
