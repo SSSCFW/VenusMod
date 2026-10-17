@@ -76,6 +76,7 @@ public final class VenusPhase2 {
         bus.addListener(VenusPhase2::creative);
         bus.addListener(VenusPhase2::setup);
         NeoForge.EVENT_BUS.addListener(VenusEnvironment::tick);
+        NeoForge.EVENT_BUS.addListener(VenusEnvironment::repairFromExperience);
         NeoForge.EVENT_BUS.addListener(VenusEnvironment::logout);
         NeoForge.EVENT_BUS.addListener(VenusEnvironment::stopped);
         if (ModList.get().isLoaded("create")) dev.ssscfw.venusmod.compat.create.VenusAtmosphereMachines.register(bus);
