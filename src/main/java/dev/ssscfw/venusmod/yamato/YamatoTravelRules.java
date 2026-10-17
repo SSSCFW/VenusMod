@@ -4,6 +4,7 @@ import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -13,10 +14,15 @@ import java.util.UUID;
 public final class YamatoTravelRules {
     public static final int MAX_ENTRIES = 2048;
     public static final int MAX_NAME_LENGTH = 96;
+    public static final int DEFAULT_HISTORY_LIMIT = 1000;
+    public static final int MAX_HISTORY_NAME_LENGTH = 32;
     public static final int DEFAULT_ACCESS = 0;
     public static final int DEFAULT_LIFETIME = 0;
     public static final int DEFAULT_SECONDS = 1;
     public static final int MAX_SECONDS = 180;
+    public static final double DEFAULT_SIZE = 1.0D;
+    public static final double MIN_SIZE = 0.5D;
+    public static final double MAX_SIZE = 5.0D;
 
     private YamatoTravelRules() {}
 
@@ -34,6 +40,18 @@ public final class YamatoTravelRules {
         return name;
     }
 
+    /** 履歴名は通信量を抑えて短く保ち、無名の開通には出発地点のブロック座標を付ける。 */
+    public static String historyName(String value, double x, double y, double z) {
+        String name = normalizeName(value);
+        if (name == null) {
+            name = String.format(Locale.ROOT, "出発地点 %.0f, %.0f, %.0f", Math.floor(x), Math.floor(y), Math.floor(z));
+            if (name.length() > MAX_HISTORY_NAME_LENGTH) return "出発地点";
+        }
+        int end = Math.min(name.length(), MAX_HISTORY_NAME_LENGTH);
+        if (end < name.length() && Character.isHighSurrogate(name.charAt(end - 1))) end--;
+        return name.substring(0, end).stripTrailing();
+    }
+
     /** UUID.fromStringが受理する短縮UUIDを拒否し、正規表記だけを許可する。 */
     public static UUID parseId(String value) {
         if (value == null || value.length() != 36) return null;
@@ -46,8 +64,18 @@ public final class YamatoTravelRules {
     }
 
     public static boolean validSettings(int access, int lifetime, int seconds) {
-        return access >= 0 && access <= 3 && lifetime >= 0 && lifetime <= 2
-                && seconds >= 1 && seconds <= MAX_SECONDS;
+        return validSettings(access, lifetime, seconds, DEFAULT_SIZE);
+    }
+
+    public static boolean validSettings(int access, int lifetime, int seconds, double size) {
+        return validAccess(access) && lifetime >= 0 && lifetime <= 2
+                && seconds >= 1 && seconds <= MAX_SECONDS && validSize(size);
+    }
+
+    public static boolean validAccess(int access) { return access >= 0 && access <= 6; }
+
+    public static boolean validSize(double size) {
+        return Double.isFinite(size) && size >= MIN_SIZE && size <= MAX_SIZE;
     }
 
     public static boolean validSort(int sort) { return sort >= 0 && sort <= 4; }

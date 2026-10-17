@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-/** 閻魔刀の保存名・設定・階層・手動順を、Minecraft起動なしで実装に対して検査する。 */
+/** 閻魔刀の保存名・履歴名・設定・階層・手動順を、Minecraft起動なしで実装に対して検査する。 */
 public final class YamatoTravelRulesChecks {
     private static int checks;
 
@@ -47,12 +47,42 @@ public final class YamatoTravelRulesChecks {
         Method validSettings = rules.getMethod("validSettings", int.class, int.class, int.class);
         check((boolean)validSettings.invoke(null, 0, 0, 1), "所有者のみ・初回通過後・1秒");
         check((boolean)validSettings.invoke(null, 3, 2, 180), "全エンティティ・無制限・180秒");
+        for (int access = 0; access <= 6; access++) {
+            check((boolean)validSettings.invoke(null, access, 0, 1), "既存と追加の通過対象" + access);
+        }
         check(!(boolean)validSettings.invoke(null, -1, 0, 1), "負の公開範囲を拒否");
-        check(!(boolean)validSettings.invoke(null, 4, 0, 1), "未知の公開範囲を拒否");
+        check(!(boolean)validSettings.invoke(null, 7, 0, 1), "未知の公開範囲を拒否");
         check(!(boolean)validSettings.invoke(null, 0, -1, 1), "負の寿命モードを拒否");
         check(!(boolean)validSettings.invoke(null, 0, 3, 1), "未知の寿命モードを拒否");
         check(!(boolean)validSettings.invoke(null, 0, 1, 0), "0秒を拒否");
         check(!(boolean)validSettings.invoke(null, 0, 1, 181), "180秒超を拒否");
+
+        Method sizedSettings = rules.getMethod("validSettings", int.class, int.class, int.class, double.class);
+        for (int access = 0; access <= 6; access++) {
+            for (double size : new double[]{0.5D, 1.0D, 2.75D, 5.0D}) {
+                check((boolean)sizedSettings.invoke(null, access, 2, 180, size), "通過対象と倍率の組み合わせ " + access + "/" + size);
+            }
+        }
+        for (double size : new double[]{Math.nextDown(0.5D), Math.nextUp(5.0D), 0.0D, -1.0D,
+                Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY}) {
+            check(!(boolean)sizedSettings.invoke(null, 0, 0, 1, size), "有限の範囲外倍率を拒否 " + size);
+        }
+        check(!(boolean)sizedSettings.invoke(null, 7, 0, 1, 1.0D), "倍率ありでも未知の公開範囲を拒否");
+        check(!(boolean)sizedSettings.invoke(null, 0, 3, 1, 1.0D), "倍率ありでも未知の寿命モードを拒否");
+        check(!(boolean)sizedSettings.invoke(null, 0, 0, 181, 1.0D), "倍率ありでも秒数上限を検査");
+        check(rules.getField("DEFAULT_SIZE").getDouble(null) == 1.0D, "旧データの倍率は1倍");
+        check(rules.getField("DEFAULT_HISTORY_LIMIT").getInt(null) == 1000, "履歴の既定保持数は1000件");
+        check(rules.getField("MAX_ENTRIES").getInt(null) == 2048, "履歴とは独立した手動保存上限");
+
+        Method historyName = rules.getMethod("historyName", String.class, double.class, double.class, double.class);
+        check("金星の出発地点".equals(historyName.invoke(null, "  金星の出発地点  ", 12.25D, 77.5D, -42.75D)), "有効な出発地点名を維持");
+        check("界".repeat(32).equals(historyName.invoke(null, "界".repeat(96), 0.0D, 0.0D, 0.0D)), "履歴だけは名前を32文字へ制限");
+        check("a".repeat(31).equals(historyName.invoke(null, "a".repeat(31) + "🌟", 0.0D, 0.0D, 0.0D)), "履歴の名前上限でサロゲート対を切断しない");
+        check(("a".repeat(30) + "🌟").equals(historyName.invoke(null, "a".repeat(30) + "🌟続き", 0.0D, 0.0D, 0.0D)), "名前上限内の絵文字を維持");
+        check("出発地点 12, 77, -43".equals(historyName.invoke(null, null, 12.25D, 77.5D, -42.75D)), "名前がない開通は出発地点のブロック座標を表示");
+        String safeName = (String)historyName.invoke(null, "不正\nな名前", Double.MAX_VALUE, -Double.MAX_VALUE, Double.MIN_VALUE);
+        check(safeName.length() <= 32 && normalizeName.invoke(null, safeName) != null, "不正名や極端な座標でも短い有効な履歴名");
+
         Method validSort = rules.getMethod("validSort", int.class);
         for (int sort = 0; sort <= 4; sort++) check((boolean)validSort.invoke(null, sort), "表示ソート" + sort);
         check(!(boolean)validSort.invoke(null, -1) && !(boolean)validSort.invoke(null, 5), "未知のソートを拒否");

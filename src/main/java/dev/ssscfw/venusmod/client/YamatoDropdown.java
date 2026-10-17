@@ -20,7 +20,12 @@ final class YamatoDropdown extends Button {
 
     YamatoDropdown(int x, int y, int width, List<Component> options, int value,
                    Component description, IntConsumer changed) {
-        super(x, y, width, 20, Component.empty(), b -> ((YamatoDropdown)b).toggle(), DEFAULT_NARRATION);
+        this(x, y, width, 20, options, value, description, changed);
+    }
+
+    YamatoDropdown(int x, int y, int width, int height, List<Component> options, int value,
+                   Component description, IntConsumer changed) {
+        super(x, y, width, height, Component.empty(), b -> ((YamatoDropdown)b).toggle(), DEFAULT_NARRATION);
         this.options = List.copyOf(options);
         this.changed = changed;
         setValue(value);
@@ -47,7 +52,7 @@ final class YamatoDropdown extends Button {
 
     private int menuWidth(int screenWidth) {
         int desired = getWidth();
-        for (Component option : options) desired = Math.max(desired, Minecraft.getInstance().font.width(option) + 16);
+        for (Component option : options) desired = Math.max(desired, Minecraft.getInstance().font.width(option) + 24);
         return Math.min(screenWidth - 8, desired);
     }
 

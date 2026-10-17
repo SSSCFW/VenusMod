@@ -154,6 +154,47 @@ public final class YamatoNetworkGameTests {
     }
 
     @GameTest(template = "test/empty", timeoutTicks = 100)
+    public static void fullHistoryAndManualBookFitTogetherWithoutDroppingRecords(GameTestHelper h) {
+        UUID owner=UUID.randomUUID();CompoundTag player=maximumSnapshot(h);player.putUUID("owner",owner);
+        ListTag players=new ListTag();players.add(player);CompoundTag saved=new CompoundTag();saved.put("players",players);
+        YamatoTravelData data=YamatoTravelData.load(saved,h.getLevel().registryAccess());
+        Random random=new Random(0x484953544F52594CL);
+        for(int i=0;i<YamatoTravelRules.DEFAULT_HISTORY_LIMIT;i++) {
+            StringBuilder name=new StringBuilder();
+            for(int j=0;j<YamatoTravelRules.MAX_HISTORY_NAME_LENGTH;j++)name.append((char)(0x4E00+random.nextInt(0x5200)));
+            String dimension="venusmod:history_"+Long.toUnsignedString(random.nextLong(),16)
+                    +Long.toUnsignedString(random.nextLong(),16)+Long.toUnsignedString(random.nextLong(),16);
+            h.assertTrue(data.recordOpening(owner,name.toString(),dimension,random.nextDouble()*60000000-30000000,
+                    random.nextDouble()*512-64,random.nextDouble()*60000000-30000000,
+                    random.nextFloat()*360,random.nextFloat()*180-90),"最大履歴を実SavedDataへ追記");
+        }
+        CompoundTag snapshot=data.snapshot(owner);ListTag active=new ListTag();
+        ListTag entries=snapshot.getList("entries",Tag.TAG_COMPOUND);
+        for(int i=0;i<64;i++) {
+            CompoundTag source=entries.getCompound(i+1),target=entries.getCompound(i+65),rift=new CompoundTag();
+            rift.putUUID("id",UUID.randomUUID());rift.putString("name",source.getString("name"));
+            rift.putString("sourceDimension",source.getString("dimension"));rift.putString("targetDimension",target.getString("dimension"));
+            for(String axis:new String[]{"x","y","z"}) {
+                rift.putDouble("source"+axis.toUpperCase(java.util.Locale.ROOT),source.getDouble(axis));
+                rift.putDouble("target"+axis.toUpperCase(java.util.Locale.ROOT),target.getDouble(axis));
+            }
+            rift.putInt("access",6);rift.putInt("lifetime",1);rift.putInt("seconds",180);rift.putInt("remaining",179);
+            rift.putDouble("size",5);rift.putFloat("yaw",source.getFloat("yaw"));rift.putFloat("pitch",source.getFloat("pitch"));active.add(rift);
+        }
+        snapshot.put("active",active);
+        h.assertTrue(entries.size()==2048&&snapshot.getList("history",Tag.TAG_COMPOUND).size()==1000,"手動保存と履歴の上限を独立して保持");
+        RegistryFriendlyByteBuf buffer=buffer(h);
+        try {
+            YamatoNetwork.StatePayload.CODEC.encode(buffer,new YamatoNetwork.StatePayload(0,snapshot,true));
+            int bytes=buffer.readableBytes();
+            h.assertTrue(bytes<900*1024,"2048手動+1000履歴+64開放中でも圧縮制限内");
+            h.assertTrue(YamatoNetwork.StatePayload.CODEC.decode(buffer).data().equals(snapshot),"全履歴・手動保存・開放中を削らず往復");
+            System.out.println("YamatoNetworkGameTests: 2048 manual + 1000 history + 64 active, encoded="+bytes+" bytes");
+        } finally {buffer.release();}
+        h.succeed();
+    }
+
+    @GameTest(template = "test/empty", timeoutTicks = 100)
     public static void stateDecoderRejectsCompressedSizeDepthAndDeclaredAllocation(GameTestHelper h) throws IOException {
         RegistryFriendlyByteBuf declaredLarge = buffer(h);
         try {
@@ -252,6 +293,10 @@ public final class YamatoNetworkGameTests {
         h.assertTrue(YamatoNetwork.readId(request) == null, "整数のIDを拒否");
         request.remove("id");
         h.assertTrue(YamatoNetwork.readId(request) == null, "欠落したIDを拒否");
+        request.putUUID("second",expected);
+        h.assertTrue(expected.equals(YamatoNetwork.readId(request,"second")),"2地点目もUUIDで解決");
+        request.putString("second","1-1-1-1-1");
+        h.assertTrue(YamatoNetwork.readId(request,"second")==null,"2地点目も短縮UUIDを拒否");
         h.succeed();
     }
 
@@ -280,6 +325,9 @@ public final class YamatoNetworkGameTests {
                 throw new AssertionError("サーバーの要求処理で例外", exception.getCause());
             }
             h.assertTrue(data.snapshot(owner).equals(before), "表示名だけが閻魔刀の剣では保存一覧を編集できない");
+            CompoundTag pairRequest=deletion.copy();pairRequest.putUUID("second",UUID.randomUUID());
+            handle.invoke(null,player,new YamatoNetwork.ActionPayload("travel_pair",pairRequest));
+            h.assertTrue(data.snapshot(owner).equals(before),"2地点接続でも偽の刀から履歴や状態を変更しない");
         } finally {
             data.apply(player, "delete", deletion);
         }

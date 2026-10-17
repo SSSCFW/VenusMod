@@ -2,7 +2,6 @@ package dev.ssscfw.venusmod.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.mojang.math.Axis;
 import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.yamato.YamatoRiftGeometry;
 import net.minecraft.client.Minecraft;
@@ -39,19 +38,25 @@ public final class YamatoRiftRenderer {
 
         for (YamatoRiftsClient.PortalView portal : YamatoRiftsClient.portals()) {
             if (!dimension.equals(portal.dimension())) continue;
-            double scale = YamatoRiftGeometry.scale(now, portal.openedAt(), portal.closesAt());
+            double scale = portal.size()*YamatoRiftGeometry.scale(now, portal.openedAt(), portal.closesAt());
             if (scale <= 0.001D) continue;
             Vec3 center = portal.center();
-            AABB bounds = new AABB(center.x - 1.4D, center.y - 1.7D, center.z - 1.4D,
-                    center.x + 1.4D, center.y + 1.7D, center.z + 1.4D);
+            YamatoRiftGeometry.Vector r=YamatoRiftGeometry.halfExtents(portal.yaw(),portal.pitch(),scale);
+            AABB bounds = new AABB(center.x-r.x(),center.y-r.y(),center.z-r.z(),
+                    center.x+r.x(),center.y+r.y(),center.z+r.z()).inflate(.04*scale);
             if (!event.getFrustum().isVisible(bounds)) continue;
 
             pose.pushPose();
             try {
                 pose.translate(center.x - camera.x, center.y - camera.y, center.z - camera.z);
-                // サーバーと同じright=(cos(yaw),0,sin(yaw))、normal=(-sin(yaw),0,cos(yaw))。
-                pose.mulPose(Axis.YP.rotationDegrees(-portal.yaw()));
-                pose.scale((float) scale, (float) scale, (float) scale);
+                // 接触判定と全く同じ直交基底を行列の各列へ入れ、真上・真下でも向きを一致させる。
+                YamatoRiftGeometry.Frame frame=YamatoRiftGeometry.frame(portal.yaw(),portal.pitch());
+                pose.mulPose(new Matrix4f().set(
+                        (float)frame.right().x(),(float)frame.right().y(),(float)frame.right().z(),0,
+                        (float)frame.up().x(),(float)frame.up().y(),(float)frame.up().z(),0,
+                        (float)frame.normal().x(),(float)frame.normal().y(),(float)frame.normal().z(),0,
+                        0,0,0,1));
+                pose.scale((float) scale, (float) scale, 1);
                 Matrix4f matrix = pose.last().pose();
 
                 // 原版のend_gatewayシェーダー＋end_sky/end_portalテクスチャを直接使用する。

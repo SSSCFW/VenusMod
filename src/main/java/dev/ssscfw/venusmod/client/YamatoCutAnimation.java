@@ -1,9 +1,7 @@
 package dev.ssscfw.venusmod.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.logging.LogUtils;
-import com.mojang.math.Axis;
 import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.compat.YamatoCompat;
 import java.lang.reflect.Constructor;
@@ -18,12 +16,13 @@ import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
 import net.minecraft.client.renderer.entity.player.PlayerRenderer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
@@ -41,7 +40,6 @@ import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RenderHandEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.common.NeoForge;
-import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import org.slf4j.Logger;
@@ -95,7 +93,7 @@ public final class YamatoCutAnimation {
         CutState previous = ACTIVE.remove(entityId);
         if (previous != null) detachAnimation(previous);
         CutState state = new CutState(player, hand, stage, player.level().getGameTime());
-        state.previousHorizontal = stage == 1 && previous != null && previous.stage == 0;
+        state.slashEffect = YamatoCompat.createClientCutEffect(player, hand, stage);
         state.automaticSequence = previous != null && previous.automaticSequence;
         // SlashBladeの既定刀身レイヤーは右利き主手用。その他は同じOBJを専用レイヤーで描く。
         state.nativeBladeMotion = hand == InteractionHand.MAIN_HAND && player.getMainArm() == HumanoidArm.RIGHT
@@ -215,9 +213,9 @@ public final class YamatoCutAnimation {
         if (rendered) event.setCanceled(true);
     }
 
-    /** 刀の届く範囲に薄い切り跡を出す。横が先に伸び、縦は次の段の上端から伸びる。 */
+    /** 既存SlashEffectRendererのOBJ・テクスチャ・残光を、攻撃tickを実行せずに描く。 */
     @SubscribeEvent
-    public static void renderCutTrails(RenderLevelStageEvent event) {
+    public static void renderNativeCutEffects(RenderLevelStageEvent event) {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES || ACTIVE.isEmpty()) return;
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null) return;
@@ -225,58 +223,42 @@ public final class YamatoCutAnimation {
         Vec3 camera = event.getCamera().getPosition();
         PoseStack pose = event.getPoseStack();
         MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
-        VertexConsumer vertices = buffers.getBuffer(RenderType.debugQuads());
         boolean rendered = false;
         for (CutState state : ACTIVE.values()) {
-            if (state.player.level() != minecraft.level || state.player.isInvisible()) continue;
-            float elapsed = elapsed(state, partial);
-            float progress = strokeProgress(state, partial);
-            if (progress <= 0.001F) continue;
-            Vec3 position = state.player.getPosition(partial);
+            Entity effect = state.slashEffect;
+            if (effect == null || state.player.level() != minecraft.level || state.player.isInvisible()) continue;
+            float age = elapsed(state, partial) - YamatoCompat.cutWindup(state.stage);
+            int lifetime = YamatoCompat.duration(state.stage) - YamatoCompat.cutWindup(state.stage);
+            if (age < 0.0F || age >= lifetime) continue;
             float yaw = Mth.rotLerp(partial, state.player.yRotO, state.player.getYRot());
+            float pitch = Mth.lerp(partial, state.player.xRotO, state.player.getXRot());
+            // SlashBlade通常斬撃と同じ中心位置。両手とも実際に持つ刀の色・集中ランクを使う。
+            Vec3 position = state.player.getPosition(partial).add(0.0D, state.player.getEyeHeight() * 0.75D, 0.0D)
+                    .add(Vec3.directionFromRotation(pitch, yaw).scale(0.3D));
+            effect.setPos(position);
+            effect.setYRot(yaw);
+            // 既存Rendererはyawの後にZ軸へpitchを掛けるため、視線の下向き正とは符号が逆。
+            effect.setXRot(-pitch);
+            // tickしないEntityでも、補間した採光位置がワールド原点へ戻らないよう揃える。
+            effect.setOldPosAndRot();
+            // tick()は攻撃処理を持つため呼ばず、Rendererが読む表示時計だけを進める。
+            effect.tickCount = (int) age;
+            float effectPartial = age - effect.tickCount;
             pose.pushPose();
             try {
-                pose.translate(position.x - camera.x, position.y + 1.6D - camera.y, position.z - camera.z);
-                pose.mulPose(Axis.YP.rotationDegrees(-yaw));
-                pose.translate(0.0D, 0.0D, 1.30D);
-                Matrix4f matrix = pose.last().pose();
-                float fade = 1.0F - Mth.clamp((elapsed - YamatoCompat.duration(state.stage) + 2.0F) / 3.0F, 0.0F, 1.0F);
-                if (state.stage == 0) {
-                    ribbon(vertices, matrix, 1.08F, 0.0F, Mth.lerp(progress, 1.08F, -1.08F), 0.0F, fade);
-                } else {
-                    if (state.previousHorizontal) {
-                        ribbon(vertices, matrix, 1.08F, 0.0F, -1.08F, 0.0F, Math.max(0.0F, 0.60F - elapsed / 14.0F));
-                    }
-                    ribbon(vertices, matrix, 0.0F, 1.36F, 0.0F, Mth.lerp(progress, 1.36F, -1.36F), fade);
-                }
+                pose.translate(position.x - camera.x, position.y - camera.y, position.z - camera.z);
+                EntityRenderer<? super Entity> renderer = minecraft.getEntityRenderDispatcher().getRenderer(effect);
+                renderer.render(effect, yaw, effectPartial, pose, buffers,
+                        renderer.getPackedLightCoords(effect, effectPartial));
                 rendered = true;
+            } catch (LinkageError | RuntimeException exception) {
+                state.slashEffect = null;
+                logFailureOnce("抜刀剣の既存斬撃Rendererを利用できませんでした", exception);
             } finally {
                 pose.popPose();
             }
         }
-        if (rendered) buffers.endBatch(RenderType.debugQuads());
-    }
-
-    private static void ribbon(VertexConsumer vertices, Matrix4f pose,
-                                float ax, float ay, float bx, float by, float alpha) {
-        if (alpha <= 0.0F) return;
-        float dx = bx - ax;
-        float dy = by - ay;
-        float length = (float) Math.sqrt(dx * dx + dy * dy);
-        if (length < 0.001F) return;
-        float nx = -dy / length;
-        float ny = dx / length;
-        coloredQuad(vertices, pose, ax, ay, bx, by, nx * 0.032F, ny * 0.032F, 143, 157, 255, (int) (90 * alpha));
-        coloredQuad(vertices, pose, ax, ay, bx, by, nx * 0.007F, ny * 0.007F, 241, 248, 255, (int) (235 * alpha));
-    }
-
-    private static void coloredQuad(VertexConsumer vertices, Matrix4f pose,
-                                    float ax, float ay, float bx, float by, float nx, float ny,
-                                    int r, int g, int b, int alpha) {
-        vertices.addVertex(pose, ax - nx, ay - ny, 0.0F).setColor(r, g, b, alpha);
-        vertices.addVertex(pose, ax + nx, ay + ny, 0.0F).setColor(r, g, b, alpha);
-        vertices.addVertex(pose, bx + nx, by + ny, 0.0F).setColor(r, g, b, alpha);
-        vertices.addVertex(pose, bx - nx, by - ny, 0.0F).setColor(r, g, b, alpha);
+        if (rendered) buffers.endBatch();
     }
 
     private static float elapsed(CutState state, float partial) {
@@ -285,7 +267,7 @@ public final class YamatoCutAnimation {
 
     private static float strokeProgress(CutState state, float partial) {
         float time = elapsed(state, partial);
-        float windup = state.stage == 0 ? 2.0F : 3.0F;
+        float windup = YamatoCompat.cutWindup(state.stage);
         float cutDuration = state.stage == 0 ? 4.5F : 5.0F;
         float t = Mth.clamp((time - windup) / cutDuration, 0.0F, 1.0F);
         return t * t * (3.0F - 2.0F * t);
@@ -443,7 +425,7 @@ public final class YamatoCutAnimation {
         private final int stage;
         private final long startedAt;
         private boolean nativeBladeMotion;
-        private boolean previousHorizontal;
+        private Entity slashEffect;
         private boolean automaticSequence;
         private Object animation;
         private Object animationStack;

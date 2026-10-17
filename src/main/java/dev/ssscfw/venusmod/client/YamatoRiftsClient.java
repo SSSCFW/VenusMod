@@ -18,7 +18,7 @@ import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 /** 各クライアントには現在の次元の描画範囲内にある端だけを同期する。 */
 @EventBusSubscriber(modid = VenusMod.MOD_ID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
 public final class YamatoRiftsClient {
-    public record PortalView(String dimension, Vec3 center, float yaw, long openedAt, long closesAt) {}
+    public record PortalView(String dimension, Vec3 center, float yaw, float pitch, double size, long openedAt, long closesAt) {}
     private static List<PortalView> views = List.of();
     private static long serverTick;
     private static long localTick;
@@ -46,8 +46,11 @@ public final class YamatoRiftsClient {
         var list = data.getList("portals", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
             CompoundTag tag = list.getCompound(i);
+            double size=tag.contains("size")?tag.getDouble("size"):1;
+            float yaw=tag.getFloat("yaw"),pitch=tag.getFloat("pitch");
+            if(!Double.isFinite(size)||size<.5||size>5||!Float.isFinite(yaw)||!Float.isFinite(pitch)||Math.abs(pitch)>90)continue;
             next.add(new PortalView(data.getString("dimension"), new Vec3(tag.getDouble("x"),
-                    tag.getDouble("y"), tag.getDouble("z")), tag.getFloat("yaw"),
+                    tag.getDouble("y"), tag.getDouble("z")), yaw,pitch,size,
                     tag.getLong("openedAt"), tag.getLong("closesAt")));
         }
         views = List.copyOf(next);

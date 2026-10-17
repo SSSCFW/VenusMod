@@ -18,7 +18,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.saveddata.SavedData;
 
-/** 閻魔刀の地点・フォルダ・設定を、アイテムやプレイヤー個体から独立してUUID別に保存する。 */
+/** 閻魔刀の地点・履歴・フォルダ・設定を、アイテムやプレイヤー個体から独立してUUID別に保存する。 */
 public final class YamatoTravelData extends SavedData {
     private static final String DATA_NAME = "venusmod_yamato_travel";
     private final Map<UUID, PlayerDestinations> players = new LinkedHashMap<>();
@@ -28,13 +28,18 @@ public final class YamatoTravelData extends SavedData {
                 new SavedData.Factory<>(YamatoTravelData::new, YamatoTravelData::load, null), DATA_NAME);
     }
 
-    /** 一覧は常に保存した手動順。sortはクライアント表示用で、手動順を上書きしない。 */
+    /** 手動一覧は保存順、履歴は最新先頭。sortは手動一覧のクライアント表示だけに使用する。 */
     public CompoundTag snapshot(UUID owner) {
         PlayerDestinations book = players.get(owner);
         ListTag entries = new ListTag();
-        if (book != null) for (CompoundTag entry : book.entries) entries.add(entry.copy());
+        ListTag history = new ListTag();
+        if (book != null) {
+            for (CompoundTag entry : book.entries) entries.add(entry.copy());
+            for (CompoundTag entry : book.history) history.add(entry.copy());
+        }
         CompoundTag result = new CompoundTag();
         result.put("entries", entries);
+        result.put("history", history);
         result.put("settings", settings(owner));
         result.putInt("sort", book == null ? 0 : book.sort);
         return result;
@@ -42,7 +47,9 @@ public final class YamatoTravelData extends SavedData {
 
     /** 存在する所有者本人の地点だけを返す。取得側の変更は保存データへ伝播しない。 */
     public CompoundTag destination(UUID owner, UUID id) {
-        CompoundTag entry = entry(players.get(owner), id);
+        PlayerDestinations book = players.get(owner);
+        CompoundTag entry = entry(book, id);
+        if (entry == null) entry = historyEntry(book, id);
         return entry == null || entry.getBoolean("folder") ? null : entry.copy();
     }
 
@@ -52,7 +59,35 @@ public final class YamatoTravelData extends SavedData {
         result.putInt("access", book == null ? YamatoTravelRules.DEFAULT_ACCESS : book.access);
         result.putInt("lifetime", book == null ? YamatoTravelRules.DEFAULT_LIFETIME : book.lifetime);
         result.putInt("seconds", book == null ? YamatoTravelRules.DEFAULT_SECONDS : book.seconds);
+        result.putDouble("size", book == null ? YamatoTravelRules.DEFAULT_SIZE : book.size);
         return result;
+    }
+
+    /** 成功した開通の出発端だけを、サーバースレッドから追記する。失敗した開通では呼び出さない。 */
+    public boolean recordOpening(UUID owner, String name, String dimension, double x, double y, double z,
+                                 float yaw, float pitch) {
+        if (owner == null || dimension == null || !finitePosition(x, y, z, yaw, pitch)) return false;
+        ResourceLocation location = ResourceLocation.tryParse(dimension);
+        if (location == null) return false;
+        PlayerDestinations book = players.computeIfAbsent(owner, ignored -> new PlayerDestinations());
+        UUID id;
+        do { id = UUID.randomUUID(); } while (entry(book, id) != null || historyEntry(book, id) != null);
+        CompoundTag opening = new CompoundTag();
+        opening.putUUID("id", id);
+        opening.putString("parent", "");
+        opening.putString("name", YamatoTravelRules.historyName(name, x, y, z));
+        opening.putBoolean("folder", false);
+        opening.putString("dimension", location.toString());
+        opening.putDouble("x", x);
+        opening.putDouble("y", y);
+        opening.putDouble("z", z);
+        opening.putFloat("yaw", yaw);
+        opening.putFloat("pitch", pitch);
+        opening.putLong("created", System.currentTimeMillis());
+        book.history.add(0, opening);
+        trimHistory(book);
+        setDirty();
+        return true;
     }
 
     /**
@@ -95,7 +130,7 @@ public final class YamatoTravelData extends SavedData {
         float pitch = folder ? 0.0F : player.getXRot();
         if (!finitePosition(x, y, z, yaw, pitch)) return false;
         UUID id;
-        do { id = UUID.randomUUID(); } while (entry(book, id) != null);
+        do { id = UUID.randomUUID(); } while (entry(book, id) != null || historyEntry(book, id) != null);
         CompoundTag entry = new CompoundTag();
         entry.putUUID("id", id);
         entry.putString("parent", parent);
@@ -154,14 +189,17 @@ public final class YamatoTravelData extends SavedData {
 
     private static boolean updateSettings(PlayerDestinations book, CompoundTag request) {
         if (!request.contains("access", Tag.TAG_INT) || !request.contains("lifetime", Tag.TAG_INT)
-                || !request.contains("seconds", Tag.TAG_INT)) return false;
+                || !request.contains("seconds", Tag.TAG_INT)
+                || (request.contains("size") && !request.contains("size", Tag.TAG_DOUBLE))) return false;
         int access = request.getInt("access");
         int lifetime = request.getInt("lifetime");
         int seconds = request.getInt("seconds");
-        if (!YamatoTravelRules.validSettings(access, lifetime, seconds)) return false;
+        double size = request.contains("size") ? request.getDouble("size") : YamatoTravelRules.DEFAULT_SIZE;
+        if (!YamatoTravelRules.validSettings(access, lifetime, seconds, size)) return false;
         book.access = access;
         book.lifetime = lifetime;
         book.seconds = seconds;
+        book.size = size;
         return true;
     }
 
@@ -175,6 +213,19 @@ public final class YamatoTravelData extends SavedData {
         if (book == null || id == null) return null;
         for (CompoundTag entry : book.entries) if (id.equals(entry.getUUID("id"))) return entry;
         return null;
+    }
+
+    private static CompoundTag historyEntry(PlayerDestinations book, UUID id) {
+        if (book == null || id == null) return null;
+        for (CompoundTag entry : book.history) if (id.equals(entry.getUUID("id"))) return entry;
+        return null;
+    }
+
+    /** 履歴は最新先頭のため、上限を超えた末尾がFIFOで除去する最古の項目になる。 */
+    private static void trimHistory(PlayerDestinations book) {
+        if (book.history.size() > YamatoTravelRules.DEFAULT_HISTORY_LIMIT) {
+            book.history.subList(YamatoTravelRules.DEFAULT_HISTORY_LIMIT, book.history.size()).clear();
+        }
     }
 
     private static Map<UUID, UUID> parents(PlayerDestinations book) {
@@ -217,6 +268,7 @@ public final class YamatoTravelData extends SavedData {
 
     public static YamatoTravelData load(CompoundTag tag, HolderLookup.Provider registries) {
         YamatoTravelData data = new YamatoTravelData();
+        if (tag == null) return data;
         ListTag players = tag.getList("players", Tag.TAG_COMPOUND);
         for (int i = 0; i < players.size(); i++) {
             CompoundTag playerTag = players.getCompound(i);
@@ -226,7 +278,7 @@ public final class YamatoTravelData extends SavedData {
             if (book == null) {
                 book = new PlayerDestinations();
                 CompoundTag settings = playerTag.getCompound("settings");
-                if (settings.contains("access", Tag.TAG_INT) && settings.getInt("access") >= 0 && settings.getInt("access") <= 3) {
+                if (settings.contains("access", Tag.TAG_INT) && YamatoTravelRules.validAccess(settings.getInt("access"))) {
                     book.access = settings.getInt("access");
                 }
                 if (settings.contains("lifetime", Tag.TAG_INT) && settings.getInt("lifetime") >= 0 && settings.getInt("lifetime") <= 2) {
@@ -234,6 +286,9 @@ public final class YamatoTravelData extends SavedData {
                 }
                 if (settings.contains("seconds", Tag.TAG_INT) && settings.getInt("seconds") >= 1
                         && settings.getInt("seconds") <= YamatoTravelRules.MAX_SECONDS) book.seconds = settings.getInt("seconds");
+                if (settings.contains("size", Tag.TAG_DOUBLE) && YamatoTravelRules.validSize(settings.getDouble("size"))) {
+                    book.size = settings.getDouble("size");
+                }
                 if (playerTag.contains("sort", Tag.TAG_INT) && YamatoTravelRules.validSort(playerTag.getInt("sort"))) {
                     book.sort = playerTag.getInt("sort");
                 }
@@ -247,7 +302,25 @@ public final class YamatoTravelData extends SavedData {
                 if (entry != null && existing.add(entry.getUUID("id"))) book.entries.add(entry);
             }
         }
-        // 既存の正常な保存項目を件数上限で切り捨てない。上限は新規作成時だけに適用する。
+        // 全所有者行の手動地点を先に読み、履歴の重複UUIDで手動地点を隠さない。
+        for (int i = 0; i < players.size(); i++) {
+            CompoundTag playerTag = players.getCompound(i);
+            PlayerDestinations book = data.players.get(id(playerTag, "owner"));
+            if (book == null) continue;
+            Set<UUID> existing = new HashSet<>();
+            for (CompoundTag entry : book.entries) existing.add(entry.getUUID("id"));
+            for (CompoundTag entry : book.history) existing.add(entry.getUUID("id"));
+            ListTag history = playerTag.getList("history", Tag.TAG_COMPOUND);
+            for (int j = 0; j < history.size() && book.history.size() < YamatoTravelRules.DEFAULT_HISTORY_LIMIT; j++) {
+                CompoundTag opening = readEntry(history.getCompound(j));
+                if (opening == null || opening.getBoolean("folder") || !existing.add(opening.getUUID("id"))) continue;
+                opening.putString("parent", "");
+                opening.putString("name", YamatoTravelRules.historyName(opening.getString("name"),
+                        opening.getDouble("x"), opening.getDouble("y"), opening.getDouble("z")));
+                book.history.add(opening);
+            }
+        }
+        // 既存の正常な手動保存項目を件数上限で切り捨てない。手動上限は新規作成時だけに適用する。
         for (PlayerDestinations book : data.players.values()) repairParents(book);
         return data;
     }
@@ -321,20 +394,23 @@ public final class YamatoTravelData extends SavedData {
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
         ListTag playerList = new ListTag();
         for (UUID owner : players.keySet()) {
+            trimHistory(players.get(owner));
             CompoundTag player = snapshot(owner);
             player.putUUID("owner", owner);
             playerList.add(player);
         }
-        tag.putInt("version", 1);
+        tag.putInt("version", 2);
         tag.put("players", playerList);
         return tag;
     }
 
     private static final class PlayerDestinations {
         private final List<CompoundTag> entries = new ArrayList<>();
+        private final List<CompoundTag> history = new ArrayList<>();
         private int access = YamatoTravelRules.DEFAULT_ACCESS;
         private int lifetime = YamatoTravelRules.DEFAULT_LIFETIME;
         private int seconds = YamatoTravelRules.DEFAULT_SECONDS;
+        private double size = YamatoTravelRules.DEFAULT_SIZE;
         private int sort;
     }
 }

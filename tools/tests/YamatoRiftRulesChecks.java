@@ -58,6 +58,7 @@ public final class YamatoRiftRulesChecks {
         check(!box(Double.NaN,-.1,-.1,.1,.1,.1,0,1), "NaN box rejected");
         check(!box(-.1,-.1,-.1,Double.POSITIVE_INFINITY,.1,.1,0,1), "infinite box rejected");
         check(!box(.3,-.1,-.1,-.3,.1,.1,0,1), "inverted box rejected");
+        orientedGeometry();
         check(close(0,1,100,-1)==-1,"after-first waits");
         check(close(0,1,100,150)==170,"default closes 20 ticks after first transfer");
         check(close(0,180,100,150)==3750,"180-second after-first boundary");
@@ -73,6 +74,13 @@ public final class YamatoRiftRulesChecks {
         check(!(boolean)enter.invoke(null,2,false,false,false),"hostile denied mixed mode");
         check((boolean)enter.invoke(null,3,false,false,false),"all permits nonplayer entities");
         check(!(boolean)enter.invoke(null,99,true,true,true),"invalid access rejected");
+        Method typedEnter=rules.getMethod("canEnter",int.class,boolean.class,boolean.class,boolean.class,boolean.class,boolean.class);
+        for (int access=4;access<=6;access++) {
+            check((boolean)typedEnter.invoke(null,access,false,false,false,true,false)==(access!=5),"item filter "+access);
+            check((boolean)typedEnter.invoke(null,access,false,false,false,false,true)==(access!=4),"experience filter "+access);
+            check(!(boolean)typedEnter.invoke(null,access,true,true,false,false,false),"owner is still excluded by typed filter "+access);
+            check(!(boolean)typedEnter.invoke(null,access,false,false,true,false,false),"mobs excluded by typed filter "+access);
+        }
         Class<?> latch = Class.forName("dev.ssscfw.venusmod.yamato.YamatoRiftRules$ArrivalLocks");
         Object locks = latch.getConstructor().newInstance();
         UUID entity=UUID.randomUUID(),gate=UUID.randomUUID();
@@ -95,6 +103,39 @@ public final class YamatoRiftRulesChecks {
         }
     }
     private static boolean inside(double x,double y)throws Exception{return (boolean)geometry.getMethod("inside",double.class,double.class).invoke(null,x,y);}
+    private static void orientedGeometry() throws Exception {
+        for(double yaw:new double[]{0,31,90,-135,405}) for(double pitch:new double[]{-90,-47,0,26,90})
+            for(double scale:new double[]{.5,1,5}) {
+                check(box3(-.1,-.1,-.1,.1,.1,.1,yaw,pitch,scale),"3D center "+yaw+"/"+pitch);
+                for(double[] point:new double[][]{{0,0,0},{1.25*scale,0,0},{0,1.6*scale,0},{0,0,.18}}) {
+                    double[] p=world(point[0],point[1],point[2],yaw,pitch);
+                    check(box3(p[0],p[1],p[2],p[0],p[1],p[2],yaw,pitch,scale),"oriented visible cusp or depth boundary");
+                }
+                double[] corner=world(.9*scale,.9*scale,0,yaw,pitch);
+                check(!box3(corner[0]-.001,corner[1]-.001,corner[2]-.001,corner[0]+.001,corner[1]+.001,corner[2]+.001,yaw,pitch,scale),"tilted curved empty corner");
+                double[] outside=world(0,0,.19,yaw,pitch);
+                check(!box3(outside[0],outside[1],outside[2],outside[0],outside[1],outside[2],yaw,pitch,scale),"normal depth excludes points beyond plane");
+            }
+        check(box3(-2,-.01,-2,2,.01,2,33,90,1),"horizontal plane crosses box without any corner inside curve");
+        check(!box3(-.1,.181,-.1,.1,.3,.1,0,90,1),"downward gate rejects separated Y slab");
+        check(box3(-.1,-.1,-1.6,.1,.1,1.6,0,90,1),"downward gate uses Z for its long axis");
+        check(!box3(-.1,-.1,-.1,.1,.1,.1,0,Double.NaN,1),"NaN pitch rejected");
+        // 同じAABBの回転前の偽陽性も維持して防ぐ。
+        check(!box3(.477817,-1.6,1.219239,1.077817,.2,1.819239,45,0,1),"3D projection retains U/depth correlation");
+        check(!box3(2,2,-.01,2+1e-12,2+1e-12,.01,0,0,1),"tiny outside box does not contain origin");
+        check(!box3(1.0004985206216093,2.5534127912367333,-3.242142166497676,
+                1.5004985206216093,3.0534127912367333,-2.742142166497676,-45,-35.264389682754654,1),
+                "grazing slab leaves a tiny projected cap outside the curve");
+    }
+    private static double[] world(double u,double v,double depth,double yaw,double pitch) {
+        double y=Math.toRadians(yaw),p=Math.toRadians(pitch),sy=Math.sin(y),cy=Math.cos(y),sp=Math.sin(p),cp=Math.cos(p);
+        return new double[]{cy*u-sy*sp*v-sy*cp*depth,cp*v-sp*depth,sy*u+cy*sp*v+cy*cp*depth};
+    }
+    private static boolean box3(double a,double b,double c,double d,double e,double f,double yaw,double pitch,double scale)throws Exception {
+        try { return (boolean)geometry.getMethod("intersectsWorldBox",double.class,double.class,double.class,double.class,
+                double.class,double.class,double.class,double.class,double.class).invoke(null,a,b,c,d,e,f,yaw,pitch,scale);
+        } catch(NoSuchMethodException missing) { throw new AssertionError("上下角と倍率を共有する立体接触が未実装",missing); }
+    }
     private static long close(int mode,int seconds,long opened,long first)throws Exception{return (long)rules.getMethod("closingTime",int.class,int.class,long.class,long.class).invoke(null,mode,seconds,opened,first);}
     private static void check(boolean value,String message){if(!value)throw new AssertionError(message);}
 }

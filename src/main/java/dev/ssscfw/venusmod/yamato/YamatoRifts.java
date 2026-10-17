@@ -28,10 +28,12 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.NeutralMob;
 import net.minecraft.world.entity.monster.Enemy;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ChunkPos;
@@ -80,25 +82,41 @@ public final class YamatoRifts extends SavedData {
     }
 
     public void requestTravel(ServerPlayer player, UUID destinationId) {
+        requestTravel(player,null,destinationId);
+    }
+
+    public void requestTravelPair(ServerPlayer player, UUID firstId, UUID secondId) {
+        if(firstId==null||secondId==null||firstId.equals(secondId)) {
+            YamatoNetwork.message(player,"invalid_request");return;
+        }
+        requestTravel(player,firstId,secondId);
+    }
+
+    private void requestTravel(ServerPlayer player, UUID firstId, UUID destinationId) {
         if (destinationId == null || pending.containsKey(player.getUUID())) return;
-        CompoundTag destination = YamatoTravelData.get(player.server).destination(player.getUUID(), destinationId);
-        if (destination == null) { YamatoNetwork.message(player, "missing_destination"); return; }
+        YamatoTravelData book=YamatoTravelData.get(player.server);
+        CompoundTag destination = book.destination(player.getUUID(), destinationId);
+        CompoundTag first=firstId==null?null:book.destination(player.getUUID(),firstId);
+        if (destination == null || firstId!=null&&first==null) { YamatoNetwork.message(player, "missing_destination"); return; }
         if (ownedCount(player.getUUID()) >= MAX_ACTIVE_PER_PLAYER) {
             YamatoNetwork.message(player, "too_many_rifts"); return;
         }
         ItemStack stack = YamatoCompat.heldYamato(player);
         if (stack.isEmpty()) return;
-        Endpoint target = Endpoint.at(destination);
-        Endpoint source = inFront(player);
+        CompoundTag settings=book.settings(player.getUUID());
+        double size=settings.getDouble("size");
+        float yaw=Mth.wrapDegrees(player.getYRot()),pitch=Mth.clamp(player.getXRot(),-90,90);
+        Endpoint target = Endpoint.at(destination,yaw,pitch,size);
+        Endpoint source = first==null?inFront(player,yaw,pitch,size):Endpoint.at(first,yaw,pitch,size);
         if (target == null || level(player.server, target) == null) {
             YamatoNetwork.message(player, "missing_dimension"); return;
         }
-        if (source == null || !clearSite(player.server, target)) {
+        if (source == null || !clearSite(player.server, source) || !clearSite(player.server, target)) {
             YamatoNetwork.message(player, "obstructed"); return;
         }
         InteractionHand hand = player.getMainHandItem() == stack ? InteractionHand.MAIN_HAND : InteractionHand.OFF_HAND;
         Pending opening = new Pending(player.getUUID(), hand, stack, player.level().dimension(),
-                target, destination.getString("name"), YamatoTravelData.get(player.server).settings(player.getUUID()),
+                firstId==null?null:source,target, destination.getString("name"), settings,
                 player.server.overworld().getGameTime());
         pending.put(player.getUUID(), opening);
         player.stopUsingItem();
@@ -126,7 +144,8 @@ public final class YamatoRifts extends SavedData {
                 YamatoNetwork.sendCut(player, opening.hand, 1);
             }
             if (elapsed < YamatoCompat.OPEN_TICK) continue;
-            Endpoint source = inFront(player);
+            Endpoint source = opening.fixedSource==null
+                    ?inFront(player,opening.target.yaw,opening.target.pitch,opening.target.size):opening.fixedSource;
             if (source == null || openPair(opening.owner, opening.name, source, opening.target,
                     opening.settings.getInt("access"), opening.settings.getInt("lifetime"),
                     opening.settings.getInt("seconds"), server) == null) YamatoNetwork.message(player, "obstructed");
@@ -141,7 +160,7 @@ public final class YamatoRifts extends SavedData {
 
     public Pair openPair(UUID owner, String name, Endpoint source, Endpoint target,
                          int access, int lifetime, int seconds, MinecraftServer server) {
-        if (owner == null || source == null || target == null || access < 0 || access > 3
+        if (owner == null || source == null || target == null || access < 0 || access > 6
                 || lifetime < 0 || lifetime > 2 || seconds < 1 || seconds > 180
                 || ownedCount(owner) >= MAX_ACTIVE_PER_PLAYER
                 || !clearSite(server, source) || !clearSite(server, target)
@@ -149,6 +168,9 @@ public final class YamatoRifts extends SavedData {
         long now = server.overworld().getGameTime();
         Pair pair = new Pair(UUID.randomUUID(), owner, name, source, target, access, lifetime, seconds, now);
         pairs.put(pair.id, pair);
+        // 成功した出発端だけを記録する。失敗や二振り途中のキャンセルでは履歴を増やさない。
+        YamatoTravelData.get(server).recordOpening(owner,"開いた地点",source.dimension,
+                source.feet.x,source.feet.y,source.feet.z,source.yaw,source.pitch);
         holdTickets(server, pair, true);
         sound(server, source, SoundEvents.PORTAL_TRIGGER);
         sound(server, target, SoundEvents.PORTAL_TRIGGER);
@@ -219,7 +241,8 @@ public final class YamatoRifts extends SavedData {
         if (source == null || target == null) return;
         double scale = YamatoRiftGeometry.scale(now, pair.openedAt, pair.closesAt());
         if (scale <= 0) return;
-        List<Entity> candidates = source.getEntities((Entity)null, from.bounds(), entity -> entity.isAlive() && !entity.isSpectator());
+        // Minecraftの広域AABB検索は面への接触を含まないため、候補だけを僅かに広げて曲線で再判定する。
+        List<Entity> candidates = source.getEntities((Entity)null, from.bounds().inflate(1.0E-7), entity -> entity.isAlive() && !entity.isSpectator());
         for (Entity entity : candidates) {
             if (entity.isRemoved() || transferred.contains(entity.getUUID()) || !entity.level().dimension().equals(source.dimension())
                     || arrivalLocks.blocked(entity.getUUID(), from.id) || !touching(entity.getBoundingBox(), from, scale)
@@ -263,7 +286,8 @@ public final class YamatoRifts extends SavedData {
         boolean friendly = entity instanceof Mob mob && !(entity instanceof Enemy)
                 && entity.getType().getCategory() != MobCategory.MONSTER && mob.getTarget() == null
                 && (!(entity instanceof NeutralMob neutral) || !neutral.isAngry());
-        return YamatoRiftRules.canEnter(pair.access, pair.owner.equals(entity.getUUID()), entity instanceof Player, friendly);
+        return YamatoRiftRules.canEnter(pair.access, pair.owner.equals(entity.getUUID()), entity instanceof Player, friendly,
+                entity instanceof ItemEntity,entity instanceof ExperienceOrb);
     }
 
     private void releaseExited(MinecraftServer server, Endpoint endpoint) {
@@ -297,17 +321,26 @@ public final class YamatoRifts extends SavedData {
     public static boolean touching(AABB box, Endpoint endpoint, double scale) {
         Vec3 center = endpoint.center();
         return YamatoRiftGeometry.intersectsWorldBox(box.minX-center.x, box.minY-center.y, box.minZ-center.z,
-                box.maxX-center.x, box.maxY-center.y, box.maxZ-center.z, endpoint.yaw, scale);
+                box.maxX-center.x, box.maxY-center.y, box.maxZ-center.z, endpoint.yaw, endpoint.pitch, scale*endpoint.size);
     }
 
-    private static Endpoint inFront(ServerPlayer player) {
-        double radians = Math.toRadians(player.getYRot());
-        Vec3 forward = new Vec3(-Math.sin(radians), 0, Math.cos(radians));
-        for (double distance : new double[]{2.25, 2, 1.75, 1.5}) {
-            Vec3 feet = player.position().add(forward.scale(distance));
-            Endpoint result = Endpoint.at(player.serverLevel(), feet, player.getYRot());
-            if (player.serverLevel().clip(new ClipContext(player.getEyePosition(), feet.add(0, player.getEyeHeight(), 0),
-                    ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player)).getType() != HitResult.Type.MISS) continue;
+    private static Endpoint inFront(ServerPlayer player,float yaw,float pitch,double size) {
+        YamatoRiftGeometry.Vector normal=YamatoRiftGeometry.frame(yaw,pitch).normal();
+        Vec3 forward=new Vec3(normal.x(),normal.y(),normal.z());
+        double halfY=YamatoRiftGeometry.halfExtents(yaw,pitch,size).y();
+        Vec3 eyes=player.getEyePosition();
+        for (double distance : new double[]{2.25,2,1.75,1.5}) {
+            Vec3 center=eyes.add(forward.scale(distance));
+            HitResult hit=player.serverLevel().clip(new ClipContext(eyes,center,
+                    ClipContext.Block.COLLIDER,ClipContext.Fluid.NONE,player));
+            if(hit.getType()!=HitResult.Type.MISS) {
+                // 真下なら床の直上へ置く。視線の向きは変えず、面の厚さぶん手前へ戻す。
+                center=hit.getLocation().subtract(forward.scale(YamatoRiftGeometry.HALF_DEPTH+.05));
+            }
+            // 水平を向いた大きい裂け目は、基準の足元を維持して上へ広げる。
+            if(Math.abs(pitch)<.001F)center=new Vec3(center.x,player.getY()+halfY,center.z);
+            Vec3 feet=center.subtract(0,halfY,0);
+            Endpoint result=Endpoint.at(player.serverLevel(),feet,yaw,pitch,size);
             if (clearSite(player.server, result)) return result;
         }
         return null;
@@ -315,13 +348,19 @@ public final class YamatoRifts extends SavedData {
 
     private static boolean clearSite(MinecraftServer server, Endpoint endpoint) {
         ServerLevel level = level(server, endpoint);
-        if (level == null || !validPosition(endpoint.feet, endpoint.yaw)) return false;
+        if (level == null || !validPosition(endpoint.feet, endpoint.yaw)
+                || !Float.isFinite(endpoint.pitch)||Math.abs(endpoint.pitch)>90
+                || !Double.isFinite(endpoint.size)||endpoint.size<.5||endpoint.size>5) return false;
         AABB playerSpace = new AABB(endpoint.feet.x-.31, endpoint.feet.y, endpoint.feet.z-.31,
                 endpoint.feet.x+.31, endpoint.feet.y+1.85, endpoint.feet.z+.31);
         AABB portalSpace = endpoint.bounds();
         if (!withinBounds(level, playerSpace) || !withinBounds(level, portalSpace)) return false;
         loadChunks(level, portalSpace.minmax(playerSpace));
-        return level.noCollision(null, playerSpace) && level.noCollision(null, portalSpace);
+        if(!level.noCollision(null,playerSpace))return false;
+        // 斜めの面や内側へ曲がった隅を、外接AABB全体で塞がっていると判定しない。
+        for(var shape:level.getBlockCollisions(null,portalSpace))
+            for(AABB box:shape.toAabbs())if(touching(box,endpoint,1))return false;
+        return true;
     }
 
     /** 乗車位置の回転範囲と転送直後の同一点配置を両方確認する。壁際で乗客だけ埋まることを防ぐ。 */
@@ -419,6 +458,7 @@ public final class YamatoRifts extends SavedData {
             tag.putUUID("id",pair.id); tag.putString("name",pair.name);
             putAddress(tag,"source",pair.source); putAddress(tag,"target",pair.target);
             tag.putInt("access",pair.access); tag.putInt("lifetime",pair.lifetime); tag.putInt("seconds",pair.seconds);
+            tag.putDouble("size",pair.source.size);tag.putFloat("yaw",pair.source.yaw);tag.putFloat("pitch",pair.source.pitch);
             tag.putInt("remaining",pair.closesAt()<0 ? -1 : (int)Math.max(0,(pair.closesAt()-now+19)/20));
             result.add(tag);
         }
@@ -439,14 +479,15 @@ public final class YamatoRifts extends SavedData {
             if (!dimension.equals(endpoint.dimension) || player.position().distanceToSqr(endpoint.feet)>160*160) continue;
             CompoundTag view = new CompoundTag(); Vec3 center = endpoint.center();
             view.putDouble("x",center.x);view.putDouble("y",center.y);view.putDouble("z",center.z);
-            view.putFloat("yaw",endpoint.yaw);view.putLong("openedAt",pair.openedAt);view.putLong("closesAt",pair.closesAt());
+            view.putFloat("yaw",endpoint.yaw);view.putFloat("pitch",endpoint.pitch);view.putDouble("size",endpoint.size);
+            view.putLong("openedAt",pair.openedAt);view.putLong("closesAt",pair.closesAt());
             endpoints.add(view);
         }
         tag.put("portals",endpoints);return tag;
     }
 
     @Override public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
-        tag.putInt("version",1); ListTag list = new ListTag();
+        tag.putInt("version",2); ListTag list = new ListTag();
         for (Pair pair : pairs.values()) {
             CompoundTag entry = new CompoundTag();
             entry.putUUID("id",pair.id);entry.putUUID("owner",pair.owner);entry.putString("name",pair.name);
@@ -474,7 +515,7 @@ public final class YamatoRifts extends SavedData {
             if (!entry.hasUUID("id") || !entry.hasUUID("owner")) continue;
             Endpoint source=Endpoint.load(entry.getCompound("source")),target=Endpoint.load(entry.getCompound("target"));
             int access=entry.getInt("access"),mode=entry.getInt("lifetime"),seconds=entry.getInt("seconds");
-            if(source==null||target==null||source.id.equals(target.id)||access<0||access>3||mode<0||mode>2||seconds<1||seconds>180
+            if(source==null||target==null||source.id.equals(target.id)||access<0||access>6||mode<0||mode>2||seconds<1||seconds>180
                     ||result.pairs.containsKey(entry.getUUID("id"))||endpoints.contains(source.id)||endpoints.contains(target.id))continue;
             Pair pair=new Pair(entry.getUUID("id"),entry.getUUID("owner"),entry.getString("name"),source,target,
                     access,mode,seconds,Math.max(0,entry.getLong("openedAt")));
@@ -492,31 +533,36 @@ public final class YamatoRifts extends SavedData {
             arrivalLocks.arrived(list.getCompound(i).getUUID("entity"),endpoint.id);
     }
 
-    public record Endpoint(UUID id, String dimension, Vec3 feet, float yaw) {
+    public record Endpoint(UUID id, String dimension, Vec3 feet, float yaw, float pitch, double size) {
+        public Endpoint(UUID id,String dimension,Vec3 feet,float yaw) { this(id,dimension,feet,yaw,0,1); }
         public static Endpoint at(ServerLevel level, Vec3 feet, float yaw) {
-            return new Endpoint(UUID.randomUUID(),level.dimension().location().toString(),feet,Mth.wrapDegrees(yaw));
+            return at(level,feet,yaw,0,1);
         }
-        private static Endpoint at(CompoundTag destination) {
+        public static Endpoint at(ServerLevel level,Vec3 feet,float yaw,float pitch,double size) {
+            return new Endpoint(UUID.randomUUID(),level.dimension().location().toString(),feet,Mth.wrapDegrees(yaw),pitch,size);
+        }
+        private static Endpoint at(CompoundTag destination,float yaw,float pitch,double size) {
             Vec3 position=new Vec3(destination.getDouble("x"),destination.getDouble("y"),destination.getDouble("z"));
-            float yaw=destination.getFloat("yaw");String dimension=destination.getString("dimension");
-            if(!validPosition(position,yaw)||ResourceLocation.tryParse(dimension)==null)return null;
-            return new Endpoint(UUID.randomUUID(),dimension,position,Mth.wrapDegrees(yaw));
+            String dimension=destination.getString("dimension");
+            if(!validPosition(position,yaw)||!Float.isFinite(pitch)||Math.abs(pitch)>90
+                    ||!Double.isFinite(size)||size<.5||size>5||ResourceLocation.tryParse(dimension)==null)return null;
+            return new Endpoint(UUID.randomUUID(),dimension,position,Mth.wrapDegrees(yaw),pitch,size);
         }
-        public Vec3 center() { return feet.add(0,YamatoRiftGeometry.CENTER_HEIGHT,0); }
+        public Vec3 center() { return feet.add(0,YamatoRiftGeometry.halfExtents(yaw,pitch,size).y(),0); }
         public AABB bounds() {
-            Vec3 center=center();double angle=Math.toRadians(yaw),cos=Math.abs(Math.cos(angle)),sin=Math.abs(Math.sin(angle));
-            double radiusX=cos*YamatoRiftGeometry.HALF_WIDTH+sin*YamatoRiftGeometry.HALF_DEPTH;
-            double radiusZ=sin*YamatoRiftGeometry.HALF_WIDTH+cos*YamatoRiftGeometry.HALF_DEPTH;
-            return new AABB(center.x-radiusX,center.y-YamatoRiftGeometry.HALF_HEIGHT,center.z-radiusZ,
-                    center.x+radiusX,center.y+YamatoRiftGeometry.HALF_HEIGHT,center.z+radiusZ);
+            Vec3 center=center();YamatoRiftGeometry.Vector r=YamatoRiftGeometry.halfExtents(yaw,pitch,size);
+            return new AABB(center.x-r.x(),center.y-r.y(),center.z-r.z(),center.x+r.x(),center.y+r.y(),center.z+r.z());
         }
         private CompoundTag save() {
             CompoundTag tag=new CompoundTag();tag.putUUID("id",id);tag.putString("dimension",dimension);
-            tag.putDouble("x",feet.x);tag.putDouble("y",feet.y);tag.putDouble("z",feet.z);tag.putFloat("yaw",yaw);return tag;
+            tag.putDouble("x",feet.x);tag.putDouble("y",feet.y);tag.putDouble("z",feet.z);tag.putFloat("yaw",yaw);
+            tag.putFloat("pitch",pitch);tag.putDouble("size",size);return tag;
         }
         private static Endpoint load(CompoundTag tag) {
-            if(!tag.hasUUID("id"))return null;Endpoint value=at(tag);
-            return value==null?null:new Endpoint(tag.getUUID("id"),value.dimension,value.feet,value.yaw);
+            if(!tag.hasUUID("id"))return null;
+            Endpoint value=at(tag,tag.getFloat("yaw"),tag.contains("pitch")?tag.getFloat("pitch"):0,
+                    tag.contains("size")?tag.getDouble("size"):1);
+            return value==null?null:new Endpoint(tag.getUUID("id"),value.dimension,value.feet,value.yaw,value.pitch,value.size);
         }
     }
 
@@ -543,11 +589,11 @@ public final class YamatoRifts extends SavedData {
 
     private static final class Pending {
         private final UUID owner;private final InteractionHand hand;private final ItemStack stack;
-        private final ResourceKey<Level> dimension;private final Endpoint target;private final String name;
+        private final ResourceKey<Level> dimension;private final Endpoint fixedSource,target;private final String name;
         private final CompoundTag settings;private final long started;private boolean secondCut;
-        private Pending(UUID owner,InteractionHand hand,ItemStack stack,ResourceKey<Level> dimension,Endpoint target,
+        private Pending(UUID owner,InteractionHand hand,ItemStack stack,ResourceKey<Level> dimension,Endpoint fixedSource,Endpoint target,
                         String name,CompoundTag settings,long started) {
-            this.owner=owner;this.hand=hand;this.stack=stack;this.dimension=dimension;this.target=target;
+            this.owner=owner;this.hand=hand;this.stack=stack;this.dimension=dimension;this.fixedSource=fixedSource;this.target=target;
             this.name=name;this.settings=settings;this.started=started;
         }
     }

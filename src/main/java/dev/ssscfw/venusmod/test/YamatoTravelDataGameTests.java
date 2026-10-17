@@ -137,7 +137,7 @@ public final class YamatoTravelDataGameTests {
         blankName.putString("name", "  ");
         h.assertTrue(!data.apply(player, "rename", blankName), "空の改名を拒否");
         h.assertTrue(!data.apply(player, "save", named("a".repeat(97), "")), "長すぎる新規地点名を拒否");
-        h.assertTrue(!data.apply(player, "settings", settings(4, 1, 60)), "範囲外の公開設定");
+        h.assertTrue(!data.apply(player, "settings", settings(7, 1, 60)), "範囲外の公開設定");
         h.assertTrue(!data.apply(player, "settings", settings(2, 3, 60)), "範囲外の寿命設定");
         h.assertTrue(!data.apply(player, "settings", settings(2, 1, 181)), "範囲外の寿命秒数");
         CompoundTag partial = settings(2, 1, 60);
@@ -285,6 +285,7 @@ public final class YamatoTravelDataGameTests {
         tag.putInt("access", access);
         tag.putInt("lifetime", lifetime);
         tag.putInt("seconds", seconds);
+        tag.putDouble("size", 1.0D);
         return tag;
     }
 

@@ -2,6 +2,9 @@ package dev.ssscfw.venusmod.client;
 
 import dev.ssscfw.venusmod.compat.YamatoCompat;
 import dev.ssscfw.venusmod.yamato.YamatoNetwork;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -12,6 +15,7 @@ import java.util.UUID;
 import java.util.function.Consumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -30,7 +34,10 @@ public final class YamatoTravelScreen extends Screen {
     private static final int TEXT = 0xFFE7EFFF;
     private static final int MUTED = 0xFFAABCD3;
     private static final int ACCENT = 0xFFB1C8FF;
+    private static final DateTimeFormatter HISTORY_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+            .withZone(ZoneId.systemDefault());
     private final List<Entry> entries = new ArrayList<>();
+    private final List<Entry> history = new ArrayList<>();
     private final List<Rift> rifts = new ArrayList<>();
     private final List<AbstractWidget> rowWidgets = new ArrayList<>();
     private String currentFolder = "";
@@ -41,8 +48,10 @@ public final class YamatoTravelScreen extends Screen {
     private int draftAccess;
     private int draftLifetime;
     private String draftSeconds = "1";
+    private double draftSize = 1.0;
     private boolean settingsEdited;
-    private int[] pendingSettings;
+    private SettingsDraft pendingSettings;
+    private UUID firstPoint;
     private boolean applyingSnapshot;
     private YamatoScreenLayout layout;
     private SettingsControls sidebarControls;
@@ -52,7 +61,9 @@ public final class YamatoTravelScreen extends Screen {
     private Button back;
     private Button breadcrumb;
     private Button destinationsTab;
+    private Button historyTab;
     private Button riftsTab;
+    private Button selection;
 
     public YamatoTravelScreen(CompoundTag data) {
         super(tr("title"));
@@ -82,16 +93,22 @@ public final class YamatoTravelScreen extends Screen {
     /** 一覧のみ差し替える。名前編集や秒数入力へ定期スナップショットを上書きしない。 */
     public void receiveSnapshot(CompoundTag data) {
         List<Entry> previousEntries = List.copyOf(entries);
+        List<Entry> previousHistory = List.copyOf(history);
         List<Rift> previousRifts = List.copyOf(rifts);
         int previousSort = sort;
         entries.clear();
         ListTag entryTags = data.getList("entries", Tag.TAG_COMPOUND);
         for (int index = 0; index < entryTags.size(); index++) {
             CompoundTag tag = entryTags.getCompound(index);
-            if (tag.hasUUID("id")) entries.add(new Entry(tag.getUUID("id"), tag.getString("parent"),
-                    tag.getString("name"), tag.getBoolean("folder"), tag.getString("dimension"),
-                    tag.getDouble("x"), tag.getDouble("y"), tag.getDouble("z"), tag.getLong("created")));
+            if (tag.hasUUID("id")) entries.add(readEntry(tag));
         }
+        history.clear();
+        ListTag historyTags = data.getList("history", Tag.TAG_COMPOUND);
+        for (int index = 0; index < historyTags.size(); index++) {
+            CompoundTag tag = historyTags.getCompound(index);
+            if (tag.hasUUID("id") && !tag.getBoolean("folder")) history.add(readEntry(tag));
+        }
+        if (history.size() > 1000) history.subList(1000, history.size()).clear();
         rifts.clear();
         ListTag riftTags = data.getList("active", Tag.TAG_COMPOUND);
         for (int index = 0; index < riftTags.size(); index++) {
@@ -107,12 +124,16 @@ public final class YamatoTravelScreen extends Screen {
             currentFolder = "";
             page = 0;
         }
+        boolean selectionRemoved = firstPoint != null && findPoint(firstPoint) == null;
+        if (selectionRemoved) firstPoint = null;
         CompoundTag settings = data.getCompound("settings");
-        int access = Math.max(0, Math.min(3, settings.getInt("access")));
+        int access = Math.max(0, Math.min(6, settings.getInt("access")));
         int lifetime = Math.max(0, Math.min(2, settings.getInt("lifetime")));
         int seconds = Math.max(1, Math.min(180, settings.getInt("seconds")));
-        if (pendingSettings != null && pendingSettings[0] == access && pendingSettings[1] == lifetime
-                && pendingSettings[2] == seconds && draftAccess == access && draftLifetime == lifetime
+        double size = settings.getDouble("size");
+        if (!Double.isFinite(size) || size < 0.5 || size > 5.0) size = 1.0;
+        if (pendingSettings != null && pendingSettings.equals(new SettingsDraft(access, lifetime, seconds, size))
+                && draftAccess == access && draftLifetime == lifetime && draftSize == size
                 && Integer.toString(seconds).equals(draftSeconds)) {
             settingsEdited = false;
             pendingSettings = null;
@@ -121,6 +142,7 @@ public final class YamatoTravelScreen extends Screen {
             draftAccess = access;
             draftLifetime = lifetime;
             draftSeconds = Integer.toString(seconds);
+            draftSize = size;
         }
         if (sortDropdown != null) sortDropdown.setValue(sort);
         if (sidebarControls != null) sidebarControls.sync();
@@ -129,9 +151,21 @@ public final class YamatoTravelScreen extends Screen {
             settingsScreen.controls.sync();
         }
         if (layout != null) {
-            riftsTab.setMessage(tr("active_count", rifts.size()));
-            if (selectedTab == 0 ? !previousEntries.equals(entries) || previousSort != sort : !previousRifts.equals(rifts)) refreshRows();
+            updateTabTooltips();
+            boolean rowsChanged = switch (selectedTab) {
+                case 0 -> !previousEntries.equals(entries) || previousSort != sort;
+                case 1 -> !previousHistory.equals(history);
+                default -> !previousRifts.equals(rifts);
+            };
+            if (rowsChanged || selectionRemoved) refreshRows();
+            else updateSelection();
         }
+    }
+
+    private static Entry readEntry(CompoundTag tag) {
+        return new Entry(tag.getUUID("id"), tag.getString("parent"), tag.getString("name"),
+                tag.getBoolean("folder"), tag.getString("dimension"), tag.getDouble("x"),
+                tag.getDouble("y"), tag.getDouble("z"), tag.getLong("created"));
     }
 
     @Override
@@ -147,21 +181,23 @@ public final class YamatoTravelScreen extends Screen {
         } else {
             sidebarControls = new SettingsControls(this::addRenderableWidget,
                     layout.sideX() + 4, layout.settingsY(), layout.sideWidth() - 8,
-                    layout.settingsStep(), layout.settingsControlOffset(), layout.applyY());
+                    layout.settingsStep(), layout.settingsControlOffset(), layout.settingsControlHeight(),
+                    layout.applyY(), layout.actionHeight());
             addRenderableWidget(Button.builder(tr("save_current"), b -> create(false))
-                    .bounds(layout.sideX() + 4, layout.saveY(), layout.sideWidth() - 8, 20)
+                    .bounds(layout.sideX() + 4, layout.saveY(), layout.sideWidth() - 8, layout.actionHeight())
                     .tooltip(Tooltip.create(tr("save_current_hint"))).build());
             addRenderableWidget(Button.builder(tr("new_folder"), b -> create(true))
-                    .bounds(layout.sideX() + 4, layout.folderY(), layout.sideWidth() - 8, 20)
+                    .bounds(layout.sideX() + 4, layout.folderY(), layout.sideWidth() - 8, layout.actionHeight())
                     .tooltip(Tooltip.create(tr("new_folder"))).build());
         }
         int x = layout.listX(), listWidth = layout.listWidth();
-        int tabWidth = (listWidth - 4) / 2;
-        destinationsTab = addRenderableWidget(Button.builder(tr("destinations"), b -> selectTab(0))
-                .bounds(x, layout.top() + 28, tabWidth, 20).build());
-        riftsTab = addRenderableWidget(Button.builder(tr("active"), b -> selectTab(1))
-                .bounds(x + tabWidth + 4, layout.top() + 28, listWidth - tabWidth - 4, 20)
-                .tooltip(Tooltip.create(tr("active_hint"))).build());
+        destinationsTab = addRenderableWidget(Button.builder(tr("destinations_short"), b -> selectTab(0))
+                .bounds(layout.tabX(0), layout.top() + 28, layout.tabWidth(0), 20)
+                .tooltip(Tooltip.create(tr("destinations"))).build());
+        historyTab = addRenderableWidget(Button.builder(tr("history"), b -> selectTab(1))
+                .bounds(layout.tabX(1), layout.top() + 28, layout.tabWidth(1), 20).build());
+        riftsTab = addRenderableWidget(Button.builder(tr("active_short"), b -> selectTab(2))
+                .bounds(layout.tabX(2), layout.top() + 28, layout.tabWidth(2), 20).build());
         back = addRenderableWidget(Button.builder(Component.literal("‹"), b -> goBackFolder())
                 .bounds(x, layout.top() + 52, 22, 20).tooltip(Tooltip.create(tr("parent_folder"))).build());
         breadcrumb = addRenderableWidget(Button.builder(Component.empty(), b -> openFolder(""))
@@ -175,6 +211,10 @@ public final class YamatoTravelScreen extends Screen {
                     request("sort", data);
                     refreshRows();
                 }));
+        selection = addRenderableWidget(Button.builder(Component.empty(), b -> {
+            firstPoint = null;
+            refreshRows();
+        }).bounds(x, layout.selectionY(), listWidth, 20).build());
         previous = addRenderableWidget(Button.builder(Component.literal("‹"), b -> turnPage(-1))
                 .bounds(x + listWidth - 86, layout.footerY(), 22, 20)
                 .tooltip(Tooltip.create(tr("previous_page"))).build());
@@ -220,6 +260,13 @@ public final class YamatoTravelScreen extends Screen {
         return entries.stream().filter(entry -> entry.id.toString().equals(id)).findFirst().orElse(null);
     }
 
+    private Entry findPoint(UUID id) {
+        if (id == null) return null;
+        for (Entry entry : entries) if (!entry.folder && entry.id.equals(id)) return entry;
+        for (Entry entry : history) if (entry.id.equals(id)) return entry;
+        return null;
+    }
+
     private String path(String parent) {
         List<String> names = new ArrayList<>();
         Set<String> visited = new HashSet<>();
@@ -234,6 +281,7 @@ public final class YamatoTravelScreen extends Screen {
     }
 
     private List<Entry> visibleEntries() {
+        if (selectedTab == 1) return history;
         List<Entry> result = new ArrayList<>(entries.stream().filter(e -> e.parent.equals(currentFolder)).toList());
         Comparator<Entry> name = Comparator.comparing(e -> e.name, String.CASE_INSENSITIVE_ORDER);
         Comparator<Entry> ordering = switch (sort) {
@@ -248,8 +296,26 @@ public final class YamatoTravelScreen extends Screen {
     }
 
     private int pageCount() {
-        int size = selectedTab == 0 ? visibleEntries().size() : rifts.size();
+        int size = selectedTab != 2 ? visibleEntries().size() : rifts.size();
         return Math.max(1, (size + layout.rowCount() - 1) / layout.rowCount());
+    }
+
+    private void updateTabTooltips() {
+        destinationsTab.setMessage(tr(layout.tabWidth(0) >= 100 ? "destinations" : "destinations_short"));
+        historyTab.setMessage(layout.tabWidth(1) >= 104 ? tr("history_count", history.size()) : tr("history"));
+        riftsTab.setMessage(layout.tabWidth(2) >= 140 ? tr("active_count", rifts.size()) : tr("active_short"));
+        historyTab.setTooltip(Tooltip.create(tr("history_hint", history.size())));
+        riftsTab.setTooltip(Tooltip.create(Component.empty().append(tr("active_count", rifts.size()))
+                .append("\n").append(tr("active_hint"))));
+    }
+
+    private void updateSelection() {
+        Entry first = findPoint(firstPoint);
+        selection.visible = selectedTab != 2;
+        selection.active = first != null;
+        selection.setMessage(first == null ? tr("pair_choose_first") : tr("pair_first", first.name));
+        selection.setTooltip(Tooltip.create(first == null ? tr("pair_hint")
+                : tr("pair_first_hint", first.name, first.dimension, coordinates(first.x, first.y, first.z))));
     }
 
     private void refreshRows() {
@@ -260,27 +326,37 @@ public final class YamatoTravelScreen extends Screen {
         previous.active = page > 0;
         next.active = page + 1 < pageCount();
         destinationsTab.active = selectedTab != 0;
-        riftsTab.active = selectedTab != 1;
-        riftsTab.setMessage(tr("active_count", rifts.size()));
+        historyTab.active = selectedTab != 1;
+        riftsTab.active = selectedTab != 2;
+        updateTabTooltips();
+        updateSelection();
         back.visible = breadcrumb.visible = sortDropdown.visible = selectedTab == 0;
         back.active = !currentFolder.isEmpty();
         breadcrumb.setMessage(Component.literal(path(currentFolder)));
         breadcrumb.setTooltip(Tooltip.create(tr("root_folder_hint", path(currentFolder))));
         int offset = page * layout.rowCount();
         int x = layout.listX(), listWidth = layout.listWidth();
-        if (selectedTab == 0) {
+        if (selectedTab != 2) {
             List<Entry> visible = visibleEntries();
             for (int row = 0; row < layout.rowCount() && offset + row < visible.size(); row++) {
                 Entry entry = visible.get(offset + row);
                 int y = layout.rowsY() + row * YamatoScreenLayout.ROW_HEIGHT;
-                Component detail = entry.folder ? tr("folder") : Component.literal(entry.dimension + " · " + coordinates(entry.x, entry.y, entry.z));
-                row(new EntryButton(x, y, listWidth - 32, Component.literal(entry.name), detail,
+                String location = entry.dimension + " · " + coordinates(entry.x, entry.y, entry.z);
+                Component detail = entry.folder ? tr("folder") : Component.literal(selectedTab == 1
+                        ? HISTORY_TIME.format(Instant.ofEpochMilli(entry.created)) + " · " + location : location);
+                Component tooltip = entry.folder ? tr("open_folder_hint", entry.name)
+                        : tr("travel_hint", entry.name, entry.dimension, coordinates(entry.x, entry.y, entry.z));
+                if (selectedTab == 1) tooltip = Component.empty().append(tooltip).append("\n")
+                        .append(tr("history_time", HISTORY_TIME.format(Instant.ofEpochMilli(entry.created))));
+                boolean selected = entry.id.equals(firstPoint);
+                row(new EntryButton(x, y, selectedTab == 0 ? listWidth - 32 : listWidth,
+                        selected ? tr("pair_selected_row", entry.name) : Component.literal(entry.name), detail,
                         b -> { if (entry.folder) openFolder(entry.id.toString()); else travel(entry); },
-                        entry.folder ? tr("open_folder_hint", entry.name) : tr("travel_hint", entry.name, entry.dimension, coordinates(entry.x, entry.y, entry.z))));
-                row(Button.builder(tr("edit_short"), b -> show(new EditScreen(this, entry)))
-                        .bounds(x + listWidth - 28, y, 28, 32).tooltip(Tooltip.create(tr("edit_hint", entry.name))).build());
+                        entry.folder ? null : () -> selectPoint(entry), selected, tooltip));
+                if (selectedTab == 0) row(Button.builder(tr("edit_short"), b -> show(new EditScreen(this, entry)))
+                            .bounds(x + listWidth - 28, y, 28, 32).tooltip(Tooltip.create(tr("edit_hint", entry.name))).build());
             }
-            if (!layout.sidebar()) {
+            if (!layout.sidebar() && selectedTab == 0) {
                 row(Button.builder(tr("save_short"), b -> create(false)).bounds(x, layout.footerY(), 84, 20)
                         .tooltip(Tooltip.create(tr("save_current_hint"))).build());
                 row(Button.builder(tr("new_folder"), b -> create(true)).bounds(x + 88, layout.footerY(), 84, 20).build());
@@ -291,7 +367,7 @@ public final class YamatoTravelScreen extends Screen {
                 int y = layout.rowsY() + row * YamatoScreenLayout.ROW_HEIGHT;
                 row(new EntryButton(x, y, listWidth - 50, Component.literal(rift.name),
                         Component.empty().append(remaining(rift)).append(" · " + rift.targetDimension),
-                        b -> show(new RiftDetailsScreen(this, rift)), tr("rift_details_hint")));
+                        b -> show(new RiftDetailsScreen(this, rift)), null, false, tr("rift_details_hint")));
                 row(Button.builder(tr("close_rift_short"), b -> request("close", identifier(rift.id)))
                         .bounds(x + listWidth - 46, y, 46, 32).tooltip(Tooltip.create(tr("close_rift_hint"))).build());
             }
@@ -317,6 +393,29 @@ public final class YamatoTravelScreen extends Screen {
         request("travel", identifier(entry.id));
     }
 
+    /** 始点はUUIDで保持し、タブ・フォルダー移動や定期更新で名前から取り違えない。 */
+    private void selectPoint(Entry entry) {
+        if (entry.folder) return;
+        if (firstPoint == null || findPoint(firstPoint) == null) {
+            firstPoint = entry.id;
+            refreshRows();
+            return;
+        }
+        if (firstPoint.equals(entry.id)) {
+            firstPoint = null;
+            refreshRows();
+            return;
+        }
+        if (!applySettings()) {
+            if (!layout.sidebar()) show(new SettingsScreen(this));
+            return;
+        }
+        CompoundTag data = identifier(firstPoint);
+        data.putUUID("second", entry.id);
+        if (minecraft != null) minecraft.setScreen(null);
+        request("travel_pair", data);
+    }
+
     private boolean applySettings() {
         Integer seconds = validSeconds();
         if (seconds == null) return false;
@@ -327,7 +426,8 @@ public final class YamatoTravelScreen extends Screen {
         data.putInt("access", draftAccess);
         data.putInt("lifetime", draftLifetime);
         data.putInt("seconds", seconds);
-        pendingSettings = new int[]{draftAccess, draftLifetime, seconds};
+        data.putDouble("size", draftSize);
+        pendingSettings = new SettingsDraft(draftAccess, draftLifetime, seconds, draftSize);
         request("settings", data);
         return true;
     }
@@ -396,28 +496,31 @@ public final class YamatoTravelScreen extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics, mouseX, mouseY, partialTick);
+    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        super.renderBackground(graphics, mouseX, mouseY, partialTick);
         panel(graphics, layout.left(), layout.top(), layout.width(), layout.height());
-        graphics.drawString(font, title, layout.left() + 8, layout.top() + 10, ACCENT, false);
         graphics.fill(layout.listX(), layout.rowsY() - 1, layout.listX() + layout.listWidth(), layout.footerY() - 3, 0xA00A1020);
         if (layout.sidebar()) {
             graphics.fill(layout.sideX(), layout.top() + 27, layout.sideX() + layout.sideWidth(), layout.top() + layout.height() - 5, 0xA00A1020);
-            sidebarControls.renderLabels(graphics);
-            int hintY = layout.folderY() + 28;
-            int hintHeight = font.split(tr("settings_auto_hint"), layout.sideWidth() - 8).size() * 10;
-            if (hintY + hintHeight <= layout.top() + layout.height() - 8) {
-                drawWrapped(graphics, tr("settings_auto_hint"), layout.sideX() + 4, hintY, layout.sideWidth() - 8, MUTED);
-            }
         }
-        if (selectedTab == 1) graphics.drawString(font, shortened(tr("active_hint"), layout.listWidth() - 6),
-                layout.listX() + 3, layout.top() + 59, MUTED, false);
-        boolean empty = selectedTab == 0 ? visibleEntries().isEmpty() : rifts.isEmpty();
-        if (empty) drawWrapped(graphics, tr(selectedTab == 0 ? "empty_destinations" : "empty_rifts"),
+    }
+
+    @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // 1.21.1のScreen.renderが背景をぼかすため、すべての文字はその呼び出し後に描く。
+        super.render(graphics, mouseX, mouseY, partialTick);
+        graphics.drawString(font, title, layout.left() + 8, layout.top() + 10, ACCENT, false);
+        if (sidebarControls != null) sidebarControls.renderLabels(graphics);
+        boolean empty = selectedTab != 2 ? visibleEntries().isEmpty() : rifts.isEmpty();
+        String emptyKey = switch (selectedTab) {
+            case 0 -> "empty_destinations";
+            case 1 -> "empty_history";
+            default -> "empty_rifts";
+        };
+        if (empty) drawWrapped(graphics, tr(emptyKey),
                 layout.listX() + 12, layout.rowsY() + 18, layout.listWidth() - 24, MUTED);
         graphics.drawCenteredString(font, Component.literal((page + 1) + "/" + pageCount()),
                 layout.listX() + layout.listWidth() - 43, layout.footerY() + 6, MUTED);
-        super.render(graphics, mouseX, mouseY, partialTick);
         for (YamatoDropdown dropdown : dropdowns()) dropdown.renderMenu(graphics, mouseX, mouseY, width, height);
     }
 
@@ -456,26 +559,49 @@ public final class YamatoTravelScreen extends Screen {
     private record Entry(UUID id, String parent, String name, boolean folder, String dimension,
                          double x, double y, double z, long created) {}
 
+    private record SettingsDraft(int access, int lifetime, int seconds, double size) {}
+
     private record Rift(UUID id, String name, String sourceDimension, double sourceX, double sourceY, double sourceZ,
                         String targetDimension, double targetX, double targetY, double targetZ,
                         int lifetime, int seconds, int remaining) {}
 
     private static final class EntryButton extends Button {
         private final Component detail;
+        private final Runnable secondaryAction;
+        private final boolean selected;
 
-        private EntryButton(int x, int y, int width, Component name, Component detail, OnPress action, Component tooltip) {
+        private EntryButton(int x, int y, int width, Component name, Component detail, OnPress action,
+                            Runnable secondaryAction, boolean selected, Component tooltip) {
             super(x, y, width, 32, name, action, DEFAULT_NARRATION);
             this.detail = detail;
+            this.secondaryAction = secondaryAction;
+            this.selected = selected;
             setTooltip(Tooltip.create(tooltip));
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT && secondaryAction != null && active && visible
+                    && clicked(mouseX, mouseY)) {
+                playDownSound(Minecraft.getInstance().getSoundManager());
+                secondaryAction.run();
+                return true;
+            }
+            return super.mouseClicked(mouseX, mouseY, button);
         }
 
         @Override
         protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
             var font = Minecraft.getInstance().font;
-            graphics.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight(), isHoveredOrFocused() ? 0xFF344963 : 0xFF202D42);
-            if (isFocused()) {
+            graphics.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight(),
+                    selected ? 0xFF3C587A : isHoveredOrFocused() ? 0xFF344963 : 0xFF202D42);
+            if (isFocused() || selected) {
                 graphics.fill(getX(), getY(), getX() + getWidth(), getY() + 1, ACCENT);
                 graphics.fill(getX(), getY() + getHeight() - 1, getX() + getWidth(), getY() + getHeight(), ACCENT);
+            }
+            if (selected) {
+                graphics.fill(getX(), getY(), getX() + 2, getY() + getHeight(), ACCENT);
+                graphics.fill(getX() + getWidth() - 2, getY(), getX() + getWidth(), getY() + getHeight(), ACCENT);
             }
             graphics.drawString(font, font.plainSubstrByWidth(getMessage().getString(), getWidth() - 12), getX() + 6, getY() + 5, TEXT, false);
             graphics.drawString(font, font.plainSubstrByWidth(detail.getString(), getWidth() - 12), getX() + 6, getY() + 19, MUTED, false);
@@ -490,23 +616,25 @@ public final class YamatoTravelScreen extends Screen {
         private final YamatoDropdown access;
         private final YamatoDropdown lifetime;
         private final EditBox seconds;
+        private final SizeSlider size;
         private final Button apply;
 
-        private SettingsControls(Consumer<AbstractWidget> add, int x, int y, int width, int step, int offset, int applyY) {
+        private SettingsControls(Consumer<AbstractWidget> add, int x, int y, int width, int step, int offset,
+                                 int controlHeight, int applyY, int actionHeight) {
             this.x = x;
             this.y = y;
             this.width = width;
             this.step = step;
-            access = new YamatoDropdown(x, y + offset, width, options("access", 4), draftAccess, tr("access_hint"), value -> {
+            access = new YamatoDropdown(x, y + offset, width, controlHeight, options("access", 7), draftAccess, tr("access_hint"), value -> {
                 draftAccess = value;
                 settingsEdited = true;
             });
-            lifetime = new YamatoDropdown(x, y + step + offset, width, options("lifetime", 3), draftLifetime, tr("lifetime_hint"), value -> {
+            lifetime = new YamatoDropdown(x, y + step + offset, width, controlHeight, options("lifetime", 3), draftLifetime, tr("lifetime_hint"), value -> {
                 draftLifetime = value;
                 settingsEdited = true;
                 updateButtons();
             });
-            seconds = new EditBox(font, x, y + step * 2 + offset, width, 20, tr("seconds"));
+            seconds = new EditBox(font, x, y + step * 2 + offset, width, controlHeight, tr("seconds"));
             seconds.setMaxLength(3);
             seconds.setFilter(text -> text.matches("[0-9]{0,3}"));
             seconds.setValue(draftSeconds);
@@ -517,11 +645,13 @@ public final class YamatoTravelScreen extends Screen {
                 updateButtons();
             });
             seconds.setTooltip(Tooltip.create(tr("seconds_hint")));
-            apply = Button.builder(tr("apply_settings"), b -> applySettings()).bounds(x, applyY, width, 20)
+            size = new SizeSlider(x, y + step * 3 + offset, width, controlHeight);
+            apply = Button.builder(tr("apply_settings"), b -> applySettings()).bounds(x, applyY, width, actionHeight)
                     .tooltip(Tooltip.create(tr("settings_auto_hint"))).build();
             add.accept(access);
             add.accept(lifetime);
             add.accept(seconds);
+            add.accept(size);
             add.accept(apply);
             updateButtons();
         }
@@ -535,6 +665,7 @@ public final class YamatoTravelScreen extends Screen {
             access.setValue(draftAccess);
             lifetime.setValue(draftLifetime);
             if (!seconds.getValue().equals(draftSeconds)) seconds.setValue(draftSeconds);
+            size.sync();
             applyingSnapshot = false;
             updateButtons();
         }
@@ -549,6 +680,49 @@ public final class YamatoTravelScreen extends Screen {
             graphics.drawString(font, shortened(tr("access_label"), width), x, y, MUTED, false);
             graphics.drawString(font, shortened(tr("lifetime_label"), width), x, y + step, MUTED, false);
             graphics.drawString(font, shortened(tr("seconds"), width), x, y + step * 2, MUTED, false);
+            graphics.drawString(font, shortened(tr("size_label"), width), x, y + step * 3, MUTED, false);
+        }
+    }
+
+    /** 0.1刻みに丸め、マウスと矢印キーのどちらでも既定の1.0倍へ戻せる。 */
+    private final class SizeSlider extends AbstractSliderButton {
+        private SizeSlider(int x, int y, int width, int height) {
+            super(x, y, width, height, Component.empty(), (draftSize - 0.5) / 4.5);
+            setTooltip(Tooltip.create(tr("size_hint")));
+            updateMessage();
+        }
+
+        private void sync() {
+            value = (draftSize - 0.5) / 4.5;
+            updateMessage();
+        }
+
+        @Override
+        protected void updateMessage() {
+            setMessage(tr("size_multiplier", String.format(Locale.ROOT, "%.1f", draftSize)));
+        }
+
+        @Override
+        protected void applyValue() {
+            changeSize(Math.round((0.5 + value * 4.5) * 10.0) / 10.0);
+        }
+
+        private void changeSize(double multiplier) {
+            double selectedSize = Math.max(0.5, Math.min(5.0, multiplier));
+            if (draftSize != selectedSize) {
+                draftSize = selectedSize;
+                settingsEdited = true;
+            }
+            sync();
+        }
+
+        @Override
+        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+            if (isFocused() && (keyCode == GLFW.GLFW_KEY_LEFT || keyCode == GLFW.GLFW_KEY_RIGHT)) {
+                changeSize(Math.round(draftSize * 10.0 + (keyCode == GLFW.GLFW_KEY_LEFT ? -1 : 1)) / 10.0);
+                return true;
+            }
+            return super.keyPressed(keyCode, scanCode, modifiers);
         }
     }
 
@@ -594,8 +768,9 @@ public final class YamatoTravelScreen extends Screen {
             if (!hasBlade() && minecraft != null) minecraft.setScreen(null);
         }
 
-        protected void background(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            renderBackground(graphics, mouseX, mouseY, partialTick);
+        @Override
+        public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+            super.renderBackground(graphics, mouseX, mouseY, partialTick);
             panel(graphics, panelX, panelY, panelWidth, panelHeight);
             graphics.drawCenteredString(font, title, width / 2, panelY + 12, ACCENT);
         }
@@ -610,9 +785,12 @@ public final class YamatoTravelScreen extends Screen {
 
         @Override
         protected void init() {
-            sizePanel(344, 238);
+            sizePanel(344, 282);
+            int step = panelHeight < 230 ? 27 : 36;
+            int controlHeight = step == 27 ? 17 : 20;
+            int actionHeight = step == 27 ? 18 : 20;
             controls = parent.new SettingsControls(this::addRenderableWidget, panelX + 12, panelY + 26, panelWidth - 24,
-                    40, 12, panelY + 148);
+                    step, step == 27 ? 10 : 12, controlHeight, panelY + 28 + step * 4, actionHeight);
             addRenderableWidget(Button.builder(tr("done"), b -> onClose())
                     .bounds(panelX + 12, panelY + panelHeight - 28, panelWidth - 24, 20)
                     .tooltip(Tooltip.create(tr("settings_auto_hint"))).build());
@@ -640,10 +818,8 @@ public final class YamatoTravelScreen extends Screen {
 
         @Override
         public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            background(graphics, mouseX, mouseY, partialTick);
-            controls.renderLabels(graphics);
-            if (panelHeight >= 238) parent.drawWrapped(graphics, tr("settings_auto_hint"), panelX + 12, panelY + 174, panelWidth - 24, MUTED);
             super.render(graphics, mouseX, mouseY, partialTick);
+            controls.renderLabels(graphics);
             for (YamatoDropdown dropdown : controls.dropdowns()) dropdown.renderMenu(graphics, mouseX, mouseY, width, height);
         }
     }
@@ -700,11 +876,10 @@ public final class YamatoTravelScreen extends Screen {
 
         @Override
         public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            background(graphics, mouseX, mouseY, partialTick);
+            super.render(graphics, mouseX, mouseY, partialTick);
             graphics.drawString(font, tr("name"), panelX + 12, panelY + 42, MUTED, false);
             graphics.drawString(font, font.plainSubstrByWidth(tr("save_in_folder", parent.path(targetParent)).getString(), panelWidth - 24),
                     panelX + 12, panelY + 88, MUTED, false);
-            super.render(graphics, mouseX, mouseY, partialTick);
         }
     }
 
@@ -799,12 +974,11 @@ public final class YamatoTravelScreen extends Screen {
 
         @Override
         public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            background(graphics, mouseX, mouseY, partialTick);
+            super.render(graphics, mouseX, mouseY, partialTick);
             graphics.drawString(font, tr("name"), panelX + 12, panelY + 31, MUTED, false);
             graphics.drawString(font, tr("folder_location"), panelX + 12, panelY + 70, MUTED, false);
             graphics.drawString(font, tr("manual_order"), panelX + 12, panelY + 109, MUTED, false);
             if (panelHeight >= 218) graphics.drawString(font, font.plainSubstrByWidth(tr("manual_hint").getString(), panelWidth - 24), panelX + 12, panelY + 147, MUTED, false);
-            super.render(graphics, mouseX, mouseY, partialTick);
         }
     }
 
@@ -875,10 +1049,9 @@ public final class YamatoTravelScreen extends Screen {
 
         @Override
         public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            background(graphics, mouseX, mouseY, partialTick);
+            super.render(graphics, mouseX, mouseY, partialTick);
             if (folders().isEmpty()) parent.drawWrapped(graphics, tr("empty_folders"), panelX + 12, panelY + 68, panelWidth - 24, MUTED);
             graphics.drawString(font, tr("page", page + 1, Math.max(1, (folders().size() + rows - 1) / rows)), panelX + 12, panelY + panelHeight - 55, MUTED, false);
-            super.render(graphics, mouseX, mouseY, partialTick);
         }
     }
 
@@ -904,10 +1077,9 @@ public final class YamatoTravelScreen extends Screen {
 
         @Override
         public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            background(graphics, mouseX, mouseY, partialTick);
+            super.render(graphics, mouseX, mouseY, partialTick);
             parent.drawWrapped(graphics, tr("delete_prompt", entry.name), panelX + 12, panelY + 44, panelWidth - 24, TEXT);
             if (entry.folder) parent.drawWrapped(graphics, tr("delete_folder_warning"), panelX + 12, panelY + 94, panelWidth - 24, 0xFFFFAAAA);
-            super.render(graphics, mouseX, mouseY, partialTick);
         }
     }
 
@@ -933,7 +1105,7 @@ public final class YamatoTravelScreen extends Screen {
 
         @Override
         public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            background(graphics, mouseX, mouseY, partialTick);
+            super.render(graphics, mouseX, mouseY, partialTick);
             Rift rift = parent.rifts.stream().filter(current -> current.id.equals(riftId)).findFirst().orElse(original);
             graphics.drawString(font, font.plainSubstrByWidth(rift.name, panelWidth - 24), panelX + 12, panelY + 35, TEXT, false);
             graphics.drawString(font, tr("source"), panelX + 12, panelY + 57, ACCENT, false);
@@ -943,7 +1115,6 @@ public final class YamatoTravelScreen extends Screen {
             graphics.drawString(font, font.plainSubstrByWidth(rift.targetDimension, panelWidth - 24), panelX + 12, panelY + 121, TEXT, false);
             graphics.drawString(font, coordinates(rift.targetX, rift.targetY, rift.targetZ), panelX + 12, panelY + 134, MUTED, false);
             graphics.drawString(font, parent.remaining(rift), panelX + 12, panelY + 159, TEXT, false);
-            super.render(graphics, mouseX, mouseY, partialTick);
         }
     }
 }

@@ -2,20 +2,28 @@ package dev.ssscfw.venusmod.compat;
 
 import com.mojang.logging.LogUtils;
 import dev.ssscfw.venusmod.VenusMod;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.attachment.AttachmentType;
+import net.neoforged.neoforge.registries.NeoForgeRegistries;
 import net.neoforged.neoforge.registries.RegisterEvent;
 import org.slf4j.Logger;
 
@@ -27,6 +35,8 @@ public final class YamatoCompat {
     private static final ResourceLocation COMBO_REGISTRY = slashBlade("combo_state");
     private static final ResourceLocation NONE = slashBlade("none");
     private static final ResourceLocation BLADE_MOTION = slashBlade("combostate/motion.vmd");
+    private static final ResourceLocation SLASH_EFFECT = slashBlade("slash_effect");
+    private static final ResourceLocation CONCENTRATION = slashBlade("concentration");
 
     public static final ResourceLocation HORIZONTAL_COMBO = venus("yamato_rift_horizontal");
     public static final ResourceLocation VERTICAL_COMBO = venus("yamato_rift_vertical");
@@ -40,6 +50,7 @@ public final class YamatoCompat {
 
     private static boolean identityLookupDone;
     private static boolean motionLookupDone;
+    private static boolean effectLookupDone;
     private static boolean cutMotionsRegistered;
     private static boolean failureLogged;
     private static Class<?> bladeItemClass;
@@ -51,6 +62,14 @@ public final class YamatoCompat {
     private static Method getComboSeq;
     private static Method setComboSeq;
     private static Method setLastActionTime;
+    private static Constructor<? extends Projectile> slashEffectConstructor;
+    private static Method getColorCode;
+    private static Method getRankLevel;
+    private static Method setEffectDamage;
+    private static Method setEffectLifetime;
+    private static Method setEffectRoll;
+    private static Method setEffectColor;
+    private static Method setEffectRank;
 
     private YamatoCompat() {}
 
@@ -74,6 +93,41 @@ public final class YamatoCompat {
         if (entity == null) return ItemStack.EMPTY;
         if (isYamato(entity.getMainHandItem())) return entity.getMainHandItem();
         return isYamato(entity.getOffhandItem()) ? entity.getOffhandItem() : ItemStack.EMPTY;
+    }
+
+    /**
+     * SlashBladeの既存斬撃Rendererへ渡す、描画専用のEntitySlashEffectを作る。
+     * Levelへ追加せずtickも呼ばない。所有者なし・damage=0を保ち、攻撃、反射、
+     * ノックバック、着地粒子などを持つ通常の斬撃処理へは入らない。
+     */
+    public static Entity createClientCutEffect(LivingEntity player, InteractionHand hand, int stage) {
+        if (player == null || !player.level().isClientSide || hand == null || stage < 0 || stage > 1
+                || !isYamato(player.getItemInHand(hand)) || !resolveEffect()
+                || !BuiltInRegistries.ENTITY_TYPE.containsKey(SLASH_EFFECT)) return null;
+        try {
+            EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(SLASH_EFFECT);
+            if (type == null) return null;
+            Projectile effect = slashEffectConstructor.newInstance(type, player.level());
+            effect.setOwner(null);
+            effect.setSilent(true);
+            effect.noPhysics = true;
+            setEffectDamage.invoke(effect, 0.0D);
+            setEffectLifetime.invoke(effect, duration(stage) - cutWindup(stage));
+            // 既存斬撃のroll=0は横一閃、roll=90は同じ軌道を上から下へ回転したもの。
+            setEffectRoll.invoke(effect, stage == 1 ? 90.0F : 0.0F);
+            Object state = bladeState(player.getItemInHand(hand).copyWithCount(1));
+            if (state != null) setEffectColor.invoke(effect, ((Number) getColorCode.invoke(state)).intValue());
+            AttachmentType<?> attachment = NeoForgeRegistries.ATTACHMENT_TYPES.get(CONCENTRATION);
+            Object rank = attachment == null ? null : player.getExistingData(attachment).orElse(null);
+            if (rank != null) {
+                setEffectRank.invoke(effect,
+                        ((Number) getRankLevel.invoke(rank, player.level().getGameTime())).floatValue());
+            }
+            return effect;
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException exception) {
+            logFailureOnce("抜刀剣の既存斬撃を描画できないため刀身モーションのみを使います", exception);
+            return null;
+        }
     }
 
     /**
@@ -168,6 +222,10 @@ public final class YamatoCompat {
         return stage == 1 ? OPEN_TICK - SECOND_CUT_TICK : SECOND_CUT_TICK;
     }
 
+    public static int cutWindup(int stage) {
+        return stage == 1 ? 3 : 2;
+    }
+
     public static int startFrame(int stage) {
         return stage == 1 ? VERTICAL_START_FRAME : HORIZONTAL_START_FRAME;
     }
@@ -237,6 +295,31 @@ public final class YamatoCompat {
         } catch (ReflectiveOperationException | LinkageError | RuntimeException exception) {
             updateComboSeq = null;
             logFailureOnce("抜刀剣のモーションAPIを初期化できませんでした", exception);
+            return false;
+        }
+    }
+
+    private static boolean resolveEffect() {
+        if (!resolveIdentity()) return false;
+        if (effectLookupDone) return slashEffectConstructor != null;
+        effectLookupDone = true;
+        try {
+            Class<? extends Projectile> effect = Class.forName("mods.flammpfeil.slashblade.entity.EntitySlashEffect")
+                    .asSubclass(Projectile.class);
+            Class<?> state = Class.forName("mods.flammpfeil.slashblade.capability.slashblade.ISlashBladeState");
+            Class<?> rank = Class.forName("mods.flammpfeil.slashblade.capability.concentrationrank.IConcentrationRank");
+            getColorCode = state.getMethod("getColorCode");
+            getRankLevel = rank.getMethod("getRankLevel", long.class);
+            setEffectDamage = effect.getMethod("setDamage", double.class);
+            setEffectLifetime = effect.getMethod("setLifetime", int.class);
+            setEffectRoll = effect.getMethod("setRotationRoll", float.class);
+            setEffectColor = effect.getMethod("setColor", int.class);
+            setEffectRank = effect.getMethod("setRank", float.class);
+            slashEffectConstructor = effect.getConstructor(EntityType.class, Level.class);
+            return true;
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException exception) {
+            slashEffectConstructor = null;
+            logFailureOnce("抜刀剣の既存斬撃描画APIを初期化できませんでした", exception);
             return false;
         }
     }

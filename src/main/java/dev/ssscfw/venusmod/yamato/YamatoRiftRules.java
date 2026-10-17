@@ -14,11 +14,19 @@ public final class YamatoRiftRules {
     private YamatoRiftRules() {}
 
     public static boolean canEnter(int access, boolean owner, boolean player, boolean friendlyMob) {
+        return canEnter(access,owner,player,friendlyMob,false,false);
+    }
+
+    public static boolean canEnter(int access, boolean owner, boolean player, boolean friendlyMob,
+                                   boolean item, boolean experience) {
         return switch (access) {
             case 0 -> owner && player;
             case 1 -> player;
             case 2 -> player || friendlyMob;
             case 3 -> true;
+            case 4 -> item;
+            case 5 -> experience;
+            case 6 -> item || experience;
             default -> false;
         };
     }

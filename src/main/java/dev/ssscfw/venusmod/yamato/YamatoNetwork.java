@@ -44,7 +44,7 @@ public final class YamatoNetwork {
     }
 
     private static void registerPayloads(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("1");
+        var registrar = event.registrar("2");
         registrar.playToServer(ActionPayload.TYPE, ActionPayload.CODEC, (payload, context) ->
                 context.enqueueWork(() -> {
                     if (context.player() instanceof ServerPlayer player) handle(player, payload);
@@ -79,6 +79,7 @@ public final class YamatoNetwork {
                 sendBook(player, action.equals("open"));
             }
             case "travel" -> rifts.requestTravel(player, readId(request));
+            case "travel_pair" -> rifts.requestTravelPair(player, readId(request), readId(request,"second"));
             case "save", "folder", "rename", "move", "reorder", "delete", "settings", "sort" -> {
                 if (!YamatoTravelData.get(player.server).apply(player, action, request))
                     message(player, "invalid_request");
@@ -89,8 +90,12 @@ public final class YamatoNetwork {
     }
 
     public static java.util.UUID readId(CompoundTag tag) {
-        if (tag.hasUUID("id")) return tag.getUUID("id");
-        return YamatoTravelRules.parseId(tag.getString("id"));
+        return readId(tag,"id");
+    }
+
+    public static java.util.UUID readId(CompoundTag tag,String key) {
+        if (tag.hasUUID(key)) return tag.getUUID(key);
+        return YamatoTravelRules.parseId(tag.getString(key));
     }
 
     public static void sendBook(ServerPlayer player, boolean open) {
