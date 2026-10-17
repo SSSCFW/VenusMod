@@ -193,18 +193,73 @@ public final class YamatoRiftGameTests {
     }
 
     @GameTest(template = "test/wide_empty")
-    public static void openingRequiresRoomForEntirePortal(GameTestHelper h) {
+    public static void openingOverlappingCeilingStillRejectsWorldBorder(GameTestHelper h) {
         var level=h.getLevel();var server=level.getServer();var data=new YamatoRifts();
         Vec3 a=Vec3.atBottomCenterOf(h.absolutePos(new BlockPos(2,3,2))),b=a.add(6,0,0);
         BlockPos ceiling=BlockPos.containing(b.add(0,2,0));
         level.setBlock(ceiling,Blocks.STONE.defaultBlockState(),3);
         h.assertTrue(data.openPair(UUID.randomUUID(),"low ceiling",YamatoRifts.Endpoint.at(level,a,0),
-                YamatoRifts.Endpoint.at(level,b,0),3,2,1,server)==null,"Portal was created through a low ceiling");
-        level.setBlock(ceiling,Blocks.AIR.defaultBlockState(),3);
+                YamatoRifts.Endpoint.at(level,b,0),3,2,1,server)!=null,
+                "Portal should open despite overlapping a solid ceiling");
+        h.assertTrue(level.getBlockState(ceiling).is(Blocks.STONE),
+                "Opening the portal must not destroy blocks");
         double edge=level.getWorldBorder().getMaxX();
         Vec3 outside=a.add(edge-.4-a.x,0,0);
         h.assertTrue(data.openPair(UUID.randomUUID(),"border",YamatoRifts.Endpoint.at(level,a,0),
                 YamatoRifts.Endpoint.at(level,outside,0),3,2,1,server)==null,"Portal extended outside world border");
+        data.releaseTickets(server);h.succeed();
+    }
+
+    @GameTest(template = "test/wide_empty")
+    public static void fullyEmbeddedPairOpensWithoutChangingBlocks(GameTestHelper h) {
+        var level=h.getLevel();var server=level.getServer();var data=new YamatoRifts();
+        UUID owner=UUID.randomUUID();
+        Vec3 a=Vec3.atBottomCenterOf(h.absolutePos(new BlockPos(2,3,2))),b=a.add(6,0,0);
+        BlockPos wallA=BlockPos.containing(a),wallB=BlockPos.containing(b);
+        // 各端の水平・垂直投影を固体で塞ぎ、生成の可否だけを検証する。
+        for(int x=-1;x<=1;x++)for(int y=0;y<=3;y++) {
+            level.setBlock(wallA.offset(x,y,0),Blocks.STONE.defaultBlockState(),3);
+            level.setBlock(wallB.offset(x,y,0),Blocks.STONE.defaultBlockState(),3);
+        }
+        var pair=data.openPair(owner,"embedded",YamatoRifts.Endpoint.at(level,a,0),
+                YamatoRifts.Endpoint.at(level,b,0),3,2,1,server);
+        h.assertTrue(pair!=null,"Even fully embedded source and destination should open");
+        h.assertTrue(data.active(owner,server).size()==1,"Both portals must belong to the same active pair");
+        for(int x=-1;x<=1;x++)for(int y=0;y<=3;y++) {
+            h.assertTrue(level.getBlockState(wallA.offset(x,y,0)).is(Blocks.STONE),
+                    "Opening the buried source destroyed blocks");
+            h.assertTrue(level.getBlockState(wallB.offset(x,y,0)).is(Blocks.STONE),
+                    "Opening the buried destination destroyed blocks");
+        }
+        data.releaseTickets(server);h.succeed();
+    }
+
+    @GameTest(template = "test/wide_empty")
+    public static void embeddedOpeningKeepsTransferSafeUntilExitIsCleared(GameTestHelper h) {
+        var level=h.getLevel();var server=level.getServer();var data=new YamatoRifts();
+        Vec3 a=Vec3.atBottomCenterOf(h.absolutePos(new BlockPos(2,3,2))),b=a.add(6,0,0);
+        // Sourceの縁を一部埋め、Destinationの着地点を完全に塞いでから対を開く。
+        BlockPos sourceEdge=BlockPos.containing(a.add(1,1,0));
+        BlockPos destinationFeet=BlockPos.containing(b);
+        BlockPos destinationHead=destinationFeet.above();
+        level.setBlock(sourceEdge,Blocks.STONE.defaultBlockState(),3);
+        level.setBlock(destinationFeet,Blocks.STONE.defaultBlockState(),3);
+        level.setBlock(destinationHead,Blocks.STONE.defaultBlockState(),3);
+        var pair=data.openPair(UUID.randomUUID(),"embedded exit",YamatoRifts.Endpoint.at(level,a,0),
+                YamatoRifts.Endpoint.at(level,b,0),3,2,1,server);
+        h.assertTrue(pair!=null,"A blocked destination must not prevent portal creation");
+        Pig pig=h.spawn(EntityType.PIG,new BlockPos(2,3,2));
+        pig.setNoAi(true);pig.setNoGravity(true);pig.moveTo(a.x,a.y,a.z,0,0);
+        data.tick(server,level.getGameTime()+7);
+        h.assertTrue(pig.position().distanceToSqr(a)<.01,
+                "Portal teleported entity into destination's solid blocks");
+        h.assertTrue(level.getBlockState(sourceEdge).is(Blocks.STONE),
+                "Opening an embedded portal destroyed a source block");
+        level.setBlock(destinationFeet,Blocks.AIR.defaultBlockState(),3);
+        level.setBlock(destinationHead,Blocks.AIR.defaultBlockState(),3);
+        data.tick(server,level.getGameTime()+8);
+        h.assertTrue(pig.position().distanceToSqr(b)<.01,
+                "Existing portal did not become usable after its destination was cleared");
         data.releaseTickets(server);h.succeed();
     }
 

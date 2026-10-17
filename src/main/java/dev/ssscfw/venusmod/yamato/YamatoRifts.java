@@ -114,7 +114,7 @@ public final class YamatoRifts extends SavedData {
         if (target == null || level(player.server, target) == null) {
             YamatoNetwork.message(player, "missing_dimension"); return;
         }
-        if (source == null || !clearSite(player.server, source) || !clearSite(player.server, target)) {
+        if (source == null || !validOpeningSite(player.server, source) || !validOpeningSite(player.server, target)) {
             YamatoNetwork.message(player, "obstructed"); return;
         }
         InteractionHand hand = player.getMainHandItem() == stack ? InteractionHand.MAIN_HAND : InteractionHand.OFF_HAND;
@@ -166,7 +166,7 @@ public final class YamatoRifts extends SavedData {
         if (owner == null || source == null || target == null || access < 0 || access > 6
                 || lifetime < 0 || lifetime > 2 || seconds < 1 || seconds > 180
                 || ownedCount(owner) >= MAX_ACTIVE_PER_PLAYER
-                || !clearSite(server, source) || !clearSite(server, target)
+                || !validOpeningSite(server, source) || !validOpeningSite(server, target)
                 || source.dimension.equals(target.dimension) && source.feet.distanceToSqr(target.feet) < 1) return null;
         long now = server.overworld().getGameTime();
         Pair pair = new Pair(UUID.randomUUID(), owner, name, source, target, access, lifetime, seconds, now);
@@ -373,26 +373,21 @@ public final class YamatoRifts extends SavedData {
             if(Math.abs(pitch)<.001F)center=new Vec3(center.x,player.getY()+halfY,center.z);
             Vec3 feet=center.subtract(0,halfY,0);
             Endpoint result=Endpoint.at(player.serverLevel(),feet,yaw,pitch,size);
-            if (clearSite(player.server, result)) return result;
+            if (validOpeningSite(player.server, result)) return result;
         }
         return null;
     }
 
-    private static boolean clearSite(MinecraftServer server, Endpoint endpoint) {
+    /** 裂け目はブロックに重なっても生成可能。実際の転送先の安全性はsafeGroupで別途判定する。 */
+    private static boolean validOpeningSite(MinecraftServer server, Endpoint endpoint) {
         ServerLevel level = level(server, endpoint);
         if (level == null || !validPosition(endpoint.feet, endpoint.yaw)
                 || !Float.isFinite(endpoint.pitch)||Math.abs(endpoint.pitch)>90
                 || !Double.isFinite(endpoint.size)||endpoint.size<.5||endpoint.size>5) return false;
         AABB playerSpace = new AABB(endpoint.feet.x-.31, endpoint.feet.y, endpoint.feet.z-.31,
                 endpoint.feet.x+.31, endpoint.feet.y+1.85, endpoint.feet.z+.31);
-        AABB portalSpace = endpoint.bounds();
-        if (!withinBounds(level, playerSpace) || !withinBounds(level, portalSpace)) return false;
-        loadChunks(level, portalSpace.minmax(playerSpace));
-        if(!level.noCollision(null,playerSpace))return false;
-        // 斜めの面や内側へ曲がった隅を、外接AABB全体で塞がっていると判定しない。
-        for(var shape:level.getBlockCollisions(null,portalSpace))
-            for(AABB box:shape.toAabbs())if(touching(box,endpoint,1))return false;
-        return true;
+        // 高さ制限・ワールド境界は維持するが、岩盤・壁・床などのブロック占有状態では拒否しない。
+        return withinBounds(level, playerSpace) && withinBounds(level, endpoint.bounds());
     }
 
     /** 乗車位置の回転範囲と転送直後の同一点配置を両方確認する。壁際で乗客だけ埋まることを防ぐ。 */
