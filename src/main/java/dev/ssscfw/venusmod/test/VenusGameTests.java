@@ -2,6 +2,7 @@ package dev.ssscfw.venusmod.test;
 
 import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.entity.VenusGeneral;
+import dev.ssscfw.venusmod.entity.VenusZombie;
 import dev.ssscfw.venusmod.world.VenusDimensionContent;
 import dev.ssscfw.venusmod.world.VenusPortalFrame;
 import net.minecraft.core.BlockPos;
@@ -41,6 +42,28 @@ public final class VenusGameTests {
                 "Venus General must register interaction range for SlashBlade reach");
         helper.assertTrue(general.getAttributeValue(Attributes.ENTITY_INTERACTION_RANGE) >= 7.0D,
                 "Venus General SlashBlade interaction range regressed");
+        helper.succeed();
+    }
+
+    @GameTest(template = "test/empty")
+    public static void bladeComboSwingTiming(GameTestHelper helper) {
+        int[] previous = {0, 4, 8, 11, 15, 17};
+        int[] expected = {0, 6, 13, 18, 25, 29};
+        helper.assertTrue(VenusZombie.getBladeComboHitCount() == expected.length,
+                "抜刀剣の6連撃が維持されていない");
+        for (int i = 0; i < expected.length; i++) {
+            helper.assertTrue(VenusZombie.getBladeComboHitTick(i) == expected[i],
+                    "抜刀剣の攻撃と本体アニメーションが使用するtickがずれている");
+            if (i > 0) {
+                helper.assertTrue(expected[i] > expected[i - 1],
+                        "攻撃間隔は正である必要がある");
+            }
+        }
+        // 5回の攻撃間の増分が合計12tick = 平均2.4tick（0.12秒）。
+        helper.assertTrue(expected[expected.length - 1] - previous[previous.length - 1] == 12,
+                "斬撃間隔の増分が平均0.12秒でなくなった");
+        helper.assertTrue(VenusZombie.BLADE_COMBO_END_TICK >= expected[expected.length - 1] + 4,
+                "最後の斬撃後の回復アニメーション時間が不足している");
         helper.succeed();
     }
 

@@ -12,6 +12,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Optional PlayerAnimator + SlashBlade animation bridge for blade-wielding Venus
@@ -35,6 +36,7 @@ public final class PlayerAnimatorCompat {
     private static final ResourceLocation COMBO_A3 = slashBlade("combo_a3");
     private static final ResourceLocation COMBO_A4 = slashBlade("combo_a4");
     private static final ResourceLocation RAPID_SLASH = slashBlade("rapid_slash");
+    private static final ResourceLocation IAI_SLASH = slashBlade("judgement_cut");
 
     private static boolean lookupDone;
     private static boolean available;
@@ -43,6 +45,7 @@ public final class PlayerAnimatorCompat {
     private static Map<?, ?> slashBladeAnimations;
     private static Method vmdCloneMethod;
     private static Method vmdPlayMethod;
+    private static Method vmdSetSpeedMethod;
     private static Constructor<?> vmdConstructor;
     private static Constructor<?> animationApplierConstructor;
     private static Method animationSetTickDeltaMethod;
@@ -85,6 +88,9 @@ public final class PlayerAnimatorCompat {
                 return false;
             }
 
+            if (vmdSetSpeedMethod != null) {
+                vmdSetSpeedMethod.invoke(animation, selection.playbackSpeed());
+            }
             vmdPlayMethod.invoke(animation, selection.localTick());
             Object applier = animationApplierConstructor.newInstance(animation);
 
@@ -95,6 +101,11 @@ public final class PlayerAnimatorCompat {
             // before these calls; if that optional bridge failed, no VMD rotation ever
             // reached the zombie. AnimationApplier.updatePart is sufficient to apply the
             // actual VMD position/rotation/scale to these ModelParts.
+            float rightX = model.rightArm.xRot;
+            float rightY = model.rightArm.yRot;
+            float leftX = model.leftArm.xRot;
+            float leftY = model.leftArm.yRot;
+            float bodyY = model.body.yRot;
             updatePart(applier, "head", model.head);
             model.hat.copyFrom(model.head);
             updatePart(applier, "leftArm", model.leftArm);
@@ -102,6 +113,18 @@ public final class PlayerAnimatorCompat {
             updatePart(applier, "leftLeg", model.leftLeg);
             updatePart(applier, "rightLeg", model.rightLeg);
             updatePart(applier, "torso", model.body);
+
+            // VMDの読み込みに成功しても骨が動かなければアニメーション成功とみなさない。
+            // 全ての腕/胴体が初期姿勢のままなら必ずVenusZombieModelの斬撃姿勢に戻す。
+            float change = Math.abs(model.rightArm.xRot - rightX)
+                    + Math.abs(model.rightArm.yRot - rightY)
+                    + Math.abs(model.leftArm.xRot - leftX)
+                    + Math.abs(model.leftArm.yRot - leftY)
+                    + Math.abs(model.body.yRot - bodyY);
+            if (change < 0.08F) {
+                clearAnimationState(model);
+                return false;
+            }
 
             // Best-effort bend integration. Failure here must never discard the already
             // applied VMD rotations above.
@@ -115,11 +138,16 @@ public final class PlayerAnimatorCompat {
     }
 
     private static Object createAnimation(AnimationSelection selection) throws ReflectiveOperationException {
-        // Prefer SlashBlade's own registered template so future compatible versions can
-        // adjust their VMD object while keeping the same combo IDs.
+        // SlashBlade 1.21.1のマップ値はVmdAnimationではなくSupplier<IAnimation>。
+        // SupplierにgetClone()を呼ぶと例外となり、実際の腕モーションが適用されない。
         if (slashBladeAnimations != null) {
             Object template = slashBladeAnimations.get(selection.animationId());
-            if (template != null) {
+            if (template instanceof Supplier<?> factory) {
+                Object animation = factory.get();
+                if (animation != null && vmdCloneMethod.getDeclaringClass().isInstance(animation)) {
+                    return animation;
+                }
+            } else if (template != null && vmdCloneMethod.getDeclaringClass().isInstance(template)) {
                 return vmdCloneMethod.invoke(template);
             }
         }
@@ -135,24 +163,43 @@ public final class PlayerAnimatorCompat {
         int tick = Math.max(0, zombie.getBladeTechniqueTick());
 
         if (technique == VenusZombie.BLADE_TECHNIQUE_RAPID_SLASH) {
-            return new AnimationSelection(RAPID_SLASH, tick, 2000.0D, 2073.0D);
+            return clip(RAPID_SLASH, tick, 0, 9, 2000.0D, 2073.0D);
+        }
+        if (technique == VenusZombie.BLADE_TECHNIQUE_IAI) {
+            return clip(IAI_SLASH, tick, 0, VenusZombie.BLADE_IAI_END_TICK + 1,
+                    1900.0D, 1963.0D);
         }
         if (technique != VenusZombie.BLADE_TECHNIQUE_COMBO) {
             return null;
         }
 
-        // These transitions mirror VenusZombie's attack timing while using the same
-        // VMD clips SlashBlade assigns to spam-click A1/A2/A3/A4.
-        if (tick < 4) {
-            return new AnimationSelection(COMBO_A1, tick, 1.0D, 41.0D);
+        // サーバー側の当たり判定と同じ6撃の境界を使用する。
+        // 短い攻撃間隔でもVMDが初期フレームに張り付かないようクリップの進行速度を合わせる。
+        for (int i = VenusZombie.getBladeComboHitCount() - 1; i >= 0; i--) {
+            int start = VenusZombie.getBladeComboHitTick(i);
+            if (tick < start) {
+                continue;
+            }
+            int end = i + 1 < VenusZombie.getBladeComboHitCount()
+                    ? VenusZombie.getBladeComboHitTick(i + 1)
+                    : VenusZombie.BLADE_COMBO_END_TICK + 1;
+            return switch (i % 4) {
+                case 0 -> clip(COMBO_A1, tick, start, end, 1.0D, 41.0D);
+                case 1 -> clip(COMBO_A2, tick, start, end, 100.0D, 151.0D);
+                case 2 -> clip(COMBO_A3, tick, start, end, 200.0D, 306.0D);
+                default -> clip(COMBO_A4, tick, start, end, 500.0D, 608.0D);
+            };
         }
-        if (tick < 8) {
-            return new AnimationSelection(COMBO_A2, tick - 4, 100.0D, 151.0D);
-        }
-        if (tick < 15) {
-            return new AnimationSelection(COMBO_A3, tick - 8, 200.0D, 306.0D);
-        }
-        return new AnimationSelection(COMBO_A4, tick - 15, 500.0D, 608.0D);
+        return null;
+    }
+
+    private static AnimationSelection clip(ResourceLocation id, int tick, int startTick,
+                                           int endTick, double startFrame, double endFrame) {
+        // SlashBladeのVMDは30fps、Minecraftは20tps。
+        double speed = (endFrame - startFrame) * (20.0D / 30.0D)
+                / Math.max(1, endTick - startTick);
+        int localTick = (int) Math.floor(Math.max(0, tick - startTick) * speed);
+        return new AnimationSelection(id, localTick, startFrame, endFrame, speed);
     }
 
     private static void updatePart(Object applier, String name, ModelPart part) throws ReflectiveOperationException {
@@ -175,6 +222,11 @@ public final class PlayerAnimatorCompat {
                     "mods.flammpfeil.slashblade.compat.playerAnim.VmdAnimation");
             vmdCloneMethod = vmdAnimationClass.getMethod("getClone");
             vmdPlayMethod = vmdAnimationClass.getMethod("play", int.class);
+            try {
+                vmdSetSpeedMethod = vmdAnimationClass.getMethod("setSpeed", double.class);
+            } catch (NoSuchMethodException ignored) {
+                // 旧版PlayerAnimator連携は等速再生へフォールバックする。
+            }
             vmdConstructor = vmdAnimationClass.getConstructor(
                     ResourceLocation.class, double.class, double.class, boolean.class);
 
@@ -294,6 +346,7 @@ public final class PlayerAnimatorCompat {
             ResourceLocation animationId,
             int localTick,
             double startFrame,
-            double endFrame) {
+            double endFrame,
+            double playbackSpeed) {
     }
 }

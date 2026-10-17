@@ -14,6 +14,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.Zombie;
@@ -31,6 +32,21 @@ public class VenusZombie extends Zombie {
     public static final int BLADE_TECHNIQUE_NONE = 0;
     public static final int BLADE_TECHNIQUE_COMBO = 1;
     public static final int BLADE_TECHNIQUE_RAPID_SLASH = 2;
+    public static final int BLADE_TECHNIQUE_IAI = 3;
+
+    // 平均で各斬撃間を旧仕様より2.4tick(0.12秒)延ばす。
+    // サーバーの当たり判定とクライアントのVMD/モデル姿勢は同じ時刻を参照する。
+    private static final int[] BLADE_COMBO_HIT_TICKS = {0, 6, 13, 18, 25, 29};
+    public static final int BLADE_COMBO_END_TICK = 33;
+    public static final int BLADE_IAI_END_TICK = 9;
+
+    public static int getBladeComboHitCount() {
+        return BLADE_COMBO_HIT_TICKS.length;
+    }
+
+    public static int getBladeComboHitTick(int index) {
+        return BLADE_COMBO_HIT_TICKS[index];
+    }
 
     private static final EntityDataAccessor<Boolean> DATA_SLASHBLADE_WIELDER =
             SynchedEntityData.defineId(VenusZombie.class, EntityDataSerializers.BOOLEAN);
@@ -223,31 +239,54 @@ public class VenusZombie extends Zombie {
         int tick = getBladeTechniqueTick();
         if (technique == BLADE_TECHNIQUE_COMBO) {
             tickBladeCombo(tick);
-            if (tick >= 21) {
-                finishBladeTechnique(BLADE_COMBO_COOLDOWN_MIN_TICKS
-                        + getRandom().nextInt(BLADE_COMBO_COOLDOWN_RANDOM_TICKS));
+            if (tick >= BLADE_COMBO_END_TICK) {
+                finishBladeTechnique(nextComboCooldownTicks());
                 return;
             }
         } else if (technique == BLADE_TECHNIQUE_RAPID_SLASH) {
             tickRapidSlash(tick);
             if (tick >= 8) {
-                finishBladeTechnique(RAPID_SLASH_COOLDOWN_MIN_TICKS
-                        + getRandom().nextInt(RAPID_SLASH_COOLDOWN_RANDOM_TICKS));
+                finishBladeTechnique(nextRapidSlashCooldownTicks());
                 return;
             }
+        } else if (technique == BLADE_TECHNIQUE_IAI) {
+            if (tick >= BLADE_IAI_END_TICK) {
+                // 居合いには将軍固有の再使用待ち時間があるため、共通クールタイムは不要。
+                finishBladeTechnique(0);
+                return;
+            }
+        } else {
+            finishBladeTechnique(0);
+            return;
         }
 
         entityData.set(DATA_BLADE_TECHNIQUE_TICK, tick + 1);
     }
 
+    protected int nextComboCooldownTicks() {
+        return BLADE_COMBO_COOLDOWN_MIN_TICKS + getRandom().nextInt(BLADE_COMBO_COOLDOWN_RANDOM_TICKS);
+    }
+
+    protected int nextRapidSlashCooldownTicks() {
+        return RAPID_SLASH_COOLDOWN_MIN_TICKS + getRandom().nextInt(RAPID_SLASH_COOLDOWN_RANDOM_TICKS);
+    }
+
+    protected void startIaiAnimation() {
+        if (level().isClientSide || isBladeTechniqueActive()) {
+            return;
+        }
+        entityData.set(DATA_BLADE_TECHNIQUE, BLADE_TECHNIQUE_IAI);
+        entityData.set(DATA_BLADE_TECHNIQUE_TICK, 0);
+    }
+
     private void tickBladeCombo(int tick) {
         switch (tick) {
             case 0 -> performBladeSlash(-10.0F, true, 0.44D, 6.0D);
-            case 4 -> performBladeSlash(170.0F, true, 0.44D, 6.0D);
-            case 8 -> performBladeSlash(-61.0F, false, 0.44D, 6.0D);
-            case 11 -> performBladeSlash(138.0F, false, 0.44D, 6.0D);
-            case 15 -> performBladeSlash(45.0F, false, 0.44D, 6.0D);
-            case 17 -> performBladeSlash(50.0F, true, 0.44D, 6.0D);
+            case 6 -> performBladeSlash(170.0F, true, 0.44D, 6.0D);
+            case 13 -> performBladeSlash(-61.0F, false, 0.44D, 6.0D);
+            case 18 -> performBladeSlash(138.0F, false, 0.44D, 6.0D);
+            case 25 -> performBladeSlash(45.0F, false, 0.44D, 6.0D);
+            case 29 -> performBladeSlash(50.0F, true, 0.44D, 6.0D);
             default -> {
             }
         }
@@ -269,6 +308,8 @@ public class VenusZombie extends Zombie {
             return;
         }
 
+        // 通常の腕振りイベントも配信し、全クライアントで斬撃開始を認識できるようにする。
+        swing(InteractionHand.MAIN_HAND, true);
         SlashBladeCompat.doSlash(this, roll, mute, false, comboRatio);
         applyBladeDamageToTargetSpecies(comboRatio, reach);
     }

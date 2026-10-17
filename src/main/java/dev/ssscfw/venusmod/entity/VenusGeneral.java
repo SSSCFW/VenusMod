@@ -17,6 +17,7 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -41,6 +42,17 @@ public final class VenusGeneral extends VenusZombie {
     private int guardCooldown = 80;
     private int guardTicks;
     private int lastPhase = 1;
+
+    @Override
+    protected int nextComboCooldownTicks() {
+        // 通常の金星抜刀剣ゾンビよりも将軍の次のコンボを早く始められるようにする。
+        return 12 + getRandom().nextInt(7); // 0.60～0.90秒
+    }
+
+    @Override
+    protected int nextRapidSlashCooldownTicks() {
+        return 20 + getRandom().nextInt(9); // 1.00～1.40秒
+    }
 
     public VenusGeneral(EntityType<? extends net.minecraft.world.entity.monster.Zombie> type, Level level) {
         super(type, level);
@@ -122,7 +134,7 @@ public final class VenusGeneral extends VenusZombie {
         double distance = distanceTo(target);
         if (guardCooldown <= 0 && distance < 8.0D) { guardTicks = phase >= 2 ? 26 : 20; guardCooldown = phase >= 3 ? 70 : 100; playSound(SoundEvents.SHIELD_BLOCK, 1.0F, 0.8F); }
         if (phase >= 2 && behindCooldown <= 0 && distance < 18.0D) { teleportBehind(target, server); behindCooldown = phase >= 3 ? 65 : 100; }
-        if (iaiCooldown <= 0 && distance >= 3.0D && distance <= 22.0D) { performIai(target, server, phase); iaiCooldown = phase >= 3 ? 55 : phase == 2 ? 75 : 100; }
+        if (!isBladeTechniqueActive() && iaiCooldown <= 0 && distance >= 3.0D && distance <= 22.0D) { performIai(target, server, phase); iaiCooldown = phase >= 3 ? 55 : phase == 2 ? 75 : 100; }
         else if (!isBladeTechniqueActive() && getBladeTechniqueCooldown() <= 0 && distance <= 8.0D) { if (phase >= 2 && getRandom().nextBoolean()) startRapidSlash(target); else startBladeCombo(target); }
         if (phantomCooldown <= 0 && distance <= 28.0D) { performPhantomSwords(target, server, phase >= 3 ? 8 : 4); phantomCooldown = phase >= 3 ? 70 : phase == 2 ? 105 : 145; }
     }
@@ -141,6 +153,7 @@ public final class VenusGeneral extends VenusZombie {
     private void performIai(LivingEntity target, ServerLevel server, int phase) {
         Vec3 delta = target.position().subtract(position()); Vec3 horizontal = new Vec3(delta.x, 0.0D, delta.z);
         if (horizontal.lengthSqr() > 1.0E-4D) { Vec3 dash = horizontal.normalize().scale(Math.min(3.0D, Math.sqrt(horizontal.lengthSqr()) * 0.65D)); setDeltaMovement(dash.x, 0.12D, dash.z); hasImpulse = true; }
+        startIaiAnimation(); swing(InteractionHand.MAIN_HAND, true);
         SlashBladeCompat.doSlash(this, -18.0F, false, true, phase >= 3 ? 1.8D : 1.45D); server.sendParticles(ParticleTypes.SWEEP_ATTACK, target.getX(), target.getY() + 1.0D, target.getZ(), 5, 0.4D, 0.5D, 0.4D, 0.0D);
         target.invulnerableTime = 0; target.hurt(damageSources().mobAttack(this), phase >= 3 ? 32.0F : phase == 2 ? 28.0F : 24.0F); target.invulnerableTime = 0; playSound(SoundEvents.PLAYER_ATTACK_SWEEP, 1.4F, 0.6F);
     }
