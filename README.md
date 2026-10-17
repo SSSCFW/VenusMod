@@ -47,7 +47,9 @@ Build output is written to `build/libs/`.
 
 ## GitHub Actions
 
-The `Build 1.21.1 NeoForge` workflow is manual-only. Commits and pushes do not automatically start a build.
+The `Build 1.21.1 NeoForge` workflow automatically builds and publishes the mod after each push to `feature/venus-hostile-mobs` or `main` (after the workflow change is merged to `main`). Manual runs are also available. Automatic push runs build the JAR; the optional dedicated-server smoke test is selected for manual runs.
+
+To run it manually:
 
 1. Open **Actions**.
 2. Select **Build 1.21.1 NeoForge**.
