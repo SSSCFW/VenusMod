@@ -674,9 +674,7 @@ public final class YamatoTravelScreen extends Screen {
                 // 秒数を一時的に空にしていても、閉じ方の選択は古い設定に戻さない。
                 if (draftLifetime != 2 && validSeconds() == null) {
                     draftSeconds = Integer.toString(lastValidSeconds);
-                    applyingSnapshot = true;
-                    seconds.setValue(draftSeconds);
-                    applyingSnapshot = false;
+                    refreshSecondsText();
                 }
                 settingsChanged(0);
                 updateButtons();
@@ -704,6 +702,12 @@ public final class YamatoTravelScreen extends Screen {
             add.accept(seconds);
             add.accept(size);
             updateButtons();
+        }
+
+        private void refreshSecondsText() {
+            applyingSnapshot = true;
+            seconds.setValue(draftSeconds);
+            applyingSnapshot = false;
         }
 
         private List<YamatoDropdown> dropdowns() {
