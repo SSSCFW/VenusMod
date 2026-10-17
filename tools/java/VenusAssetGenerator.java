@@ -14,13 +14,13 @@ import javax.imageio.ImageIO;
 
 /** ビルド用。Minecraftクラスにも外部ライブラリにも依存しないPNG/NBT生成器。 */
 public final class VenusAssetGenerator {
-    private record Tag(int type, Object value) {}
+    record Tag(int type, Object value) {}
     private record Values(int type, List<?> values) {}
     private record Pos(int x, int y, int z) {}
     private record State(String name, Map<String, String> properties) {}
 
-    private static Tag text(String s) { return new Tag(8, s); }
-    private static Tag integer(int n) { return new Tag(3, n); }
+    static Tag text(String s) { return new Tag(8, s); }
+    static Tag integer(int n) { return new Tag(3, n); }
     private static Tag shortTag(int n) { return new Tag(2, n); }
     private static Tag compound(Map<String, Tag> value) { return new Tag(10, value); }
     private static Tag ints(int... values) {
@@ -29,13 +29,13 @@ public final class VenusAssetGenerator {
         return new Tag(9, new Values(3, list));
     }
     private static Tag compounds(List<Map<String, Tag>> values) { return new Tag(9, new Values(10, values)); }
-    private static Map<String, Tag> tags(Object... entries) {
+    static Map<String, Tag> tags(Object... entries) {
         if (entries.length % 2 != 0) throw new IllegalArgumentException("Key/value pairs required");
         Map<String, Tag> map = new LinkedHashMap<>();
         for (int i = 0; i < entries.length; i += 2) map.put((String) entries[i], (Tag) entries[i + 1]);
         return map;
     }
-    private static Map<String, String> properties(String... entries) {
+    static Map<String, String> properties(String... entries) {
         Map<String, String> map = new TreeMap<>();
         for (int i = 0; i < entries.length; i += 2) map.put(entries[i], entries[i + 1]);
         return map;
@@ -121,14 +121,20 @@ public final class VenusAssetGenerator {
         storage.setRGB(8, 9, 0xff5a3b17);
         writePNG(root, "item/storage_box", storage);
     }
-    private static final class Template {
+    static final class Template {
+        private final int width, height, depth;
+        Template() { this(31, 16, 51); }
+        Template(int width, int height, int depth) {
+            if (width <= 0 || height <= 0 || depth <= 0) throw new IllegalArgumentException("Invalid template size");
+            this.width = width; this.height = height; this.depth = depth;
+        }
         final Map<State, Integer> indices = new LinkedHashMap<>();
         final List<Map<String, Tag>> palette = new ArrayList<>();
         final Map<Pos, Map<String, Tag>> blocks = new TreeMap<>(Comparator.comparingInt(Pos::y)
                 .thenComparingInt(Pos::z).thenComparingInt(Pos::x));
         void put(int x, int y, int z, String name) { put(x, y, z, name, Map.of(), null); }
         void put(int x, int y, int z, String name, Map<String, String> properties, Map<String, Tag> nbt) {
-            if (x < 0 || x >= 31 || y < 0 || y >= 16 || z < 0 || z >= 51) throw new IllegalArgumentException("Outside template");
+            if (x < 0 || x >= width || y < 0 || y >= height || z < 0 || z >= depth) throw new IllegalArgumentException("Outside template");
             State state = new State(name, Map.copyOf(properties));
             int index = indices.computeIfAbsent(state, key -> {
                 Map<String, Tag> entry = tags("Name", text(name));
@@ -159,7 +165,7 @@ public final class VenusAssetGenerator {
         }
         void write(Path file) throws IOException {
             Files.createDirectories(file.getParent());
-            Map<String, Tag> root = tags("DataVersion", integer(3955), "size", ints(31, 16, 51),
+            Map<String, Tag> root = tags("DataVersion", integer(3955), "size", ints(width, height, depth),
                     "palette", compounds(palette), "blocks", compounds(new ArrayList<>(blocks.values())), "entities", compounds(List.of()));
             try (DataOutputStream out = new DataOutputStream(new GZIPOutputStream(Files.newOutputStream(file)))) {
                 out.writeByte(10); out.writeUTF(""); payload(out, 10, root);
@@ -174,6 +180,8 @@ public final class VenusAssetGenerator {
         t.box(0, 4, 4, 30, 9, 4, brick); t.box(0, 4, 50, 30, 12, 50, brick);
         t.box(0, 9, 4, 30, 9, 32, brick); t.box(0, 12, 33, 30, 12, 50, brick);
         t.box(0, 10, 33, 0, 12, 50, brick); t.box(30, 10, 33, 30, 12, 50, brick);
+        // 奥側の天井段差前面を塞ぎ、左右の高い側壁とつなぐ。
+        t.box(1, 10, 33, 29, 11, 33, brick);
         t.box(12, 4, 5, 12, 8, 31, brick); t.box(18, 4, 5, 18, 8, 31, brick);
         t.box(1, 4, 17, 11, 8, 17, brick); t.box(19, 4, 17, 29, 8, 17, brick);
         for (int x : new int[]{12, 18}) for (int z : new int[]{9, 23}) t.box(x, 4, z, x, 6, z + 2, air);
@@ -214,6 +222,9 @@ public final class VenusAssetGenerator {
         t.box(0, 4, 4, 0, 11, 50, tile); t.box(30, 4, 4, 30, 11, 50, tile);
         t.box(0, 4, 4, 30, 11, 4, tile); t.box(0, 4, 50, 30, 13, 50, tile);
         t.box(0, 11, 4, 30, 11, 34, tile); t.box(0, 13, 35, 30, 13, 50, tile);
+        // 奥側の天井段差前面と、かさ上げ区間の左右壁を閉じる。
+        t.box(0, 12, 35, 30, 12, 35, tile);
+        t.box(0, 12, 36, 0, 12, 49, tile); t.box(30, 12, 36, 30, 12, 49, tile);
         t.box(13, 4, 4, 17, 7, 4, air);
         for (int z = 0; z < 4; z++) {
             if (z > 0) t.box(13, 0, z, 17, z - 1, z, brick);
@@ -250,6 +261,9 @@ public final class VenusAssetGenerator {
         t.box(0,4,4,0,13,50,brick); t.box(30,4,4,30,13,50,brick);
         t.box(0,4,4,30,13,4,brick); t.box(0,4,50,30,15,50,brick);
         t.box(0,13,4,30,13,31,brick); t.box(0,15,32,30,15,50,brick);
+        // 奥側の天井段差前面と、かさ上げ区間の左右壁を閉じる。
+        t.box(0,14,32,30,14,32,brick);
+        t.box(0,14,33,0,14,49,brick); t.box(30,14,33,30,14,49,brick);
         t.box(13,4,4,17,8,4,air);
         for (int z = 0; z < 4; z++) {
             if (z > 0) t.box(13,0,z,17,z-1,z,brick);

@@ -8,11 +8,10 @@ import javax.imageio.ImageIO;
 public final class KingsTreasureAssets {
     public static void main(String[] args) throws IOException {
         Path root = Path.of(args[0]);
+        Files.deleteIfExists(root.resolve("data/venusmod/recipe/kings_treasure.json"));
+        Files.deleteIfExists(root.resolve("data/venusmod/recipe/king_treasury.json"));
         write(root, "assets/venusmod/models/item/kings_treasure.json", """
                 {"parent":"minecraft:item/generated","textures":{"layer0":"venusmod:item/kings_treasure"},"overrides":[{"predicate":{"custom_model_data":1},"model":"venusmod:item/kings_treasure_phantasm"}]}
-                """);
-        write(root, "data/venusmod/recipe/kings_treasure.json", """
-                {"type":"minecraft:crafting_shaped","category":"equipment","pattern":[" G ","GEG"," G "],"key":{"G":{"item":"minecraft:gold_ingot"},"E":{"item":"minecraft:ender_eye"}},"result":{"id":"venusmod:kings_treasure","count":1}}
                 """);
         write(root, "data/venusmod/damage_type/royal_blade.json", """
                 {"message_id":"magic","scaling":"when_caused_by_living_non_player","exhaustion":0.1}

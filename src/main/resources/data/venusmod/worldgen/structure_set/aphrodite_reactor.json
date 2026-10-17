@@ -1,5 +1,8 @@
 {
-  "structures": [{"structure": "venusmod:aphrodite_reactor", "weight": 1}],
+  "structures": [
+    {"structure": "venusmod:aphrodite_reactor", "weight": 1},
+    {"structure": "venusmod:aphrodite_sanctum", "weight": 1}
+  ],
   "placement": {
     "type": "minecraft:random_spread",
     "spacing": 84,

@@ -1,0 +1,59 @@
+import groovy.json.JsonSlurper
+
+// 追加ボス施設も通常のprocessResourcesで生成し、JARへ確実に含める。
+def bossStructures = layout.buildDirectory.dir('generated/bossStructures')
+tasks.register('generateBossStructures', JavaExec) {
+    dependsOn tasks.named('compileVenusAssetGenerator')
+    classpath tasks.named('compileVenusAssetGenerator').flatMap { it.destinationDirectory }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'BossStructureAssets'
+    args bossStructures.get().asFile.absolutePath
+    inputs.files('tools/java/BossStructureAssets.java', 'tools/java/VenusAssetGenerator.java')
+    outputs.dir bossStructures
+}
+sourceSets.main.resources.srcDir bossStructures
+tasks.named('processResources') { dependsOn 'generateBossStructures' }
+
+def compileBossStructureChecks = tasks.register('compileBossStructureChecks', JavaCompile) {
+    source = files('tools/tests/BossStructureChecks.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('classes/bossStructureChecks')
+    javaCompiler = javaToolchains.compilerFor { languageVersion = JavaLanguageVersion.of(21) }
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+tasks.register('verifyBossStructures', JavaExec) {
+    group = 'verification'
+    dependsOn compileBossStructureChecks, 'generateBossStructures', 'generateVenusAssets'
+    classpath compileBossStructureChecks.flatMap { it.destinationDirectory }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'BossStructureChecks'
+    args bossStructures.get().asFile.absolutePath, layout.buildDirectory.dir('generated/venusAssets').get().asFile.absolutePath
+}
+
+tasks.register('verifyBossStructureRegistration') {
+    group = 'verification'
+    notCompatibleWithConfigurationCache('Validation inspects worldgen resource files')
+    doLast {
+        def json = new JsonSlurper()
+        def read = { String path -> json.parse(file("src/main/resources/data/venusmod/${path}.json")) }
+        [venus_general_fortress: 'venus_general_keep', aphrodite_sanctum: 'aphrodite_reactor'].each { id, setId ->
+            def structure = read("worldgen/structure/${id}")
+            def pool = read("worldgen/template_pool/${id}/start")
+            def biomes = read("tags/worldgen/biome/has_structure/${id}")
+            def set = read("worldgen/structure_set/${setId}")
+            if (structure.type != 'minecraft:jigsaw' || structure.start_pool != "venusmod:${id}/start"
+                    || structure.biomes != "#venusmod:has_structure/${id}"
+                    || structure.project_start_to_heightmap != 'WORLD_SURFACE_WG')
+                throw new GradleException("Boss structure registration is incomplete: ${id}")
+            if (pool.elements.size() != 1 || pool.elements[0].element.location != "venusmod:${id}"
+                    || pool.elements[0].element.projection != 'rigid')
+                throw new GradleException("Boss structure template pool is incorrect: ${id}")
+            if (biomes.values != ['venusmod:venus_wastes']
+                    || !set.structures.any { it.structure == "venusmod:${id}" && it.weight > 0 })
+                throw new GradleException("Boss structure must generate naturally in Venus: ${id}")
+        }
+        println 'Verified boss structure biome tags, start pools and natural-generation sets.'
+    }
+}
+tasks.named('check') { dependsOn 'verifyBossStructures', 'verifyBossStructureRegistration' }

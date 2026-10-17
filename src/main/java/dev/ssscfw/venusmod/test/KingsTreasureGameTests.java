@@ -1,9 +1,12 @@
 package dev.ssscfw.venusmod.test;
 
 import dev.ssscfw.venusmod.VenusMod;
+import dev.ssscfw.venusmod.entity.AphroditeCore;
+import dev.ssscfw.venusmod.registry.ModItems;
 import dev.ssscfw.venusmod.treasure.KingsTreasure;
 import dev.ssscfw.venusmod.treasure.RoyalBladeEntity;
 import dev.ssscfw.venusmod.treasure.TreasureRules;
+import dev.ssscfw.venusmod.world.VenusDimensionContent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTest;
@@ -18,6 +21,7 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -27,13 +31,40 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class KingsTreasureGameTests {
     @GameTest(template = "test/empty")
-    public static void recipeAndOptionalDependencies(GameTestHelper helper) {
-        helper.assertTrue(helper.getLevel().getRecipeManager().byKey(
-                ResourceLocation.fromNamespaceAndPath(VenusMod.MOD_ID, "kings_treasure")).isPresent(),
-                "王の財宝レシピが未登録");
+    public static void treasuresAreNotCraftable(GameTestHelper helper) {
+        var recipes = helper.getLevel().getRecipeManager();
+        for (String name : new String[]{"kings_treasure", "king_treasury"}) {
+            helper.assertTrue(recipes.byKey(ResourceLocation.fromNamespaceAndPath(VenusMod.MOD_ID, name)).isEmpty(),
+                    name + " のレシピが登録されている");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "test/empty")
+    public static void kingsTreasureIsSingleStack(GameTestHelper helper) {
         helper.assertTrue(KingsTreasure.ITEM.get().getDefaultInstance().getMaxStackSize() == 1,
                 "キーは単独スタック");
         helper.succeed();
+    }
+
+    @GameTest(template = "test/empty", timeoutTicks = 20)
+    public static void aphroditeDropsBothTreasures(GameTestHelper helper) {
+        AphroditeCore boss = helper.spawn(VenusDimensionContent.APHRODITE_CORE.get(), new BlockPos(2, 2, 2));
+        boss.setNoAi(true);
+        boss.setHealth(1.0F);
+        AABB dropArea = boss.getBoundingBox().inflate(4.0D);
+        helper.assertTrue(boss.hurt(helper.getLevel().damageSources().generic(), 1000.0F),
+                "アフロディーテ・コアを倒せる");
+        helper.runAfterDelay(1, () -> {
+            var drops = helper.getLevel().getEntitiesOfClass(ItemEntity.class, dropArea);
+            int kingsTreasure = drops.stream().filter(drop -> drop.getItem().is(KingsTreasure.ITEM.get()))
+                    .mapToInt(drop -> drop.getItem().getCount()).sum();
+            int kingTreasury = drops.stream().filter(drop -> drop.getItem().is(ModItems.KING_TREASURY.get()))
+                    .mapToInt(drop -> drop.getItem().getCount()).sum();
+            helper.assertTrue(kingsTreasure == 1, "王の財宝を必ず1個ドロップする");
+            helper.assertTrue(kingTreasury == 1, "王の宝物庫を必ず1個ドロップする");
+            helper.succeed();
+        });
     }
 
     @GameTest(template = "test/empty")

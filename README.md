@@ -82,3 +82,7 @@ src/main/resources/
 ```
 
 Add registries and mod-bus listeners from `VenusMod.java` as features are implemented.
+
+## ボス施設と報酬
+
+金星将軍の城塞・アフロディーテ神殿の構成、探索コマンド、既存構造物の壁修正、王の財宝と王の宝物庫の入手方法は [ボス施設の仕様](docs/BOSS_STRUCTURES.md) を参照してください。

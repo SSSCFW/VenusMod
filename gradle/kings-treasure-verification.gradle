@@ -168,8 +168,15 @@ tasks.register('verifyKingsTreasureInteractionContracts') {
 tasks.named('check') { dependsOn 'verifyKingsTreasureInteractionContracts' }
 
 def assets = layout.buildDirectory.dir('generated/kingsTreasureAssets')
+// 生成タスクがUP-TO-DATEの場合や、Copy型のprocessResourcesに旧出力が残る場合も除去する。
+def removeObsoleteTreasureRecipes = tasks.register('removeObsoleteTreasureRecipes', Delete) {
+    ['kings_treasure', 'king_treasury'].each { name ->
+        delete assets.map { it.file("data/venusmod/recipe/${name}.json") }
+        delete layout.buildDirectory.file("resources/main/data/venusmod/recipe/${name}.json")
+    }
+}
 tasks.register('generateKingsTreasureAssets', JavaExec) {
-    dependsOn 'compileVenusAssetGenerator'
+    dependsOn 'compileVenusAssetGenerator', removeObsoleteTreasureRecipes
     classpath tasks.named('compileVenusAssetGenerator').flatMap { it.destinationDirectory }
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
     mainClass = 'KingsTreasureAssets'
@@ -179,7 +186,65 @@ tasks.register('generateKingsTreasureAssets', JavaExec) {
     outputs.dir assets
 }
 sourceSets.main.resources.srcDir assets
-tasks.named('processResources') { dependsOn 'generateKingsTreasureAssets' }
+def obsoleteProcessedTreasureRecipes = ['kings_treasure', 'king_treasury'].collect { name ->
+    layout.buildDirectory.file("resources/main/data/venusmod/recipe/${name}.json")
+}
+tasks.named('processResources') {
+    dependsOn 'generateKingsTreasureAssets'
+    // リソース処理の最終出力からも、対象の2レシピだけを確実に除去する。
+    doLast {
+        obsoleteProcessedTreasureRecipes.each { recipe ->
+            java.nio.file.Files.deleteIfExists(recipe.get().asFile.toPath())
+        }
+    }
+}
+
+tasks.register('verifyAphroditeTreasureAcquisition') {
+    group = 'verification'
+    dependsOn 'processResources'
+    notCompatibleWithConfigurationCache('Validation inspects project resource files')
+    doLast {
+        def loot = new groovy.json.JsonSlurper().parse(
+                file('src/main/resources/data/venusmod/loot_table/entities/aphrodite_core.json'))
+        def itemEntries = loot.pools.collectMany { it.entries ?: [] }
+        def requiredItems = ['venusmod:kings_treasure', 'venusmod:king_treasury']
+        requiredItems.each { itemId ->
+            def matchingEntries = itemEntries.count { it.type == 'minecraft:item' && it.name == itemId }
+            if (matchingEntries != 1)
+                throw new GradleException("Aphrodite Core must have exactly one ${itemId} drop entry.")
+            def guaranteedPools = loot.pools.findAll { pool ->
+                pool.rolls == 1 && !pool.conditions && (pool.entries ?: []).size() == 1
+                        && pool.entries[0].type == 'minecraft:item' && pool.entries[0].name == itemId
+                        && !pool.entries[0].conditions && !pool.entries[0].functions
+            }
+            if (guaranteedPools.size() != 1)
+                throw new GradleException("Aphrodite Core must drop exactly one guaranteed ${itemId}.")
+        }
+        ['venusmod:venus_core', 'venusmod:venesite'].each { itemId ->
+            if (!itemEntries.any { it.type == 'minecraft:item' && it.name == itemId })
+                throw new GradleException("Aphrodite Core's existing ${itemId} drop must remain.")
+        }
+
+        def recipeRoots = [
+                file('src/main/resources/data/venusmod/recipe'),
+                file('src/generated/resources/data/venusmod/recipe'),
+                file('build/generated/kingsTreasureAssets/data/venusmod/recipe'),
+                file('build/resources/main/data/venusmod/recipe')
+        ].findAll { it.isDirectory() }
+        def targetRecipes = recipeRoots.collectMany { root ->
+            fileTree(root) { include '**/*.json' }.files.findAll { source ->
+                def recipe = new groovy.json.JsonSlurper().parse(source)
+                def result = recipe.result
+                result != null && requiredItems.any { itemId -> result.toString().contains(itemId) }
+            }
+        }
+        if (!targetRecipes.isEmpty())
+            throw new GradleException("王の財宝/王の宝物庫 must not have recipes: ${targetRecipes}")
+
+        println 'Verified Aphrodite Core treasure drops and non-craftable acquisition.'
+    }
+}
+tasks.named('check') { dependsOn 'verifyAphroditeTreasureAcquisition' }
 
 tasks.register('verifyTreasurySelectionWiring') {
     group = 'verification'

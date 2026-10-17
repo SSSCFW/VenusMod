@@ -3,6 +3,7 @@ package dev.ssscfw.venusmod.registry;
 import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.environment.VenusEnvironment;
 import dev.ssscfw.venusmod.environment.VenusEnvironmentConfig;
+import dev.ssscfw.venusmod.item.PortableLifeSupportItem;
 import dev.ssscfw.venusmod.world.AcidCondensateBlock;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +46,8 @@ public final class VenusPhase2 {
     public static final DeferredItem<Item> VENESITE = ITEMS.registerSimpleItem("venesite");
     public static final DeferredItem<Item> ALLOY_BLEND = ITEMS.registerSimpleItem("pressure_alloy_blend");
     public static final DeferredItem<Item> PRESSURE_ALLOY = ITEMS.registerSimpleItem("pressure_alloy_ingot");
-    public static final DeferredItem<Item> LIFE_SUPPORT = ITEMS.register("portable_life_support", () -> new Item(new Item.Properties().durability(600).enchantable(15)));
+    public static final DeferredItem<Item> LIFE_SUPPORT = ITEMS.register("portable_life_support",
+            () -> new PortableLifeSupportItem(new Item.Properties().durability(600)));
     public static final DeferredHolder<ArmorMaterial, ArmorMaterial> SUIT_MATERIAL = MATERIALS.register("pressure_suit", () -> new ArmorMaterial(
             Map.of(ArmorItem.Type.HELMET, 2, ArmorItem.Type.CHESTPLATE, 6, ArmorItem.Type.LEGGINGS, 5, ArmorItem.Type.BOOTS, 2, ArmorItem.Type.BODY, 6),
             12, SoundEvents.ARMOR_EQUIP_IRON, () -> Ingredient.of(PRESSURE_ALLOY.get()),

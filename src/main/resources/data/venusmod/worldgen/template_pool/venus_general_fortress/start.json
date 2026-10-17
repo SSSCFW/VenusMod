@@ -1,0 +1,13 @@
+{
+  "name": "venusmod:venus_general_fortress/start",
+  "fallback": "minecraft:empty",
+  "elements": [{
+    "weight": 1,
+    "element": {
+      "element_type": "minecraft:single_pool_element",
+      "location": "venusmod:venus_general_fortress",
+      "processors": "minecraft:empty",
+      "projection": "rigid"
+    }
+  }]
+}
