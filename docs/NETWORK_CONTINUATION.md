@@ -39,4 +39,24 @@
 - `NetworkRequestBudgetTest`: 10,009アサーション成功。このうち10,000回は要求上限到達後の拒否を確認する反復検査です。
 - `NetworkWiringGameTests`: 実ブロックでの接続→T字分岐拒否→撤去後復旧→断線、光モジュールの装着/抜去/再装着、機器の非遮蔽を追加。論理Linkを手で注入せず、通常のロード・tickイベントによる登録と配線解析を使います。
 
-新しいGameTestおよび変更後の全体ビルドの結果は、対象コミットの既存 `Build 1.21.1 NeoForge` のログで確認します。初期版 `dbb13f9` は全体build、ネットワーク47アサーション、174 JSON/74 PNG検査、必須GameTest 101件が成功しています。変更後のテスト結果を、初期版の結果で代用しません。
+### 続行分の全体ビルド・GameTest結果
+
+検証対象コミット: **`d182a6e35e1c7fb466b5c5d61644173829e98c15`**。
+
+[Build 1.21.1 NeoForge — run 39025103931](https://github.com/SSSCFW/VenusMod/actions/runs/39025103931) の完了ログを確認しました。
+
+| 検査 | 結果 |
+| --- | --- |
+| `gradle build --build-cache --stacktrace` | 成功 |
+| 既存 `NetworkCoreTest` | 47アサーション成功 |
+| 追加 `NetworkContinuationTest` | 28アサーション成功、失敗ケース0 |
+| 追加 `NetworkRequestBudgetTest` | 10,009アサーション成功（うち10,000は拒否の反復検査） |
+| `NetworkAssetValidator` | 174 JSON・74 PNG、全参照を解決 |
+| `gradle runGameTestServer -PvenusTestCreate=true --stacktrace` | 必須104件すべて成功 |
+| JARの検査・公開ステップ | 成功 |
+
+104件は既存機能の検査も含むリポジトリ全体の件数です。ネットワーク専用のGameTestは元の2件と今回の3件であり、104件すべてがネットワークの検査ではありません。
+
+検証環境はNeoForge 21.1.235、Create 6.0.10です。JEI・SlashBlade本体はこのGameTest環境には入っておらず、既存のSlashBlade実体が必要な一部チェックはスキップされています。任意の専用サーバースモークテストは未選択ですが、GameTest用のサーバーは起動して実行しました。
+
+**実クライアントでの目視、JEIの情報画面、シェーダー併用、複数プレイヤーの実操作、大規模TPS計測は未実施です。** この結果を全仕様の完成や全描画環境の保証と読み替えないでください。
