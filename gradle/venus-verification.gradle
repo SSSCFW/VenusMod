@@ -293,7 +293,15 @@ tasks.register('verifyRapidSlashSpeedMixin') {
             throw new GradleException('Rapid Slash native movement injection must be present.')
         if (file('src/main/java/dev/ssscfw/venusmod/VenusMod.java').text.contains('VenusRapidSlashEvents::onPlayerTick'))
             throw new GradleException('Previous server-only tick movement hook must not be registered.')
-        println 'Verified common-side native Rapid Slash Mixin wiring.'
+        if (!hook.contains('venusmod$followRapidSlashDownStep')
+                || !hook.contains('RapidSlashSpeedRules.shouldFollowDownStep(')
+                || !hook.contains('isRapidSlashGroundFollowCombo(player)')
+                || !hook.contains('player.level().noCollision(')
+                || !hook.contains('((Entity) (Object) this).move(MoverType.SELF,'))
+            throw new GradleException('Rapid Slash downhill grounding must use native collision and step-down movement.')
+        if (hook.contains('setOnGround(true)'))
+            throw new GradleException('Rapid Slash must never fake ground over an unsupported cliff.')
+        println 'Verified common-side native Rapid Slash Mixin wiring and safe downward collision snap.'
     }
 }
 tasks.named('check') { dependsOn 'verifyRapidSlashSpeedMixin' }

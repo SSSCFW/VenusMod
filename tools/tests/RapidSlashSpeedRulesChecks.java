@@ -39,7 +39,23 @@ public final class RapidSlashSpeedRulesChecks {
                 RapidSlashSpeedRules.extraImpulse(0.8F, 3), 0, 0, 1, true, false),
                 "no recursive boost");
 
-        System.out.println("PASS: Rapid Slash native-impulse matching and level I-III speed scaling");
+        // A one-block edge is eligible, provided the caller probes a real floor.
+        check(true, RapidSlashSpeedRules.shouldFollowDownStep(
+                true, false, 0.9D, -0.08D, 0.5D, -0.08D), "horizontal down-step");
+        check(true, RapidSlashSpeedRules.shouldFollowDownStep(
+                true, false, 0.1D, 0.0D, 0.0D, 0.0D), "zero vertical movement");
+        check(false, RapidSlashSpeedRules.shouldFollowDownStep(
+                false, false, 1.0D, -0.1D, 0.0D, -0.1D), "already falling");
+        check(false, RapidSlashSpeedRules.shouldFollowDownStep(
+                true, true, 1.0D, -0.1D, 0.0D, -0.1D), "already grounded");
+        check(false, RapidSlashSpeedRules.shouldFollowDownStep(
+                true, false, 1.0D, 0.25D, 0.0D, 0.25D), "jumping");
+        check(false, RapidSlashSpeedRules.shouldFollowDownStep(
+                true, false, 1.0D, 0.0D, 0.0D, 0.2D), "rising velocity");
+        check(false, RapidSlashSpeedRules.shouldFollowDownStep(
+                true, false, 0.0D, -0.08D, 0.0D, -0.08D), "not moving horizontally");
+        checkClose(1.25F, (float) RapidSlashSpeedRules.MAX_STEP_DOWN, "one-block snap limit");
+        System.out.println("PASS: Rapid Slash impulse, speed levels and grounded down-step rules");
     }
 
     private static void check(boolean expected, boolean actual, String label) {

@@ -8,6 +8,8 @@ package dev.ssscfw.venusmod.compat;
 public final class RapidSlashSpeedRules {
     public static final int MAX_LEVEL = 3;
     public static final float BONUS_PER_LEVEL = 0.25F;
+    // Follow full blocks, stairs and slabs without enabling long-distance falls.
+    public static final double MAX_STEP_DOWN = 1.25D;
 
     private RapidSlashSpeedRules() {
     }
@@ -22,6 +24,19 @@ public final class RapidSlashSpeedRules {
             return false;
         }
         return Float.compare(amount, inWater ? 0.35F : 0.8F) == 0;
+    }
+
+    /**
+     * Attempt ground-following only immediately after leaving actual solid ground
+     * horizontally, during non-rising movement. This does not override the
+     * collision test: an actual floor is required before the snap-down move.
+     */
+    public static boolean shouldFollowDownStep(boolean groundedBefore, boolean groundedAfter,
+                                               double motionX, double motionY, double motionZ,
+                                               double velocityY) {
+        return groundedBefore && !groundedAfter
+                && motionY <= 0.0D && velocityY <= 0.0D
+                && (motionX * motionX + motionZ * motionZ) > 1.0E-6D;
     }
 
     /** Extra native forward impulse, not a permanent movement-speed attribute. */
