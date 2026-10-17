@@ -77,6 +77,21 @@ public final class VenusAssetGenerator {
                     | ((int) (94 + 122 * light) << 8) | (int) (12 + 58 * light));
         }
         writePNG(root, "block/venus_portal", portal);
+        // 金星刀鍛錬機の表示部。標準テクスチャやCreate側のアセットに依存させない。
+        BufferedImage bladeForgeScreen = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < 16; y++) for (int x = 0; x < 16; x++) {
+            int distance = Math.abs(x - 7) + Math.abs(y - 7);
+            int color;
+            if (x == 0 || x == 15 || y == 0 || y == 15) color = 0xffb88a45; // 真鍮の外枠
+            else if (x == 1 || x == 14 || y == 1 || y == 14) color = 0xff483625; // 縁の陰影
+            else if (distance <= 3) color = 0xffffdfa0; // 発光する金色の中心
+            else if (distance <= 5) color = 0xffd78935;
+            else if (distance <= 7) color = 0xff773f25;
+            else if (x == 3 || x == 12) color = 0xff564a39;
+            else color = 0xff242932; // 黒鉄の表示面
+            bladeForgeScreen.setRGB(x, y, color);
+        }
+        writePNG(root, "block/venus_blade_forge_screen", bladeForgeScreen);
         BufferedImage core = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
         for (int y = 0; y < 16; y++) for (int x = 0; x < 16; x++) {
             double radius = Math.hypot(x - 7.5, y - 7.5);

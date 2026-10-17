@@ -198,3 +198,40 @@ tasks.register('verifyVenusPortalDummyGold') {
     }
 }
 tasks.named('check') { dependsOn 'verifyVenusPortalDummyGold' }
+
+
+// モデルで指定した独自PNGが完成JARへ格納されているかを実物で検査する。
+tasks.register('verifyVenusBladeForgeScreenTexture') {
+    description = 'Verify the Venus Blade Forge display texture is correctly packaged in the mod JAR.'
+    group = 'verification'
+    dependsOn tasks.named('jar')
+    notCompatibleWithConfigurationCache('Validation opens the generated mod JAR')
+    doLast {
+        def archive = tasks.named('jar').get().archiveFile.get().asFile
+        new java.util.zip.ZipFile(archive).withCloseable { zip ->
+            def modelEntry = zip.getEntry('assets/venusmod/models/block/venus_blade_forge.json')
+            def textureEntry = zip.getEntry('assets/venusmod/textures/block/venus_blade_forge_screen.png')
+            if (modelEntry == null || textureEntry == null) {
+                throw new GradleException("Venus Blade Forge model or screen texture missing from ${archive}")
+            }
+            def model = zip.getInputStream(modelEntry).withCloseable { stream -> new JsonSlurper().parse(stream) }
+            if (model.textures.screen != 'venusmod:block/venus_blade_forge_screen') {
+                throw new GradleException('Venus Blade Forge must reference its packaged screen texture.')
+            }
+            if (!model.elements.any { element -> element.faces.values().any { face -> face.texture == '#screen' } }) {
+                throw new GradleException('Venus Blade Forge screen texture is not applied to a model element.')
+            }
+            def image = zip.getInputStream(textureEntry).withCloseable { stream -> javax.imageio.ImageIO.read(stream) }
+            if (image == null || image.width != 16 || image.height != 16) {
+                throw new GradleException('Venus Blade Forge screen must be a valid 16x16 PNG.')
+            }
+            for (int y = 0; y < 16; y++) for (int x = 0; x < 16; x++) {
+                if ((image.getRGB(x, y) >>> 24) != 255) {
+                    throw new GradleException('Venus Blade Forge screen must be fully opaque.')
+                }
+            }
+        }
+        println 'Verified packaged Venus Blade Forge screen texture and model reference.'
+    }
+}
+tasks.named('check') { dependsOn 'verifyVenusBladeForgeScreenTexture' }
