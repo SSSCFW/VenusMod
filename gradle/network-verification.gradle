@@ -1,0 +1,40 @@
+// ネットワークはCreate非依存。画像とモデルはJDK標準ライブラリだけで生成する。
+def networkResources = layout.buildDirectory.dir('generated/networkAssets')
+def generateNetworkAssets = tasks.register('generateNetworkAssets', JavaExec) {
+    dependsOn tasks.named('compileVenusAssetGenerator')
+    classpath = files(layout.buildDirectory.dir('classes/venusAssetGenerator'))
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'NetworkAssetGenerator'
+    systemProperty 'java.awt.headless', 'true'
+    args networkResources.get().asFile.absolutePath
+    inputs.file('tools/java/NetworkAssetGenerator.java')
+    outputs.dir(networkResources)
+}
+sourceSets.main.resources.srcDir(networkResources)
+tasks.named('processResources') { dependsOn generateNetworkAssets }
+
+def compileNetworkTests = tasks.register('compileNetworkTests', JavaCompile) {
+    source = files(fileTree('src/main/java/dev/ssscfw/venusmod/infrastructure/network/core') { include '**/*.java' }, fileTree('tests/network') { include '*.java' })
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('classes/networkTests')
+    javaCompiler = javaToolchains.compilerFor { languageVersion = JavaLanguageVersion.of(21) }
+    options.release = 21
+    options.encoding = 'UTF-8'
+}
+def verifyNetworkCore = tasks.register('verifyNetworkCore', JavaExec) {
+    dependsOn compileNetworkTests
+    classpath = files(layout.buildDirectory.dir('classes/networkTests'))
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'NetworkCoreTest'
+}
+def verifyNetworkAssets = tasks.register('verifyNetworkAssets', JavaExec) {
+    dependsOn generateNetworkAssets
+    classpath = files(layout.buildDirectory.dir('classes/venusAssetGenerator'))
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'NetworkAssetValidator'
+    args networkResources.get().asFile.absolutePath
+}
+tasks.named('check') { dependsOn verifyNetworkCore, verifyNetworkAssets }
+
+repositories { maven { url = 'https://maven.blamejared.com' } }
+dependencies { compileOnly 'mezz.jei:jei-1.21.1-common-api:19.21.0.247' }

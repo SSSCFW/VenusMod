@@ -93,6 +93,8 @@ Add registries and mod-bus listeners from `VenusMod.java` as features are implem
 
 魔剣「閻魔刀」を持ってHキーで、地点保存・フォルダー整理・転送条件を設定できる「次元移動」を開けます。操作と隙間の設定は [閻魔刀の次元移動](docs/YAMATO_DIMENSION_TRAVEL.md) を参照してください。
 
-## ネットワークインフラ（設計案）
+## ネットワークインフラ
 
-マルチプレイ向けの仮想ネットワーク、LAN/光配線、L2/L3スイッチ、ルーター、ONU/OLT、仮想ISP、帯域・ポート強化、故障・冗長化、GUI/JEIによる使い方のガイドは [ネットワークインフラ仕様書](docs/NETWORK_SYSTEM_SPEC.md) を参照してください。**仕様案の段階であり、機能は未実装です。**
+4/16幅のLAN・光ケーブル8種類、ネットワーク機器8種類、Java製の仮想通信、ポート強化、故障・設定保存、機器GUI・JEI説明を追加しています。操作例と実装範囲は [ネットワーク機能の使い方と実装状況](docs/NETWORK_IMPLEMENTATION.md) を参照してください。
+
+全体計画は [ネットワークインフラ仕様書](docs/NETWORK_SYSTEM_SPEC.md) です。**現段階は初期実装であり、全仕様の完成ではありません。OSPF/BGP/IPv6や完全なSTP/VRRP等の未対応項目は実装状況に明記しています。**
