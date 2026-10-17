@@ -86,7 +86,7 @@ public final class VenusEnchantmentEvents {
     /**
      * SlashBlade's RefineHandler runs at LOW and creates the refined blade output from
      * base.copy(), so Soul Fragment enchantments are otherwise lost. This LOWEST hook
-     * runs afterwards and transfers only VenusMod's three blade-specific enchantments.
+     * runs afterwards and transfers only VenusMod's four blade-specific enchantments.
      */
     public static void onAnvilUpdate(AnvilUpdateEvent event) {
         ItemStack blade = event.getLeft();

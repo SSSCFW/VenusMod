@@ -17,11 +17,13 @@ public final class ModEnchantments {
     public static final ResourceKey<Enchantment> BLADE_RETENTION = key("blade_retention");
     public static final ResourceKey<Enchantment> STYLISH = key("stylish");
     public static final ResourceKey<Enchantment> SUMMONED_SWORD_DAMAGE = key("summoned_sword_damage");
+    public static final ResourceKey<Enchantment> RAPID_SLASH_SPEED = key("rapid_slash_speed");
 
     private static final ResourceKey<Enchantment>[] BLADE_SPECIAL_ENCHANTMENTS = new ResourceKey[] {
             BLADE_RETENTION,
             STYLISH,
-            SUMMONED_SWORD_DAMAGE
+            SUMMONED_SWORD_DAMAGE,
+            RAPID_SLASH_SPEED
     };
 
     private ModEnchantments() {
@@ -46,7 +48,7 @@ public final class ModEnchantments {
     }
 
     /**
-     * Copies the three Venus SlashBlade enchantments from a Soul Fragment carrier onto
+     * Copies the four Venus SlashBlade enchantments from a Soul Fragment carrier onto
      * the refined blade. Matching equal levels combine like a vanilla enchanted book:
      * they gain one level, capped at that enchantment's max level.
      */

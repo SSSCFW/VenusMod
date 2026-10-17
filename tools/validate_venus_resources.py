@@ -77,6 +77,19 @@ def main():
     forge_recipe = documents['data/venusmod/recipe/venus_blade_forge.json']
     assert {condition['modid'] for condition in forge_recipe['neoforge:conditions']} == {'create','slashblade'}
     assert forge_recipe['result']['id'] == 'venusmod:venus_blade_forge'
+    # New blade-only enchantment must be obtainable through enchanted Proud Souls,
+    # never through the vanilla enchanting table or villager trades.
+    rapid_slash = data('enchantment', 'rapid_slash_speed')
+    assert rapid_slash['max_level'] == 3
+    assert rapid_slash['description']['translate'] == 'enchantment.venusmod.rapid_slash_speed'
+    assert rapid_slash['supported_items'] == '#venusmod:enchantable/blade_rapid_slash_supported'
+    supported = data('tags/item/enchantable', 'blade_rapid_slash_supported')['values']
+    assert {'id': '#slashblade:swords', 'required': False} in supported
+    assert {'id': '#slashblade:proudsouls', 'required': False} in supported
+    for tag in ('in_enchanting_table', 'tradeable'):
+        assert 'venusmod:rapid_slash_speed' not in documents[f'data/minecraft/tags/enchantment/{tag}.json']['values']
+    for locale in ('ja_jp', 'en_us'):
+        assert documents[f'assets/venusmod/lang/{locale}.json']['enchantment.venusmod.rapid_slash_speed']
     machine_values = documents['data/venusmod/tags/block/machines.json']['values']
     assert {'id':'venusmod:venus_blade_forge','required':False} in machine_values
     forge_model = documents['assets/venusmod/models/block/venus_blade_forge.json']
