@@ -3,6 +3,7 @@ package dev.ssscfw.venusmod.registry;
 import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.entity.VenusZombie;
 import dev.ssscfw.venusmod.item.KingTreasuryItem;
+import dev.ssscfw.venusmod.item.MachineDescriptionItem;
 import dev.ssscfw.venusmod.storagebox.StorageBoxItem;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
@@ -19,9 +20,10 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 public final class ModItems {
     public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(VenusMod.MOD_ID);
 
-    public static final DeferredItem<BlockItem> DIAMOND_HOPPER =
+    public static final DeferredItem<MachineDescriptionItem> DIAMOND_HOPPER =
             ITEMS.register("diamond_hopper",
-                    () -> new BlockItem(ModBlocks.DIAMOND_HOPPER.get(), new Item.Properties()));
+                    () -> new MachineDescriptionItem(ModBlocks.DIAMOND_HOPPER.get(),
+                            new Item.Properties(), "diamond_hopper"));
 
     public static final DeferredItem<BlockItem> NICKEL_ORE =
             ITEMS.register("nickel_ore",
