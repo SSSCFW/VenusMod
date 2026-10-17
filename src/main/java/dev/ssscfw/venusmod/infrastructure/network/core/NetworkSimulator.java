@@ -55,6 +55,10 @@ public final class NetworkSimulator {
     private boolean forestDirty=true;
     private String forestLimit="";
     private long nextFlow=1;
+    private final Set<String> changedProfiles=new LinkedHashSet<>();
+    public static final int WEB_PORT=80, TRANSFER_PORT=5000, CONTROL_PORT=25570;
+    /** DHCPサーバー側の予約変更もBlockEntityの保存対象にする。 */
+    public Set<String> drainChangedProfiles(){var changed=Set.copyOf(changedProfiles);changedProfiles.clear();return changed;}
     public void put(String id,NetworkProfile profile){
         if(!nodes.containsKey(id)&&nodes.size()>=MAX_NODES)throw new IllegalStateException("機器数上限");
         Objects.requireNonNull(id);Objects.requireNonNull(profile);
@@ -193,9 +197,10 @@ public final class NetworkSimulator {
         return choices;
     }
     public Result route(String source,String address){
-        try{return route(source,address,new SearchBudget());}catch(SearchLimit limit){return Result.fail(limit.getMessage());}
+        try{return route(source,address,new SearchBudget(),NetworkPolicy.Packet.of("ip",replyAddress(source,address),address,0,0));}
+        catch(SearchLimit|IllegalArgumentException limit){return Result.fail(limit.getMessage());}
     }
-    private Result route(String source,String address,SearchBudget budget){
+    private Result route(String source,String address,SearchBudget budget,NetworkPolicy.Packet packet){
         requireForest();
         final String target;try{target=Ipv4.normalize(address);}catch(IllegalArgumentException e){return Result.fail(e.getMessage());}
         var original=nodes.get(source);if(original==null||original.failed)return Result.fail("送信元が停止しています");
@@ -213,6 +218,8 @@ public final class NetworkSimulator {
                 resolvedIp=sought;learn(arp,current,sought,macAddresses.get(reached.id));break;
             }
             if(reached==null)return Result.fail("到達不能: IP/経路/VLAN/媒体/断線を確認してください");
+            String denied=filterPath(reached.path,reached.wires,packet,budget);
+            if(denied!=null){log(source,denied);return Result.fail(denied);}
             budget.path(path.size()+reached.path.size()-1);
             for(int i=1;i<reached.path.size();i++)path.add(reached.path.get(i));wires.addAll(reached.wires);bps=Math.min(bps,reached.bps);delay+=reached.delay;
             current=reached.id;if(owns(current,target))return new Result(true,"到達",bps,delay,List.copyOf(path),List.copyOf(wires),current);
@@ -221,38 +228,128 @@ public final class NetworkSimulator {
         return Result.fail("TTL超過");
     }
     private String replyAddress(String source,String target){var p=nodes.get(source);if(p==null)return "";if(!p.address.isBlank())return p.address;var ds=decisions(source,target);return ds.isEmpty()?"":ds.getFirst().sourceIp;}
-    public Result ping(String source,String target){
-        try{return ping(source,target,new SearchBudget());}catch(SearchLimit limit){return Result.fail(limit.getMessage());}
+    /** ステートレスACLは各実経路の出側/入側で評価。宛先まで元のIP/ポートを維持する。 */
+    private String filterPath(List<String> path,List<String> wires,NetworkPolicy.Packet packet,SearchBudget budget){
+        for(int i=0;i<wires.size();i++){
+            Link link=links.get(wires.get(i));String from=path.get(i),to=path.get(i+1);
+            String denied=filterPort(from,link.port(from),NetworkPolicy.Direction.OUT,packet,budget);
+            if(denied!=null)return denied;
+            denied=filterPort(to,link.port(to),NetworkPolicy.Direction.IN,packet,budget);
+            if(denied!=null)return denied;
+        }
+        return null;
     }
-    private Result ping(String source,String target,SearchBudget budget){
-        Result forward=route(source,target,budget);if(!forward.success){log(source,"ping: "+forward.message);return forward;}
-        String address=replyAddress(source,target);if(address.isBlank())return Result.fail("送信元IPが未設定です");
-        Result reverse=route(forward.destination,address,budget);if(!reverse.success)return Result.fail("応答経路なし: "+reverse.message);
-        var result=new Result(true,"Reply from "+target+"  RTT="+String.format(Locale.ROOT,"%.2f ms",forward.milliseconds+reverse.milliseconds),Math.min(forward.bps,reverse.bps),forward.milliseconds+reverse.milliseconds,forward.nodes,forward.links,forward.destination);
+    private String filterPort(String id,int port,NetworkPolicy.Direction direction,NetworkPolicy.Packet packet,SearchBudget budget){
+        var profile=nodes.get(id);var verdict=profile.services.policy.decide(port,direction,packet);
+        for(int i=0;i<verdict.checked();i++)budget.spend();
+        return verdict.allowed()?null:"ACL拒否: "+profile.name+" P"+port+" "+direction+" "+(verdict.sequence()==0?"暗黙のdeny":"#"+verdict.sequence());
+    }
+    public Result ping(String source,String target){return request(source,target,"icmp",0);}
+    /** メタデータによる往復検査。実TCPハンドシェイクや外部ソケットは生成しない。 */
+    public Result request(String source,String target,String protocol,int destinationPort){
+        try {
+            var type=NetworkPolicy.Protocol.valueOf(protocol.toUpperCase(Locale.ROOT));
+            if(type==NetworkPolicy.Protocol.IP||type==NetworkPolicy.Protocol.ICMP&&destinationPort!=0)throw new IllegalArgumentException("requestはicmp(0), tcp, udpです");
+            return exchange(source,replyAddress(source,target),target,protocol,type==NetworkPolicy.Protocol.ICMP?0:49152,destinationPort,new SearchBudget());
+        }catch(SearchLimit|IllegalArgumentException e){return Result.fail(e.getMessage());}
+    }
+    private Result exchange(String source,String local,String target,String protocol,int sourcePort,int destinationPort,SearchBudget budget){
+        if(local.isBlank()||!owns(source,local))return Result.fail("送信元IPが未設定または機器に属していません");
+        var packet=NetworkPolicy.Packet.of(protocol,local,target,sourcePort,destinationPort);
+        Result forward=route(source,target,budget,packet);if(!forward.success)return forward;
+        Result reverse=route(forward.destination,local,budget,packet.reverse());
+        if(!reverse.success)return Result.fail("応答経路なし: "+reverse.message);
+        if(!reverse.destination.equals(source))return Result.fail("応答先IPが別の機器と競合しています");
+        var result=new Result(true,"Reply from "+target+" ["+protocol.toUpperCase(Locale.ROOT)+"] RTT="+String.format(Locale.ROOT,"%.2f ms",forward.milliseconds+reverse.milliseconds),Math.min(forward.bps,reverse.bps),forward.milliseconds+reverse.milliseconds,forward.nodes,forward.links,forward.destination);
         log(source,result.message+" / "+CableGrade.speed(result.bps));return result;
     }
     public Result dhcp(String source){
-        try{return dhcp(source,new SearchBudget());}catch(SearchLimit limit){return Result.fail(limit.getMessage());}
+        try{return dhcp(source,new SearchBudget());}catch(SearchLimit|IllegalArgumentException limit){return Result.fail(limit.getMessage());}
     }
     private Result dhcp(String source,SearchBudget budget){
-        requireForest();
-        var p=nodes.get(source);if(p==null||p.kind.routing())return Result.fail("端末で実行してください");
+        requireForest();var client=nodes.get(source);
+        if(client==null||client.failed||client.kind.routing())return Result.fail("稼働中の端末で実行してください");
+        String problem="DHCP応答なし、またはプールが満杯です";
         for(int port=0;port<6;port++){
-            var offers=segment(source,port,(id,in)->nodes.get(id).dhcp,budget);for(Step offer:offers){var server=nodes.get(offer.id);String address=server.kind.routing()?server.ports[offer.ingress].address:server.address;int prefix=server.kind.routing()?server.ports[offer.ingress].prefix:server.prefix;
-                if(address.isBlank()||prefix>30)continue;long base=Ipv4.parse(address)&Ipv4.mask(prefix),hosts=(~Ipv4.mask(prefix))&0xffffffffL;
-                Set<String> used=new HashSet<>();for(Step member:segment(source,port,(id,in)->true,budget)){var m=nodes.get(member.id);used.add(m.address);used.add(m.vip);for(var mp:m.ports)used.add(mp.address);}
-                for(long suffix=Math.min(100,Math.max(1,hosts/2));suffix<Math.min(hosts,254);suffix++){String candidate=Ipv4.format(base+suffix);if(candidate.equals(address)||used.contains(candidate))continue;
-                    p.address=candidate;p.prefix=prefix;p.gateway=address;p.dns=address;log(source,"DHCP ACK: "+candidate+"/"+prefix);return new Result(true,"DHCP ACK: "+candidate+"/"+prefix,offer.bps,offer.delay,offer.path,offer.wires,offer.id);}
+            final int clientPort=port;
+            List<Step> members=segment(source,port,(id,in)->true,budget);
+            for(Step offer:members){
+                var responder=nodes.get(offer.id);
+                String relayTarget=responder.kind.routing()?responder.services.relay(offer.ingress):"";
+                if(!responder.dhcp&&relayTarget.isBlank())continue;
+                String denied=filterPath(offer.path,offer.wires,NetworkPolicy.Packet.of("udp","0.0.0.0","255.255.255.255",68,67),budget);
+                if(denied!=null){problem=denied;continue;}
+                var backPaths=segment(offer.id,offer.ingress,(id,in)->id.equals(source)&&in==clientPort,budget);
+                if(backPaths.isEmpty()){problem="DHCP応答のLAN側経路がありません";continue;}
+                var back=backPaths.getFirst();
+                var localInterface=interfaceFor(responder,offer.ingress);
+                String serverId=offer.id,serverAddress=responder.address,giaddr="";
+                NetworkServices.Pool pool;
+                List<String> path=new ArrayList<>(offer.path),wires=new ArrayList<>(offer.wires);
+                long capacity=Math.min(offer.bps,back.bps);double delay=offer.delay+back.delay;
+                if(!relayTarget.isBlank()){
+                    if(localInterface==null){problem="DHCPリレー元のLAN側IPが未設定です";continue;}
+                    giaddr=localInterface.address;
+                    Result upstream=exchange(offer.id,giaddr,relayTarget,"udp",67,67,budget);
+                    if(!upstream.success){problem="DHCP relay: "+upstream.message;continue;}
+                    serverId=upstream.destination;serverAddress=relayTarget;
+                    var server=nodes.get(serverId);
+                    if(!server.dhcp){problem="DHCP relay: 宛先DHCPサービスは停止しています";continue;}
+                    pool=server.services.poolFor(giaddr);
+                    if(pool==null){problem="DHCP relay: giaddr="+giaddr+" に合うプールがありません";continue;}
+                    budget.path(path.size()+upstream.nodes.size()-1);
+                    path.addAll(upstream.nodes.subList(1,upstream.nodes.size()));wires.addAll(upstream.links);
+                    capacity=Math.min(capacity,upstream.bps);delay+=upstream.milliseconds;
+                }else{
+                    String local=responder.kind.routing()?(localInterface==null?"":localInterface.address):responder.address;
+                    int prefix=responder.kind.routing()?(localInterface==null?24:localInterface.prefix):responder.prefix;
+                    if(local.isBlank()||prefix>30)continue;
+                    serverAddress=local;pool=responder.services.poolFor(local);
+                    if(pool==null){
+                        if(!responder.services.pools().isEmpty()){problem="受信LANに合うDHCPプールがありません";continue;}
+                        long base=Ipv4.parse(local)&Ipv4.mask(prefix),hosts=(~Ipv4.mask(prefix))&0xffffffffL;
+                        pool=new NetworkServices.Pool(new NetworkPolicy.Prefix(base,prefix),Ipv4.format(base+Math.min(100,Math.max(1,hosts/2))),Ipv4.format(base+Math.min(hosts-1,253)),responder.kind.routing()?local:responder.gateway,local);
+                    }
+                }
+                denied=filterPath(back.path,back.wires,NetworkPolicy.Packet.of("udp",serverAddress,"255.255.255.255",67,68),budget);
+                if(denied!=null){problem=denied;continue;}
+                var server=nodes.get(serverId);Set<String> used=new HashSet<>(server.services.reservedByOthers(source));
+                used.add(pool.gateway());used.add(pool.dns());used.add(serverAddress);
+                for(Step member:members){var p=nodes.get(member.id);used.add(p.address);used.add(p.vip);for(var mp:p.ports)used.add(mp.address);}
+                String prior=server.services.reserved(source,pool),candidate=null;
+                if(prior!=null&&pool.contains(prior)&&!used.contains(prior))candidate=prior;
+                if(candidate==null)for(long n=Ipv4.parse(pool.first());n<=Ipv4.parse(pool.last());n++){budget.spend();String address=Ipv4.format(n);if(!used.contains(address)){candidate=address;break;}}
+                if(candidate==null){problem="DHCPプール枯渇: "+pool.subnet();continue;}
+                // ACK確定直前に保存容量も検査。失敗時は配布予約・端末設定とも戻す。
+                String oldAddress=client.address,oldGateway=client.gateway,oldDns=client.dns;int oldPrefix=client.prefix;
+                try {
+                    server.services.reserve(source,pool,candidate);server.encode();
+                    client.address=candidate;client.prefix=pool.subnet().length();client.gateway=pool.gateway();client.dns=pool.dns();client.encode();
+                }catch(IllegalArgumentException e){server.services.undoReserve(source,pool,prior);client.address=oldAddress;client.prefix=oldPrefix;client.gateway=oldGateway;client.dns=oldDns;problem=e.getMessage();continue;}
+                changedProfiles.add(source);changedProfiles.add(serverId);
+                String message="DHCP ACK: "+candidate+"/"+pool.subnet().length()+(giaddr.isBlank()?"":" / relay giaddr="+giaddr);
+                log(source,message);log(serverId,"DHCP予約: "+source+" → "+candidate);
+                return new Result(true,message,capacity,delay,List.copyOf(path),List.copyOf(wires),serverId);
             }
         }
-        return Result.fail("DHCP応答なし、またはプールが満杯です");
+        return Result.fail(problem);
     }
-    public Result resolve(String source,String name){var p=nodes.get(source);if(p==null||p.dns.isBlank())return Result.fail("DNSサーバー未設定");Result path=ping(source,p.dns);if(!path.success)return path;String ip=nodes.get(path.destination).dnsRecords.get(name.toLowerCase(Locale.ROOT));return ip==null?Result.fail("NXDOMAIN (仮想DNS)"):new Result(true,name+" = "+ip,path.bps,path.milliseconds,path.nodes,path.links,ip);}
+    private static NetworkProfile.Port interfaceFor(NetworkProfile p,int ingress){
+        var port=p.ports[ingress];if(port.enabled&&!port.address.isBlank())return port;
+        if(p.kind==DeviceKind.L3_SWITCH)for(var other:p.ports)if(other.enabled&&other.vlan==port.vlan&&!other.address.isBlank())return other;
+        return null;
+    }
+    public Result resolve(String source,String name){
+        var p=nodes.get(source);if(p==null||p.dns.isBlank())return Result.fail("DNSサーバー未設定");
+        Result path=request(source,p.dns,"udp",53);if(!path.success)return path;
+        String ip=nodes.get(path.destination).dnsRecords.get(name.toLowerCase(Locale.ROOT));
+        return ip==null?Result.fail("NXDOMAIN (仮想DNS)"):new Result(true,name+" = "+ip,path.bps,path.milliseconds,path.nodes,path.links,ip);
+    }
     public Result startTransfer(String source,String destination,long bytes){
         if(bytes<=0||bytes>1_000_000_000_000L)return Result.fail("転送量は1〜1TBです");if(flows.size()>=MAX_FLOWS)return Result.fail("同時転送の上限です");
         var sender=nodes.get(source);if(sender==null)return Result.fail("送信元なし");
         if(flows.stream().filter(f->f.source.equals(source)).count()>=4+Math.clamp(sender.buffer,0,6)*4)return Result.fail("送信バッファ満杯: バッファモジュールで同時転送枠を増設できます");
-        Result path=ping(source,destination);if(!path.success)return path;var flow=new Flow(nextFlow++,bytes,source,path);flows.add(flow);log(source,"仮想転送 #"+flow.id+": "+bytes+" bytes");return new Result(true,"転送 #"+flow.id+" 開始 (実ファイルは生成しません)",path.bps,path.milliseconds,path.nodes,path.links,path.destination);
+        Result path=request(source,destination,"tcp",TRANSFER_PORT);if(!path.success)return path;var flow=new Flow(nextFlow++,bytes,source,path);flows.add(flow);log(source,"仮想転送 #"+flow.id+": "+bytes+" bytes");return new Result(true,"転送 #"+flow.id+" 開始 (実ファイルは生成しません)",path.bps,path.milliseconds,path.nodes,path.links,path.destination);
     }
     public void advance(long ticks){
         if(ticks<=0)return;Map<String,Integer> use=new HashMap<>();for(var f:flows){for(String link:new HashSet<>(f.links))use.merge("l"+link,1,Integer::sum);for(String node:new HashSet<>(f.nodes))use.merge("n"+node,1,Integer::sum);}

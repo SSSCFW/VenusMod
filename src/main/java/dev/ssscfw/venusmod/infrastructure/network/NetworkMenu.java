@@ -50,7 +50,7 @@ public final class NetworkMenu extends AbstractContainerMenu {
     public DeviceKind kind(){return kind;}
     public void receive(int kind,String text){if(kind>=0&&kind<DeviceKind.values().length)this.kind=DeviceKind.values()[kind];snapshot=text;}
     public void command(ServerPlayer sender,String text){
-        if(sender!=player||target==null||!stillValid(sender)||text==null||text.length()>512)return;
+        if(sender!=player||target==null||!stillValid(sender)||text==null||text.length()>512||text.codePoints().anyMatch(Character::isISOControl))return;
         long now=sender.serverLevel().getGameTime();if(lastCommandTick==now){if(++commandsThisTick>2)return;}else{if(lastCommandTick!=Long.MIN_VALUE&&now-lastCommandTick<2)return;lastCommandTick=now;commandsThisTick=1;}
         var world=NetworkWorld.get(sender.serverLevel());if(!world.ready()){output=world.diagnostic();sendSnapshot(sender);return;}
         // メニューを開き直しても、ディメンション/プレイヤー共通の予算を使う。
@@ -58,13 +58,16 @@ public final class NetworkMenu extends AbstractContainerMenu {
         if(!world.simulator().nodes().containsKey(target.id())){output="機器数上限または未登録の機器です";sendSnapshot(sender);return;}
         String[] t=text.trim().split("\\s+");var simulator=world.simulator();
         try{
-            if(t[0].equals("trust")||t[0].equals("untrust")){
+            var service=NetworkServiceCommands.run(simulator,target.id(),text);
+            if(service.handled()){
+                target.adoptProfile(simulator.nodes().get(target.id()));output=String.join("\n",service.lines());if(service.changed())target.refreshState();
+            }else if(t[0].equals("trust")||t[0].equals("untrust")){
                 if(target.owner()!=null&&!target.owner().equals(sender.getUUID())&&!sender.hasPermissions(2)){output="共有権限の変更は所有者のみです";}
                 else if(t.length!=2){output="trust プレイヤー名 / untrust プレイヤー名";}
                 else{var other=sender.getServer().getPlayerList().getPlayerByName(t[1]);output=other==null?"対象プレイヤーがオンラインではありません":target.trust(other.getUUID(),t[0].equals("trust"))?"共有権限を変更しました":"共有人数の上限です";}
             }else if(t[0].equals("open")||t[0].equals("redstone")){
                 if(t.length!=(t[0].equals("open")?2:3))throw new IllegalArgumentException("open IP / redstone IP 0〜15");
-                NetworkSimulator.Result route=simulator.ping(target.id(),t[1]);
+                NetworkSimulator.Result route=simulator.request(target.id(),t[1],"tcp",t[0].equals("open")?NetworkSimulator.WEB_PORT:NetworkSimulator.CONTROL_PORT);
                 if(!route.success())output=route.message();else{var other=world.device(route.destination());
                     if(other==null||!other.canControl(sender))output="通信先のサービス利用権限がありません";
                     else if(t[0].equals("open")){output=other.profile().kind==DeviceKind.SERVER&&other.profile().web?"[ゲーム内管理画面]\n"+other.profile().name+"\n状態: "+(other.profile().failed?"故障":"正常")+"\nIP: "+other.profile().address+"\n上限: "+CableGrade.speed(route.bps())+"\n外部HTML・JavaScriptは使用しません":"仮想Webサービスが停止しています";}
@@ -73,8 +76,11 @@ public final class NetworkMenu extends AbstractContainerMenu {
                 }
             }else{
                 NetworkCli.Reply result=NetworkCli.run(simulator,target.id(),text);target.adoptProfile(simulator.nodes().get(target.id()));output=String.join("\n",result.lines());if(result.changed())target.refreshState();
+                if(t[0].equals("help"))output="図付きガイドをボタンから開けます。\n追加: acl / dhcp-relay / dhcp-pool / dhcp-bindings\n"+output;
             }
         }catch(IllegalArgumentException exception){output="入力エラー: "+exception.getMessage();}
+        // クライアントだけでなくDHCPサーバーの配布予約も保存する。
+        for(String id:simulator.drainChangedProfiles()){var changed=world.device(id);if(changed!=null)changed.setChanged();}
         sendSnapshot(sender);
     }
     @Override public void broadcastChanges(){super.broadcastChanges();if(player instanceof ServerPlayer server&&target!=null&&stillValid(player)){long now=server.serverLevel().getGameTime();if(now-lastSnapshotTick>=20){lastSnapshotTick=now;sendSnapshot(server);}}}

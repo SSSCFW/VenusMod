@@ -36,8 +36,8 @@ def verifyNetworkAssets = tasks.register('verifyNetworkAssets', JavaExec) {
 }
 tasks.named('check') { dependsOn verifyNetworkCore, verifyNetworkAssets }
 
-// マルチプレイ境界値と要求連打の回帰検査を通常のbuildにも含める。
-['NetworkContinuationTest', 'NetworkRequestBudgetTest'].each { checkClassName ->
+// 新サービス・共通ガイドと、既存のマルチプレイ境界値の検査を通常buildへ含める。
+['NetworkContinuationTest', 'NetworkRequestBudgetTest', 'NetworkServicesTest', 'NetworkGuideTest'].each { checkClassName ->
     def verification = tasks.register('verify' + checkClassName.replace('Test', ''), JavaExec) {
         dependsOn compileNetworkTests
         classpath = files(layout.buildDirectory.dir('classes/networkTests'))
