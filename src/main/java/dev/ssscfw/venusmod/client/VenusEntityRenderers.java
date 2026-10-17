@@ -1,5 +1,7 @@
 package dev.ssscfw.venusmod.client;
 
+import com.mojang.blaze3d.vertex.PoseStack;
+
 import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.compat.create.client.VenusCreateClientCompat;
 import dev.ssscfw.venusmod.entity.VenusArrow;
@@ -64,6 +66,13 @@ public final class VenusEntityRenderers {
                     new VenusZombieModel<>(context.bakeLayer(ModelLayers.ZOMBIE)),
                     new VenusZombieModel<>(context.bakeLayer(ModelLayers.ZOMBIE_INNER_ARMOR)),
                     new VenusZombieModel<>(context.bakeLayer(ModelLayers.ZOMBIE_OUTER_ARMOR)));
+        }
+
+        @Override
+        protected void setupRotations(VenusZombie entity, PoseStack poses,
+                                      float ageInTicks, float rotationYaw, float partialTick, float scale) {
+            super.setupRotations(entity, poses, ageInTicks, rotationYaw, partialTick, scale);
+            PlayerAnimatorCompat.applySlashBladeBodyTransform(poses, entity, partialTick);
         }
 
         @Override

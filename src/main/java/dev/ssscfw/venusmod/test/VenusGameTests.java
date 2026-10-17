@@ -3,6 +3,7 @@ package dev.ssscfw.venusmod.test;
 import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.entity.VenusGeneral;
 import dev.ssscfw.venusmod.entity.VenusZombie;
+import dev.ssscfw.venusmod.entity.ai.VenusBladeMotionTimeline;
 import dev.ssscfw.venusmod.world.VenusDimensionContent;
 import dev.ssscfw.venusmod.world.VenusPortalFrame;
 import net.minecraft.core.BlockPos;
@@ -64,6 +65,46 @@ public final class VenusGameTests {
                 "斬撃間隔の増分が平均0.12秒でなくなった");
         helper.assertTrue(VenusZombie.BLADE_COMBO_END_TICK >= expected[expected.length - 1] + 4,
                 "最後の斬撃後の回復アニメーション時間が不足している");
+        helper.succeed();
+    }
+
+    @GameTest(template = "test/empty")
+    public static void bladeUsesOriginalPlayerVmdTimeline(GameTestHelper helper) {
+        // SlashBladeのプレイヤー操作ではA1(1撃)→A2(1撃)→A3(2撃)→A4(2撃)。
+        int technique = VenusZombie.BLADE_TECHNIQUE_COMBO;
+        helper.assertTrue(VenusBladeMotionTimeline.sample(technique, 0.0F).motion()
+                        == VenusBladeMotionTimeline.Motion.COMBO_A1,
+                "1撃目がSlashBladeプレイヤーのcombo_a1ではない");
+        helper.assertTrue(VenusBladeMotionTimeline.sample(technique, 6.0F).motion()
+                        == VenusBladeMotionTimeline.Motion.COMBO_A2,
+                "2撃目がSlashBladeプレイヤーのcombo_a2ではない");
+        helper.assertTrue(VenusBladeMotionTimeline.sample(technique, 13.0F).motion()
+                        == VenusBladeMotionTimeline.Motion.COMBO_A3,
+                "3撃目がSlashBladeプレイヤーのcombo_a3ではない");
+        helper.assertTrue(VenusBladeMotionTimeline.sample(technique, 18.0F).motion()
+                        == VenusBladeMotionTimeline.Motion.COMBO_A3,
+                "4撃目で原作combo_a3が途中から別クリップへ切り替わっている");
+        helper.assertTrue(VenusBladeMotionTimeline.sample(technique, 25.0F).motion()
+                        == VenusBladeMotionTimeline.Motion.COMBO_A4,
+                "5撃目がSlashBladeプレイヤーのcombo_a4ではない");
+        helper.assertTrue(VenusBladeMotionTimeline.sample(technique, 29.0F).motion()
+                        == VenusBladeMotionTimeline.Motion.COMBO_A4,
+                "6撃目で原作combo_a4が途中から別クリップへ切り替わっている");
+
+        helper.assertTrue(VenusBladeMotionTimeline.sample(technique, 13.0F).frameOffset() == 2.0F
+                        && VenusBladeMotionTimeline.sample(technique, 18.0F).frameOffset() == 6.0F,
+                "SlashBladeプレイヤーのcombo_a3の2連撃キーフレームと同期していない");
+        helper.assertTrue(VenusBladeMotionTimeline.sample(technique, 25.0F).frameOffset() == 8.0F
+                        && VenusBladeMotionTimeline.sample(technique, 29.0F).frameOffset() == 9.0F,
+                "SlashBladeプレイヤーのcombo_a4の2連撃キーフレームと同期していない");
+        helper.assertTrue(VenusBladeMotionTimeline.sample(
+                        VenusZombie.BLADE_TECHNIQUE_RAPID_SLASH, 2.0F).motion()
+                        == VenusBladeMotionTimeline.Motion.RAPID_SLASH,
+                "高速斬撃でプレイヤーのrapid_slashを使っていない");
+        helper.assertTrue(VenusBladeMotionTimeline.sample(
+                        VenusZombie.BLADE_TECHNIQUE_IAI, 2.0F).motion()
+                        == VenusBladeMotionTimeline.Motion.JUDGEMENT_CUT,
+                "居合いでプレイヤーのjudgement_cutを使っていない");
         helper.succeed();
     }
 

@@ -1,7 +1,10 @@
 package dev.ssscfw.venusmod.client;
 
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.logging.LogUtils;
+import com.mojang.math.Axis;
 import dev.ssscfw.venusmod.entity.VenusZombie;
+import dev.ssscfw.venusmod.entity.ai.VenusBladeMotionTimeline;
 import net.minecraft.client.model.ZombieModel;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.resources.ResourceLocation;
@@ -45,11 +48,20 @@ public final class PlayerAnimatorCompat {
     private static Map<?, ?> slashBladeAnimations;
     private static Method vmdCloneMethod;
     private static Method vmdPlayMethod;
-    private static Method vmdSetSpeedMethod;
     private static Constructor<?> vmdConstructor;
     private static Constructor<?> animationApplierConstructor;
     private static Method animationSetTickDeltaMethod;
     private static Method animationUpdatePartMethod;
+
+    // プレイヤーのPlayerRendererMixinが適用している身体全体の移動と回転も使用。
+    private static Constructor<?> vectorConstructor;
+    private static Method vectorGetXMethod;
+    private static Method vectorGetYMethod;
+    private static Method vectorGetZMethod;
+    private static Method animationGet3DTransformMethod;
+    private static Object transformPosition;
+    private static Object transformRotation;
+    private static Object transformScale;
 
     // Optional. ModelPart transforms work without these; they only keep PlayerAnimator
     // bend rendering state in sync when its HumanoidModel mixin is available.
@@ -66,8 +78,7 @@ public final class PlayerAnimatorCompat {
      * Returns true only when VMD transforms were successfully applied this frame.
      */
     public static boolean applySlashBladeAnimation(ZombieModel<?> model, VenusZombie zombie, float ageInTicks) {
-        boolean bladeWielder = zombie.isSlashBladeWielder() || zombie.hasSlashBladeEquipped();
-        if (!bladeWielder || !zombie.isBladeTechniqueActive()) {
+        if (!isBladeAnimationActive(zombie)) {
             clearAnimationState(model);
             return false;
         }
@@ -75,37 +86,14 @@ public final class PlayerAnimatorCompat {
             return false;
         }
 
-        AnimationSelection selection = selectAnimation(zombie);
-        if (selection == null) {
-            clearAnimationState(model);
-            return false;
-        }
-
         try {
-            Object animation = createAnimation(selection);
-            if (animation == null) {
+            Object applier = prepareAnimation(zombie, ageInTicks - (float) Math.floor(ageInTicks));
+            if (applier == null) {
                 clearAnimationState(model);
                 return false;
             }
 
-            if (vmdSetSpeedMethod != null) {
-                vmdSetSpeedMethod.invoke(animation, selection.playbackSpeed());
-            }
-            vmdPlayMethod.invoke(animation, selection.localTick());
-            Object applier = animationApplierConstructor.newInstance(animation);
-
-            float partialTick = (float) (ageInTicks - Math.floor(ageInTicks));
-            animationSetTickDeltaMethod.invoke(applier, partialTick);
-
-            // Do this FIRST. Earlier code attempted to install the IMutableModel supplier
-            // before these calls; if that optional bridge failed, no VMD rotation ever
-            // reached the zombie. AnimationApplier.updatePart is sufficient to apply the
-            // actual VMD position/rotation/scale to these ModelParts.
-            float rightX = model.rightArm.xRot;
-            float rightY = model.rightArm.yRot;
-            float leftX = model.leftArm.xRot;
-            float leftY = model.leftArm.yRot;
-            float bodyY = model.body.yRot;
+            // PlayerModelMixin#setEmoteと同じModelPart名と同じ更新順序を使用する。
             updatePart(applier, "head", model.head);
             model.hat.copyFrom(model.head);
             updatePart(applier, "leftArm", model.leftArm);
@@ -114,27 +102,84 @@ public final class PlayerAnimatorCompat {
             updatePart(applier, "rightLeg", model.rightLeg);
             updatePart(applier, "torso", model.body);
 
-            // VMDの読み込みに成功しても骨が動かなければアニメーション成功とみなさない。
-            // 全ての腕/胴体が初期姿勢のままなら必ずVenusZombieModelの斬撃姿勢に戻す。
-            float change = Math.abs(model.rightArm.xRot - rightX)
-                    + Math.abs(model.rightArm.yRot - rightY)
-                    + Math.abs(model.leftArm.xRot - leftX)
-                    + Math.abs(model.leftArm.yRot - leftY)
-                    + Math.abs(model.body.yRot - bodyY);
-            if (change < 0.08F) {
-                clearAnimationState(model);
-                return false;
-            }
-
-            // Best-effort bend integration. Failure here must never discard the already
-            // applied VMD rotations above.
+            // 初期フレームで腕の変化量が小さくても原作VMDを捨てない。
+            // 旧実装はその判定で本物のアニメーションを手動姿勢に差し替えていた。
             installAnimationSupplier(model, applier);
             return true;
         } catch (ReflectiveOperationException | LinkageError | RuntimeException exception) {
-            logFailureOnce("Failed to apply SlashBlade VMD to Venus zombie", exception);
+            logFailureOnce("Failed to apply SlashBlade player VMD to Venus mob", exception);
             clearAnimationState(model);
             return false;
         }
+    }
+
+    /**
+     * プレイヤー用PlayerRendererMixin#applyBodyTransformsと同じbodyルート変形。
+     * 個々の腕の回転だけでは再現できない踏み込みや身体のひねりも揃える。
+     */
+    public static boolean applySlashBladeBodyTransform(PoseStack poses, VenusZombie zombie, float partialTick) {
+        if (!isBladeAnimationActive(zombie) || !resolve()) {
+            return false;
+        }
+
+        try {
+            Object applier = prepareAnimation(zombie, partialTick);
+            if (applier == null) {
+                return false;
+            }
+
+            float[] scale = getBodyTransform(applier, transformScale, 1.0F, 1.0F, 1.0F);
+            float[] position = getBodyTransform(applier, transformPosition, 0.0F, 0.0F, 0.0F);
+            float[] rotation = getBodyTransform(applier, transformRotation, 0.0F, 0.0F, 0.0F);
+
+            // PlayerRendererMixinと同じ順番。bodyとtorsoは別々のボーン。
+            poses.scale(scale[0], scale[1], scale[2]);
+            poses.translate(position[0], position[1] + 0.7D, position[2]);
+            poses.mulPose(Axis.ZP.rotation(rotation[2]));
+            poses.mulPose(Axis.YP.rotation(rotation[1]));
+            poses.mulPose(Axis.XP.rotation(rotation[0]));
+            poses.translate(0.0D, -0.7D, 0.0D);
+            return true;
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException exception) {
+            logFailureOnce("Failed to apply SlashBlade player body transform to Venus mob", exception);
+            return false;
+        }
+    }
+
+    private static float[] getBodyTransform(Object applier, Object transformType,
+                                            float x, float y, float z) throws ReflectiveOperationException {
+        Object input = vectorConstructor.newInstance(x, y, z);
+        Object result = animationGet3DTransformMethod.invoke(applier, "body", transformType, input);
+        return new float[]{
+                ((Number) vectorGetXMethod.invoke(result)).floatValue(),
+                ((Number) vectorGetYMethod.invoke(result)).floatValue(),
+                ((Number) vectorGetZMethod.invoke(result)).floatValue()
+        };
+    }
+
+    private static boolean isBladeAnimationActive(VenusZombie zombie) {
+        return zombie.isBladeTechniqueActive()
+                && (zombie.isSlashBladeWielder() || zombie.hasSlashBladeEquipped());
+    }
+
+    private static Object prepareAnimation(VenusZombie zombie, float partialTick)
+            throws ReflectiveOperationException {
+        VenusBladeMotionTimeline.Sample sample = VenusBladeMotionTimeline.sample(
+                zombie.getBladeTechnique(), zombie.getBladeTechniqueTick() + partialTick);
+        if (sample == null) {
+            return null;
+        }
+        AnimationSelection selection = selectAnimation(sample);
+        Object animation = createAnimation(selection);
+
+        // VMD 30fpsとMinecraft 20tpsを相互変換し、整数tick+端数として再生。
+        // これで同じVMDの原作キーフレームを任意のMob攻撃時刻で正確にサンプリングする。
+        float ticks = sample.frameOffset() * (20.0F / 30.0F);
+        int elapsed = (int) Math.floor(ticks);
+        vmdPlayMethod.invoke(animation, elapsed);
+        Object applier = animationApplierConstructor.newInstance(animation);
+        animationSetTickDeltaMethod.invoke(applier, ticks - elapsed);
+        return applier;
     }
 
     private static Object createAnimation(AnimationSelection selection) throws ReflectiveOperationException {
@@ -158,48 +203,15 @@ public final class PlayerAnimatorCompat {
         return vmdConstructor.newInstance(MOTION, selection.startFrame(), selection.endFrame(), false);
     }
 
-    private static AnimationSelection selectAnimation(VenusZombie zombie) {
-        int technique = zombie.getBladeTechnique();
-        int tick = Math.max(0, zombie.getBladeTechniqueTick());
-
-        if (technique == VenusZombie.BLADE_TECHNIQUE_RAPID_SLASH) {
-            return clip(RAPID_SLASH, tick, 0, 9, 2000.0D, 2073.0D);
-        }
-        if (technique == VenusZombie.BLADE_TECHNIQUE_IAI) {
-            return clip(IAI_SLASH, tick, 0, VenusZombie.BLADE_IAI_END_TICK + 1,
-                    1900.0D, 1963.0D);
-        }
-        if (technique != VenusZombie.BLADE_TECHNIQUE_COMBO) {
-            return null;
-        }
-
-        // サーバー側の当たり判定と同じ6撃の境界を使用する。
-        // 短い攻撃間隔でもVMDが初期フレームに張り付かないようクリップの進行速度を合わせる。
-        for (int i = VenusZombie.getBladeComboHitCount() - 1; i >= 0; i--) {
-            int start = VenusZombie.getBladeComboHitTick(i);
-            if (tick < start) {
-                continue;
-            }
-            int end = i + 1 < VenusZombie.getBladeComboHitCount()
-                    ? VenusZombie.getBladeComboHitTick(i + 1)
-                    : VenusZombie.BLADE_COMBO_END_TICK + 1;
-            return switch (i % 4) {
-                case 0 -> clip(COMBO_A1, tick, start, end, 1.0D, 41.0D);
-                case 1 -> clip(COMBO_A2, tick, start, end, 100.0D, 151.0D);
-                case 2 -> clip(COMBO_A3, tick, start, end, 200.0D, 306.0D);
-                default -> clip(COMBO_A4, tick, start, end, 500.0D, 608.0D);
-            };
-        }
-        return null;
-    }
-
-    private static AnimationSelection clip(ResourceLocation id, int tick, int startTick,
-                                           int endTick, double startFrame, double endFrame) {
-        // SlashBladeのVMDは30fps、Minecraftは20tps。
-        double speed = (endFrame - startFrame) * (20.0D / 30.0D)
-                / Math.max(1, endTick - startTick);
-        int localTick = (int) Math.floor(Math.max(0, tick - startTick) * speed);
-        return new AnimationSelection(id, localTick, startFrame, endFrame, speed);
+    private static AnimationSelection selectAnimation(VenusBladeMotionTimeline.Sample sample) {
+        return switch (sample.motion()) {
+            case COMBO_A1 -> new AnimationSelection(COMBO_A1, 1.0D, 41.0D);
+            case COMBO_A2 -> new AnimationSelection(COMBO_A2, 100.0D, 151.0D);
+            case COMBO_A3 -> new AnimationSelection(COMBO_A3, 200.0D, 306.0D);
+            case COMBO_A4 -> new AnimationSelection(COMBO_A4, 500.0D, 608.0D);
+            case RAPID_SLASH -> new AnimationSelection(RAPID_SLASH, 2000.0D, 2073.0D);
+            case JUDGEMENT_CUT -> new AnimationSelection(IAI_SLASH, 1900.0D, 1963.0D);
+        };
     }
 
     private static void updatePart(Object applier, String name, ModelPart part) throws ReflectiveOperationException {
@@ -222,11 +234,6 @@ public final class PlayerAnimatorCompat {
                     "mods.flammpfeil.slashblade.compat.playerAnim.VmdAnimation");
             vmdCloneMethod = vmdAnimationClass.getMethod("getClone");
             vmdPlayMethod = vmdAnimationClass.getMethod("play", int.class);
-            try {
-                vmdSetSpeedMethod = vmdAnimationClass.getMethod("setSpeed", double.class);
-            } catch (NoSuchMethodException ignored) {
-                // 旧版PlayerAnimator連携は等速再生へフォールバックする。
-            }
             vmdConstructor = vmdAnimationClass.getConstructor(
                     ResourceLocation.class, double.class, double.class, boolean.class);
 
@@ -236,6 +243,18 @@ public final class PlayerAnimatorCompat {
             animationApplierConstructor = animationApplierClass.getConstructor(iAnimationClass);
             animationSetTickDeltaMethod = animationApplierClass.getMethod("setTickDelta", float.class);
             animationUpdatePartMethod = animationApplierClass.getMethod("updatePart", String.class, ModelPart.class);
+
+            Class<?> transformTypeClass = Class.forName("dev.kosmx.playerAnim.api.TransformType");
+            Class<?> vectorClass = Class.forName("dev.kosmx.playerAnim.core.util.Vec3f");
+            vectorConstructor = vectorClass.getConstructor(float.class, float.class, float.class);
+            vectorGetXMethod = vectorClass.getMethod("getX");
+            vectorGetYMethod = vectorClass.getMethod("getY");
+            vectorGetZMethod = vectorClass.getMethod("getZ");
+            animationGet3DTransformMethod = animationApplierClass.getMethod(
+                    "get3DTransform", String.class, transformTypeClass, vectorClass);
+            transformPosition = enumValue(transformTypeClass, "POSITION");
+            transformRotation = enumValue(transformTypeClass, "ROTATION");
+            transformScale = enumValue(transformTypeClass, "SCALE");
 
             // PlayerAnimationOverrider is useful but not required. If this optional map
             // lookup fails, createAnimation() directly constructs the known VMD clip.
@@ -260,6 +279,11 @@ public final class PlayerAnimatorCompat {
             logFailureOnce("SlashBlade/PlayerAnimator animation bridge could not initialize", exception);
             return false;
         }
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static Object enumValue(Class<?> enumClass, String name) {
+        return Enum.valueOf((Class<? extends Enum>) enumClass.asSubclass(Enum.class), name);
     }
 
     private static void resolveOptionalBendSupport() {
@@ -342,11 +366,6 @@ public final class PlayerAnimatorCompat {
         return ResourceLocation.fromNamespaceAndPath("slashblade", path);
     }
 
-    private record AnimationSelection(
-            ResourceLocation animationId,
-            int localTick,
-            double startFrame,
-            double endFrame,
-            double playbackSpeed) {
+    private record AnimationSelection(ResourceLocation animationId, double startFrame, double endFrame) {
     }
 }

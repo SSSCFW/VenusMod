@@ -1,5 +1,7 @@
 package dev.ssscfw.venusmod.client;
 
+import com.mojang.blaze3d.vertex.PoseStack;
+
 import dev.ssscfw.venusmod.entity.VenusGeneral;
 import dev.ssscfw.venusmod.world.VenusDimensionContent;
 import net.minecraft.client.model.geom.ModelLayers;
@@ -19,6 +21,13 @@ public final class VenusGeneralRenderer extends AbstractZombieRenderer<VenusGene
                 new VenusZombieModel<>(context.bakeLayer(ModelLayers.ZOMBIE)),
                 new VenusZombieModel<>(context.bakeLayer(ModelLayers.ZOMBIE_INNER_ARMOR)),
                 new VenusZombieModel<>(context.bakeLayer(ModelLayers.ZOMBIE_OUTER_ARMOR)));
+    }
+
+    @Override
+    protected void setupRotations(VenusGeneral entity, PoseStack poses,
+                                  float ageInTicks, float rotationYaw, float partialTick, float scale) {
+        super.setupRotations(entity, poses, ageInTicks, rotationYaw, partialTick, scale);
+        PlayerAnimatorCompat.applySlashBladeBodyTransform(poses, entity, partialTick);
     }
 
     @Override
