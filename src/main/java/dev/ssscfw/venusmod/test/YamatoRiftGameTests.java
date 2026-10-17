@@ -11,6 +11,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.vehicle.Boat;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
@@ -153,6 +154,11 @@ public final class YamatoRiftGameTests {
         Vec3 a=Vec3.atBottomCenterOf(h.absolutePos(new BlockPos(2,3,2)));
         Vec3 b=new Vec3(a.x,220,a.z);
         BlockPos origin=BlockPos.containing(b);
+        ChunkPos destinationChunk=new ChunkPos(origin);
+        // 保存先は訪問済みの場所。高速なGameTestの制限時間を未生成の周辺地形の生成に使わない。
+        // FULL読込だけを先に済ませ、Entity tickingへの昇格は実際の裂け目のチケットで検証する。
+        for(int dx=-2;dx<=2;dx++) for(int dz=-2;dz<=2;dz++)
+            target.getChunk(destinationChunk.x+dx,destinationChunk.z+dz);
         for(BlockPos pos:BlockPos.betweenClosed(origin.offset(-2,-1,-2),origin.offset(2,4,2)))
             target.setBlock(pos,Blocks.AIR.defaultBlockState(),3);
         var pair=data.openPair(UUID.randomUUID(),"dimension",YamatoRifts.Endpoint.at(level,a,0),
@@ -161,7 +167,12 @@ public final class YamatoRiftGameTests {
         // 新規Netherチャンクのブロック読込とEntityの可視化は別段階。転送前に追跡可能になるまで待つ。
         h.startSequence().thenWaitUntil(() -> {
             data.tick(server,level.getGameTime());
-            h.assertTrue(target.isPositionEntityTicking(BlockPos.containing(b)),"Destination chunk not entity-ticking yet");
+            var chunk=target.getChunkSource().getChunkNow(destinationChunk.x,destinationChunk.z);
+            h.assertTrue(target.isPositionEntityTicking(origin),"Destination chunk not entity-ticking yet: full="
+                    +(chunk==null?"none":chunk.getFullStatus())
+                    +", entitiesLoaded="+target.areEntitiesLoaded(destinationChunk.toLong())
+                    +", entityVisibility="+target.isNaturalSpawningAllowed(origin)
+                    +", blockTicking="+target.getChunkSource().isPositionTicking(destinationChunk.toLong()));
         }).thenExecute(() -> {
             Pig pig=h.spawn(EntityType.PIG,new BlockPos(2,3,2));pig.setNoAi(true);pig.setNoGravity(true);pig.moveTo(a.x,a.y,a.z,0,0);
             UUID id=pig.getUUID();

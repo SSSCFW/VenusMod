@@ -22,6 +22,7 @@ import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -56,7 +57,16 @@ public final class RoyalBladeEnchantmentGameTests {
         helper.setBlock(new BlockPos(4, 1, 2), Blocks.TNT);
         RoyalBladeEntity shot = shoot(helper, owner, direct, new ItemStack(Items.DIAMOND_SWORD), true);
         helper.assertTrue(shot.phantasm(), "召喚時のモードを投影に保存");
+        double targetFeetY = direct.getY();
+        Vec3 expectedImpact = direct.getBoundingBox().inflate(0.3F)
+                .clip(shot.position(), shot.position().add(shot.getDeltaMovement())).orElseThrow();
+        Vec3 expectedCenter = expectedImpact.subtract(shot.getDeltaMovement().normalize().scale(0.03D));
+        helper.assertTrue(helper.getLevel().clip(new ClipContext(expectedCenter, distant.getEyePosition(),
+                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, shot)).getType() == HitResult.Type.MISS,
+                "遠距離の爆風を検証する経路に遮蔽物を置かない");
         helper.runAfterDelay(6, () -> {
+            helper.assertTrue(shot.isRemoved(), "直撃後に投影を除去");
+            helper.assertTrue(shot.getY() > targetFeetY + 0.25D, "着弾位置を足元へ落とさず飛翔経路の交点に保つ");
             helper.assertTrue(direct.getHealth() < 100F, "幻想の直撃ダメージ");
             helper.assertTrue(distant.getHealth() < 100F,
                     "通常の半径2より遠い相手にも幻想の爆風: " + blastDiagnostic(helper, owner, distant, shot));
@@ -81,7 +91,7 @@ public final class RoyalBladeEnchantmentGameTests {
                 + ", radius=" + radius + ", distance=" + target.getBoundingBox().getCenter().distanceTo(center)
                 + ", canDamage=" + RoyalBladeEntity.canDamage(owner, target)
                 + ", indexed=" + level.getEntitiesOfClass(Cow.class, new AABB(center, center).inflate(radius)).contains(target)
-                + ", ray=" + clip.getType() + "@" + helper.relativePos(clip.getBlockPos())
+                + ", ray=" + clip.getType() + "@" + helper.relativeVec(Vec3.atLowerCornerOf(clip.getBlockPos()))
                 + ":" + level.getBlockState(clip.getBlockPos());
     }
 

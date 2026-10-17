@@ -192,6 +192,11 @@ public final class RoyalBladeEntity extends Projectile {
         Vec3 limit = block.getType() == HitResult.Type.MISS ? end : block.getLocation();
         EntityHitResult entity = ProjectileUtil.getEntityHitResult(level(), this, start, limit,
                 getBoundingBox().expandTowards(getDeltaMovement()).inflate(0.3), candidate -> canDamage(owner, candidate));
+        if (entity != null) {
+            // このProjectileUtilオーバーロードは交点を捨てて対象の足元を返すため、同じ膨張幅で復元する。
+            Vec3 impact = entity.getEntity().getBoundingBox().inflate(0.3F).clip(start, limit).orElse(start);
+            entity = new EntityHitResult(entity.getEntity(), impact);
+        }
         HitResult hit = entity == null ? block : entity;
         if (hit.getType() != HitResult.Type.MISS && !EventHooks.onProjectileImpact(this, hit)) {
             setPos(hit.getLocation());
