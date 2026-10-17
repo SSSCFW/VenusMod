@@ -6,6 +6,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerPlayer;
@@ -17,6 +20,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.entity.player.Inventory;
 import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerXpEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
@@ -74,6 +78,21 @@ public final class VenusEnvironment {
             if (stack.is(VenusPhase2.LIFE_SUPPORT.get()) && stack.getDamageValue() < stack.getMaxDamage()) return stack;
         }
         return ItemStack.EMPTY;
+    }
+    /** Vanilla Mending only checks equipped items; extend XP repair to stored life-support devices. */
+    public static void repairFromExperience(PlayerXpEvent.XpChange event) {
+        if (!(event.getEntity() instanceof ServerPlayer player) || event.getAmount() <= 0) return;
+        var mending = player.registryAccess().lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(Enchantments.MENDING);
+        Inventory inventory = player.getInventory();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (!stack.is(VenusPhase2.LIFE_SUPPORT.get()) || !stack.isDamaged()
+                    || EnchantmentHelper.getItemEnchantmentLevel(mending, stack) == 0) continue;
+            int repaired = (int) Math.min((long) stack.getDamageValue(), (long) event.getAmount() * 2);
+            stack.setDamageValue(stack.getDamageValue() - repaired);
+            event.setAmount(event.getAmount() - (repaired + 1) / 2);
+            if (event.getAmount() == 0) return;
+        }
     }
     private static void hide(UUID id) {
         ServerBossEvent bar = BARS.remove(id);
