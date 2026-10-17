@@ -88,3 +88,7 @@ Add registries and mod-bus listeners from `VenusMod.java` as features are implem
 ## ボス施設と報酬
 
 金星将軍の城塞・アフロディーテ神殿の構成、探索コマンド、既存構造物の壁修正、王の財宝と王の宝物庫の入手方法は [ボス施設の仕様](docs/BOSS_STRUCTURES.md) を参照してください。
+
+## 閻魔刀の次元移動
+
+魔剣「閻魔刀」を持ってHキーで、地点保存・フォルダー整理・転送条件を設定できる「次元移動」を開けます。操作と隙間の設定は [閻魔刀の次元移動](docs/YAMATO_DIMENSION_TRAVEL.md) を参照してください。

@@ -16,9 +16,9 @@
 
 ## タスク
 
-- [ ] `yamato/YamatoTravelData.java`: `get(MinecraftServer)`, `snapshot(UUID)`, `settings(UUID)`, `destination(UUID,UUID)`, `apply(ServerPlayer,String,CompoundTag)`。先に階層・並び替え・入力拒否の純粋テストを作り、SavedDataのGameTestを追加する。
-- [ ] `client/YamatoTravelClient.java`, `YamatoTravelScreen.java`: 設定可能Hキー、左側設定、中央一覧、フォルダー、確認付き削除、開放対管理。320×240以上の配置を純粋テストで検証する。
-- [ ] `compat/YamatoCompat.java`, `client/YamatoCutAnimation.java`, `YamatoRiftRenderer.java`: 実刀ID判定、無害な二段モーション、End Gateway描画。native APIを原典と照合する。
-- [ ] `yamato/YamatoRiftGeometry.java`, `YamatoRiftRules.java`, `YamatoRifts.java`: 先に曲線、寿命、到着ロックの規則テストを作成し、対・接触・転送と永続化を実装する。
-- [ ] `yamato/YamatoNetwork.java`, `client/YamatoRiftsClient.java`: 小さい操作要求とサーバー状態通知、実刀・所有権検証、サーバーtickと描画状態の同期を接続する。
+- [x] `yamato/YamatoTravelData.java`: `get(MinecraftServer)`, `snapshot(UUID)`, `settings(UUID)`, `destination(UUID,UUID)`, `apply(ServerPlayer,String,CompoundTag)`。先に階層・並び替え・入力拒否の純粋テストを作り、SavedDataのGameTestを追加する。
+- [x] `client/YamatoTravelClient.java`, `YamatoTravelScreen.java`: 設定可能Hキー、左側設定、中央一覧、フォルダー、確認付き削除、開放対管理。320×240以上の配置を純粋テストで検証する。
+- [x] `compat/YamatoCompat.java`, `client/YamatoCutAnimation.java`, `YamatoRiftRenderer.java`: 実刀ID判定、無害な二段モーション、End Gateway描画。native APIを原典と照合する。
+- [x] `yamato/YamatoRiftGeometry.java`, `YamatoRiftRules.java`, `YamatoRifts.java`: 先に曲線、寿命、到着ロックの規則テストを作成し、対・接触・転送と永続化を実装する。
+- [x] `yamato/YamatoNetwork.java`, `client/YamatoRiftsClient.java`: 小さい操作要求とサーバー状態通知、実刀・所有権検証、サーバーtickと描画状態の同期を接続する。
 - [ ] 既存初期化へ登録し日本語/英語の翻訳を追加する。`gradle build` と `gradle runGameTestServer -PvenusTestCreate=true` を実行、独立レビュー後に作業ブランチへ反映しActionsを確認する。

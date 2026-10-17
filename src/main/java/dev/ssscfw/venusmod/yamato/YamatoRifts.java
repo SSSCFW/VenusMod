@@ -46,7 +46,7 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 /** 両端を一つの対として保存・同期し、転送の可否はサーバーだけで決める。 */
 public final class YamatoRifts extends SavedData {
-    private static final TicketType<UUID> RIFT_TICKET = TicketType.create("venusmod_yamato_rift", Comparator.naturalOrder(), 60);
+    private static final TicketType<UUID> RIFT_TICKET = TicketType.<UUID>create("venusmod_yamato_rift", Comparator.naturalOrder(), 60);
     private static final int MAX_ACTIVE_PER_PLAYER = 64;
     private final Map<UUID, Pair> pairs = new LinkedHashMap<>();
     private final YamatoRiftRules.ArrivalLocks arrivalLocks = new YamatoRiftRules.ArrivalLocks();
