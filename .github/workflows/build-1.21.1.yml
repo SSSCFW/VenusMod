@@ -71,6 +71,45 @@ jobs:
           echo "Dedicated server did not reach the ready state within 90 seconds."
           exit 1
 
+      - name: Verify machine tooltips in JAR
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import pathlib
+          import zipfile
+
+          jars = sorted(
+              p for p in pathlib.Path("build/libs").glob("*.jar")
+              if not p.name.endswith(("-sources.jar", "-javadoc.jar"))
+          )
+          assert jars, "Built JAR was not found"
+          machine_ids = (
+              "diamond_hopper",
+              "atmospheric_condenser",
+              "metal_separator",
+              "blade_repair_station",
+              "blade_breaker",
+              "venus_blade_forge",
+          )
+          with zipfile.ZipFile(jars[0]) as jar:
+              required_classes = (
+                  "dev/ssscfw/venusmod/item/MachineDescriptionItem.class",
+                  "dev/ssscfw/venusmod/client/MachineTooltipEvents.class",
+              )
+              for path in required_classes:
+                  assert path in jar.namelist(), f"Missing class in JAR: {path}"
+              for locale in ("ja_jp", "en_us"):
+                  path = f"assets/venusmod/lang/{locale}.json"
+                  strings = json.loads(jar.read(path))
+                  for machine_id in machine_ids:
+                      for field in ("description", "usage"):
+                          key = f"tooltip.venusmod.machine.{machine_id}.{field}"
+                          assert strings.get(key), f"Missing {locale} tooltip key: {key}"
+          print("Verified machine tooltip classes and both locale translations in built JAR.")
+          PY
+
       - name: Prepare direct JAR
         if: success()
         shell: bash
