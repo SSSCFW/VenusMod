@@ -14,6 +14,7 @@ import net.minecraft.world.Difficulty;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.entity.player.Inventory;
 import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
@@ -40,8 +41,8 @@ public final class VenusEnvironment {
         boolean active = onVenus && VenusEnvironmentConfig.ENABLED.get() && player.isAlive()
                 && !player.isCreative() && !player.isSpectator() && player.level().getDifficulty() != Difficulty.PEACEFUL;
         int pieces = suitPieces(player);
-        ItemStack offhand = player.getOffhandItem();
-        boolean support = active && pieces < 4 && offhand.is(VenusPhase2.LIFE_SUPPORT.get());
+        ItemStack supportStack = findLifeSupport(player);
+        boolean support = active && pieces < 4 && !supportStack.isEmpty();
         int gain = active ? ExposureRules.gain(pieces, support, player.hasEffect(MobEffects.FIRE_RESISTANCE),
                 100 * VenusEnvironmentConfig.HEAT.get(), 100 * VenusEnvironmentConfig.PRESSURE.get(),
                 100 * VenusEnvironmentConfig.CORROSION.get()) : 0;
@@ -52,18 +53,27 @@ public final class VenusEnvironment {
         if (active) data.putInt("Grace", step.graceSeconds());
         root.put(KEY, data);
         if (!active) { hide(player.getUUID()); return; }
-        if (support && step.graceSeconds() == 0) offhand.hurtAndBreak(1, player, EquipmentSlot.OFFHAND);
+        if (support && step.graceSeconds() == 0) supportStack.hurtAndBreak(1, player, EquipmentSlot.MAINHAND);
         if (step.harmful() && player.tickCount % 40 == 0)
             player.hurt(player.damageSources().magic(), VenusEnvironmentConfig.DAMAGE.get().floatValue());
         ServerBossEvent bar = BARS.computeIfAbsent(player.getUUID(), id -> new ServerBossEvent(
                 Component.empty(), BossEvent.BossBarColor.YELLOW, BossEvent.BossBarOverlay.PROGRESS));
         bar.addPlayer(player);
         Component status = step.graceSeconds() > 0 ? Component.translatable("hud.venusmod.grace", step.graceSeconds())
-                : support ? Component.translatable("hud.venusmod.life_support", offhand.getMaxDamage() - offhand.getDamageValue())
+                : support ? Component.translatable("hud.venusmod.life_support", supportStack.getMaxDamage() - supportStack.getDamageValue())
                 : Component.translatable("hud.venusmod.suit", pieces);
         bar.setName(Component.translatable("hud.venusmod.exposure", step.exposure() / 100, status));
         bar.setProgress(step.exposure() / (float) ExposureRules.MAX);
         bar.setColor(step.exposure() >= 8000 ? BossEvent.BossBarColor.RED : BossEvent.BossBarColor.YELLOW);
+    }
+    /** Select the first usable device from the complete vanilla inventory, including offhand. */
+    private static ItemStack findLifeSupport(ServerPlayer player) {
+        Inventory inventory = player.getInventory();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (stack.is(VenusPhase2.LIFE_SUPPORT.get()) && stack.getDamageValue() < stack.getMaxDamage()) return stack;
+        }
+        return ItemStack.EMPTY;
     }
     private static void hide(UUID id) {
         ServerBossEvent bar = BARS.remove(id);
