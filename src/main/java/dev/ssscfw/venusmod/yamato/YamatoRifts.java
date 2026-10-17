@@ -50,6 +50,8 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
 public final class YamatoRifts extends SavedData {
     private static final TicketType<UUID> RIFT_TICKET = TicketType.<UUID>create("venusmod_yamato_rift", Comparator.naturalOrder(), 60);
     private static final int MAX_ACTIVE_PER_PLAYER = 64;
+    private static final int BURIED_SEARCH_MAX_CHECKS = 240;
+    private static final List<BlockPos> BURIED_SEARCH_OFFSETS = buriedSearchOffsets();
     // 通常の落下でも1tickで面の厚みを飛び越え得る。高速移動の前tick軌跡を限定距離で探索する。
     private static final double MAX_SWEEP_DISTANCE = 6.0;
     private static final double SWEEP_STEP_DISTANCE = 0.2;
@@ -117,6 +119,9 @@ public final class YamatoRifts extends SavedData {
         if (source == null || !validOpeningSite(player.server, source) || !validOpeningSite(player.server, target)) {
             YamatoNetwork.message(player, "obstructed"); return;
         }
+        // 保存地点が固体に埋まった場合だけ、向き・倍率を維持して近くの空間に出口を移す。
+        target = resolveBuriedEndpoint(player.server, target);
+        if (firstId != null) source = resolveBuriedEndpoint(player.server, source);
         InteractionHand hand = player.getMainHandItem() == stack ? InteractionHand.MAIN_HAND : InteractionHand.OFF_HAND;
         Pending opening = new Pending(player.getUUID(), hand, stack, player.level().dimension(),
                 firstId==null?null:source,target, destination.getString("name"), settings,
@@ -149,9 +154,15 @@ public final class YamatoRifts extends SavedData {
             if (elapsed < YamatoCompat.OPEN_TICK) continue;
             Endpoint source = opening.fixedSource==null
                     ?inFront(player,opening.target.yaw,opening.target.pitch,opening.target.size):opening.fixedSource;
-            if (source == null || openPair(opening.owner, opening.name, source, opening.target,
+            if (source != null && opening.fixedSource == null) source = resolveBuriedEndpoint(server, source);
+            Pair pair = source == null ? null : openPair(opening.owner, opening.name, source, opening.target,
                     opening.settings.getInt("access"), opening.settings.getInt("lifetime"),
-                    opening.settings.getInt("seconds"), server) == null) YamatoNetwork.message(player, "obstructed");
+                    opening.settings.getInt("seconds"), server);
+            if (pair == null) YamatoNetwork.message(player, "obstructed");
+            else if (!hasFreeLanding(server, pair.target)) {
+                // 近くに空間がなくても開通を中止しない。埋まって見えない可能性を知らせる。
+                YamatoNetwork.message(player, "destination_buried");
+            }
             finish(player, opening.hand); iterator.remove();
         }
     }
@@ -376,6 +387,51 @@ public final class YamatoRifts extends SavedData {
             if (validOpeningSite(player.server, result)) return result;
         }
         return null;
+    }
+
+    /** 保存地点が埋まっている場合は出口を最寄りの安全な空間に移す。元の保存地点は変更しない。 */
+    private static Endpoint resolveBuriedEndpoint(MinecraftServer server, Endpoint saved) {
+        if (saved == null || !validOpeningSite(server, saved) || hasFreeLanding(server, saved)) return saved;
+        int checked = 0;
+        for (BlockPos offset : BURIED_SEARCH_OFFSETS) {
+            if (++checked > BURIED_SEARCH_MAX_CHECKS) break;
+            Endpoint candidate = new Endpoint(saved.id, saved.dimension,
+                    saved.feet.add(offset.getX(), offset.getY(), offset.getZ()),
+                    saved.yaw, saved.pitch, saved.size);
+            if (hasFreeLanding(server, candidate)) return candidate;
+        }
+        // 水平に空間がない地中では、真上12ブロックまでを最後に確認する。
+        for (int rise = 1; rise <= 12; rise++) {
+            Endpoint candidate = new Endpoint(saved.id, saved.dimension, saved.feet.add(0, rise, 0),
+                    saved.yaw, saved.pitch, saved.size);
+            if (hasFreeLanding(server, candidate)) return candidate;
+        }
+        return saved;
+    }
+
+    private static List<BlockPos> buriedSearchOffsets() {
+        List<BlockPos> offsets = new ArrayList<>();
+        for (int dx = -4; dx <= 4; dx++) for (int dz = -4; dz <= 4; dz++) {
+            if (dx * dx + dz * dz > 16) continue;
+            for (int dy = -3; dy <= 8; dy++) {
+                if (dx != 0 || dy != 0 || dz != 0) offsets.add(new BlockPos(dx, dy, dz));
+            }
+        }
+        offsets.sort(Comparator.<BlockPos>comparingDouble(p ->
+                p.getX() * p.getX() + p.getZ() * p.getZ() + .7 * p.getY() * p.getY())
+                .thenComparingInt(p -> p.getY() < 0 ? 1 : 0)
+                .thenComparingInt(p -> -p.getY()));
+        return List.copyOf(offsets);
+    }
+
+    private static boolean hasFreeLanding(MinecraftServer server, Endpoint endpoint) {
+        if (!validOpeningSite(server, endpoint)) return false;
+        ServerLevel target = level(server, endpoint);
+        Vec3 feet = endpoint.feet;
+        AABB standing = new AABB(feet.x - .31, feet.y, feet.z - .31,
+                feet.x + .31, feet.y + 1.85, feet.z + .31);
+        loadChunks(target, standing);
+        return target.noCollision(null, standing);
     }
 
     /** 裂け目はブロックに重なっても生成可能。実際の転送先の安全性はsafeGroupで別途判定する。 */

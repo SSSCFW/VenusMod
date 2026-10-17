@@ -251,5 +251,6 @@
   "message.venusmod.yamato.missing_destination": "The saved destination could not be found.",
   "message.venusmod.yamato.too_many_rifts": "Too many open rift pairs (maximum 64). Close a pair from the list.",
   "message.venusmod.yamato.missing_dimension": "The destination dimension is unavailable.",
-  "message.venusmod.yamato.obstructed": "The rift or destination is obstructed or outside the world bounds."
+  "message.venusmod.yamato.obstructed": "The rift or destination is obstructed or outside the world bounds.",
+  "message.venusmod.yamato.destination_buried": "The rift opened, but its destination is buried in blocks. Clear space around the exit."
 }

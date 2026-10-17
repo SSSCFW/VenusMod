@@ -251,5 +251,6 @@
   "message.venusmod.yamato.missing_destination": "保存地点が見つかりません。",
   "message.venusmod.yamato.too_many_rifts": "開いている隙間が多すぎます（最大64組）。一覧から閉じてください。",
   "message.venusmod.yamato.missing_dimension": "移動先のディメンションが読み込まれていません。",
-  "message.venusmod.yamato.obstructed": "隙間を開く空間、または移動先の安全な空間がありません。"
+  "message.venusmod.yamato.obstructed": "隙間を開く空間、または移動先の安全な空間がありません。",
+  "message.venusmod.yamato.destination_buried": "裂け目は開きましたが、出口が地中に埋まっています。周囲のブロックを取り除いてください。"
 }
