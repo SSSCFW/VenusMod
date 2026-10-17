@@ -28,7 +28,9 @@
 - [x] `NetworkMenu`に新CLI・TCP80/25570の検査・DHCPサーバー予約の保存を接続。
 - [x] `NetworkGuide`に10トピック32手順。機器GUIとJEI独自カテゴリに同じ接続図・説明を表示。
 - [x] Java 21のサービス159検査・ガイド89検査を実行。`check`とGameTestへ回帰検査を追加。
-- [ ] GitHubの現行先端を確認し、他変更を保持してpush。既存Actionsの全体ビルド/GameTestを確認。
+- [x] `8a3f40d4332577a80737c85d715a0cdccf9e1fac` をpush。既存Actionsで全体ビルド・必須107 GameTest・JAR公開成功を確認。
 
 Ruling: 実行環境の直接ネットワーク接続とHome Server端末が利用不可のため、GitHub連携で読み書きし、純Javaはローカル、全体NeoForge検証は既存Actionsで実行する。ホストのサービスを再起動しない。
 Ruling: DHCPの予約は期限なし・手動要求方式。完全なリース更新やTCPスタックを実装済みと記載しない。
+
+検証結果は `docs/NETWORK_SERVICES_VERIFICATION.md` に記録。手動クライアント・JEI画面・大規模マルチプレイTPSの確認は未実施。
