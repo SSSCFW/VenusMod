@@ -13,6 +13,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.Random;
 import java.util.UUID;
 import java.util.zip.GZIPOutputStream;
@@ -66,6 +67,58 @@ public final class YamatoNetworkGameTests {
         } finally {
             empty.release();
         }
+        h.succeed();
+    }
+
+    @GameTest(template = "test/empty")
+    public static void travelPacketAppliesLatestLifetimeAtomically(GameTestHelper h) throws ReflectiveOperationException {
+        UUID owner = UUID.randomUUID();
+        ServerPlayer player = new ServerPlayer(h.getLevel().getServer(), h.getLevel(),
+                new GameProfile(owner, "yamato-atomic-settings"), ClientInformation.createDefault());
+        Method apply = YamatoNetwork.class.getDeclaredMethod("applyTravelSettings", ServerPlayer.class, CompoundTag.class);
+        apply.setAccessible(true);
+        YamatoTravelData book = YamatoTravelData.get(player.server);
+        for (int mode = 0; mode <= 2; mode++) {
+            CompoundTag selected = new CompoundTag();
+            selected.putInt("access", mode + 1);
+            selected.putInt("lifetime", mode);
+            selected.putInt("seconds", mode + 2);
+            selected.putDouble("size", 1.0 + mode * 0.5);
+            CompoundTag request = new CompoundTag();
+            request.putUUID("id", UUID.randomUUID());
+            request.put("settings", selected);
+            RegistryFriendlyByteBuf buffer = buffer(h);
+            try {
+                String action = mode == 1 ? "travel_pair" : "travel";
+                if (mode == 1) request.putUUID("second", UUID.randomUUID());
+                YamatoNetwork.ActionPayload.CODEC.encode(buffer, new YamatoNetwork.ActionPayload(action, request));
+                YamatoNetwork.ActionPayload decoded = YamatoNetwork.ActionPayload.CODEC.decode(buffer);
+                h.assertTrue(decoded.request().getCompound("settings").equals(selected),
+                        "Client travel packet lost new close mode " + mode);
+                h.assertTrue((boolean)apply.invoke(null, player, decoded.request()),
+                        "Server refused valid close mode in same travel request " + mode);
+                h.assertTrue(book.settings(owner).equals(selected),
+                        "Server kept old lifetime/seconds when immediately opening mode " + mode);
+            } finally {
+                buffer.release();
+            }
+        }
+        CompoundTag previous = book.settings(owner);
+        CompoundTag wrongType = new CompoundTag();
+        wrongType.putString("settings", "unlimited");
+        h.assertTrue(!(boolean)apply.invoke(null, player, wrongType),
+                "Malformed inline settings bypassed server validation");
+        CompoundTag invalidMode = new CompoundTag();
+        CompoundTag invalid = previous.copy();
+        invalid.putInt("lifetime", 3);
+        invalidMode.put("settings", invalid);
+        h.assertTrue(!(boolean)apply.invoke(null, player, invalidMode),
+                "Invalid mode was accepted by the travel handler");
+        h.assertTrue(book.settings(owner).equals(previous),
+                "Rejected settings partially overwrote the last valid mode");
+        h.assertTrue((boolean)apply.invoke(null, player, new CompoundTag())
+                && book.settings(owner).equals(previous),
+                "Legacy travel requests without inline settings must keep saved settings");
         h.succeed();
     }
 

@@ -55,12 +55,9 @@ public record YamatoScreenLayout(int left, int top, int width, int height, boole
         return settingsStep() == 27 ? 18 : 20;
     }
 
-    public int applyY() {
-        return settingsY() + settingsStep() * 4 + 2;
-    }
-
     public int saveY() {
-        return applyY() + actionHeight() + (settingsStep() == 27 ? 3 : 6);
+        // 「設定を適用」ボタンを廃止したため、設定の次には直接保存操作を置く。
+        return settingsY() + settingsStep() * 4 + 2;
     }
 
     public int folderY() {

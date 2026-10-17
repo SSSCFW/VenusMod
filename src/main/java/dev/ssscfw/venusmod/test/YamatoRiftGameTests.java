@@ -160,6 +160,60 @@ public final class YamatoRiftGameTests {
     }
 
     @GameTest(template = "test/wide_empty")
+    public static void allLifetimeModesHonorSecondsAndFirstPassage(GameTestHelper h) {
+        var level = h.getLevel(); var server = level.getServer();
+        UUID owner = UUID.randomUUID();
+        Vec3 a = Vec3.atBottomCenterOf(h.absolutePos(new BlockPos(2, 3, 2)));
+        Vec3 b = a.add(6, 0, 0);
+        long now = server.overworld().getGameTime();
+        var afterFirst = new YamatoRifts();
+        var fixed = new YamatoRifts();
+        var unlimited = new YamatoRifts();
+        try {
+            h.assertTrue(afterFirst.openPair(owner, "after", YamatoRifts.Endpoint.at(level, a, 0),
+                    YamatoRifts.Endpoint.at(level, b, 0), 3, 0, 2, server) != null,
+                    "First-passage mode not accepted");
+            h.assertTrue(fixed.openPair(owner, "fixed", YamatoRifts.Endpoint.at(level, a, 0),
+                    YamatoRifts.Endpoint.at(level, b, 0), 3, 1, 2, server) != null,
+                    "Fixed-time mode not accepted");
+            h.assertTrue(unlimited.openPair(owner, "unlimited", YamatoRifts.Endpoint.at(level, a, 0),
+                    YamatoRifts.Endpoint.at(level, b, 0), 3, 2, 2, server) != null,
+                    "Unlimited mode not accepted");
+            h.assertTrue(afterFirst.active(owner, server).getCompound(0).getInt("lifetime") == 0
+                    && afterFirst.active(owner, server).getCompound(0).getInt("remaining") == -1,
+                    "First-passage close mode should wait for an actual transfer");
+            h.assertTrue(fixed.active(owner, server).getCompound(0).getInt("lifetime") == 1
+                    && fixed.active(owner, server).getCompound(0).getInt("seconds") == 2,
+                    "Fixed lifetime/seconds were not captured");
+            h.assertTrue(unlimited.active(owner, server).getCompound(0).getInt("lifetime") == 2
+                    && unlimited.active(owner, server).getCompound(0).getInt("remaining") == -1,
+                    "Unlimited close mode has a deadline");
+            fixed.tick(server, now + 47);
+            afterFirst.tick(server, now + 47);
+            unlimited.tick(server, now + 47);
+            h.assertTrue(fixed.active(owner, server).isEmpty(), "Fixed-time rift survived its close time");
+            h.assertTrue(afterFirst.active(owner, server).size() == 1,
+                    "After-first mode closed even though nothing entered");
+            Pig pig = h.spawn(EntityType.PIG, new BlockPos(2, 3, 2));
+            pig.setNoAi(true); pig.setNoGravity(true); pig.moveTo(a.x, a.y, a.z, 0, 0);
+            afterFirst.tick(server, now + 48);
+            h.assertTrue(pig.position().distanceToSqr(b) < .01,
+                    "First-passage close mode did not record the first transfer");
+            afterFirst.tick(server, now + 48 + 40 + 6);
+            unlimited.tick(server, now + 2000);
+            h.assertTrue(afterFirst.active(owner, server).isEmpty(),
+                    "After-first mode ignored the selected 2-second timeout");
+            h.assertTrue(unlimited.active(owner, server).size() == 1,
+                    "Unlimited mode unexpectedly auto-closed");
+        } finally {
+            afterFirst.releaseTickets(server);
+            fixed.releaseTickets(server);
+            unlimited.releaseTickets(server);
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "test/wide_empty")
     public static void friendlyModeDoesNotCarryHostilePassengers(GameTestHelper h) {
         var level=h.getLevel();var server=level.getServer();var data=new YamatoRifts();
         Vec3 a=Vec3.atBottomCenterOf(h.absolutePos(new BlockPos(2,3,2)));

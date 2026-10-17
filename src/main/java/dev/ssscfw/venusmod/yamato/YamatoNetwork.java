@@ -9,6 +9,7 @@ import java.io.UncheckedIOException;
 import java.util.function.Consumer;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtAccounter;
+import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -78,8 +79,16 @@ public final class YamatoNetwork {
                 rifts.watch(player);
                 sendBook(player, action.equals("open"));
             }
-            case "travel" -> rifts.requestTravel(player, readId(request));
-            case "travel_pair" -> rifts.requestTravelPair(player, readId(request), readId(request,"second"));
+            case "travel", "travel_pair" -> {
+                // GUIの自動保存ACKを待たずに選択された閉鎖条件をそのまま開通へ反映する。
+                // 不正なネスト設定は転送を行わず、既存の保存設定も変更しない。
+                if (!applyTravelSettings(player, request)) {
+                    message(player, "invalid_request");
+                    return;
+                }
+                if (action.equals("travel")) rifts.requestTravel(player, readId(request));
+                else rifts.requestTravelPair(player, readId(request), readId(request, "second"));
+            }
             case "save", "folder", "rename", "move", "reorder", "delete", "settings", "sort" -> {
                 if (!YamatoTravelData.get(player.server).apply(player, action, request))
                     message(player, "invalid_request");
@@ -87,6 +96,13 @@ public final class YamatoNetwork {
             }
             default -> { }
         }
+    }
+
+    /** サーバーの最新の閉鎖条件を、地点への移動要求と同じネットワーク操作で確定する。 */
+    private static boolean applyTravelSettings(ServerPlayer player, CompoundTag request) {
+        if (!request.contains("settings")) return true;
+        return request.contains("settings", Tag.TAG_COMPOUND)
+                && YamatoTravelData.get(player.server).apply(player, "settings", request.getCompound("settings"));
     }
 
     public static java.util.UUID readId(CompoundTag tag) {

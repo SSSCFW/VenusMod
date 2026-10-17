@@ -63,9 +63,10 @@ public final class YamatoScreenLayoutChecks {
                 check(widgetY + controlHeight <= top + height - 5, "Setting editor outside sidebar");
                 if (row < 3) check(widgetY + controlHeight <= settingsY + (row + 1) * step, "Setting dropdown overlaps next label");
             }
-            int applyY = number(actual, "applyY"), saveY = number(actual, "saveY"), folderY = number(actual, "folderY");
-            check(settingsY + 3 * step + offset + controlHeight <= applyY, "Size slider overlaps Apply");
-            check(applyY + actionHeight < saveY && saveY + actionHeight < folderY, "Sidebar action buttons overlap");
+            int saveY = number(actual, "saveY"), folderY = number(actual, "folderY");
+            check(settingsY + 3 * step + offset + controlHeight <= saveY,
+                    "Size slider overlaps automatic-settings save action");
+            check(saveY + actionHeight < folderY, "Save place / new folder buttons overlap");
             check(folderY + actionHeight <= top + height - 5, "New folder button clipped");
             check(listWidth - 134 >= 26, "Folder breadcrumb cannot be operated");
             check(listWidth - 32 >= 128, "Destination row has no usable name area");

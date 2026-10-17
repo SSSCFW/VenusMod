@@ -48,8 +48,10 @@ public final class YamatoTravelScreen extends Screen {
     private int draftAccess;
     private int draftLifetime;
     private String draftSeconds = "1";
+    private int lastValidSeconds = 1;
     private double draftSize = 1.0;
     private boolean settingsEdited;
+    private int settingsSaveDelay;
     private SettingsDraft pendingSettings;
     private UUID firstPoint;
     private boolean applyingSnapshot;
@@ -132,16 +134,21 @@ public final class YamatoTravelScreen extends Screen {
         int seconds = Math.max(1, Math.min(180, settings.getInt("seconds")));
         double size = settings.getDouble("size");
         if (!Double.isFinite(size) || size < 0.5 || size > 5.0) size = 1.0;
-        if (pendingSettings != null && pendingSettings.equals(new SettingsDraft(access, lifetime, seconds, size))
+        // 一つ前の応答で最新の入力を巻き戻さない。最後に送信した値のACKだけで編集状態を解除。
+        Integer localSeconds = validSeconds();
+        if (settingsEdited && pendingSettings != null
+                && pendingSettings.equals(new SettingsDraft(access, lifetime, seconds, size))
                 && draftAccess == access && draftLifetime == lifetime && draftSize == size
-                && Integer.toString(seconds).equals(draftSeconds)) {
+                && localSeconds != null && localSeconds == seconds) {
             settingsEdited = false;
             pendingSettings = null;
+            settingsSaveDelay = 0;
         }
         if (!settingsEdited) {
             draftAccess = access;
             draftLifetime = lifetime;
             draftSeconds = Integer.toString(seconds);
+            lastValidSeconds = seconds;
             draftSize = size;
         }
         if (sortDropdown != null) sortDropdown.setValue(sort);
@@ -181,8 +188,7 @@ public final class YamatoTravelScreen extends Screen {
         } else {
             sidebarControls = new SettingsControls(this::addRenderableWidget,
                     layout.sideX() + 4, layout.settingsY(), layout.sideWidth() - 8,
-                    layout.settingsStep(), layout.settingsControlOffset(), layout.settingsControlHeight(),
-                    layout.applyY(), layout.actionHeight());
+                    layout.settingsStep(), layout.settingsControlOffset(), layout.settingsControlHeight());
             addRenderableWidget(Button.builder(tr("save_current"), b -> create(false))
                     .bounds(layout.sideX() + 4, layout.saveY(), layout.sideWidth() - 8, layout.actionHeight())
                     .tooltip(Tooltip.create(tr("save_current_hint"))).build());
@@ -389,8 +395,11 @@ public final class YamatoTravelScreen extends Screen {
             if (!layout.sidebar()) show(new SettingsScreen(this));
             return;
         }
+        CompoundTag data = identifier(entry.id);
+        // 自動保存の応答を待たずに開けても、サーバーがこの操作と同時に最新設定を受理する。
+        data.put("settings", settingsPayload());
         if (minecraft != null) minecraft.setScreen(null);
-        request("travel", identifier(entry.id));
+        request("travel", data);
     }
 
     /** 始点はUUIDで保持し、タブ・フォルダー移動や定期更新で名前から取り違えない。 */
@@ -412,23 +421,45 @@ public final class YamatoTravelScreen extends Screen {
         }
         CompoundTag data = identifier(firstPoint);
         data.putUUID("second", entry.id);
+        data.put("settings", settingsPayload());
         if (minecraft != null) minecraft.setScreen(null);
         request("travel_pair", data);
     }
 
-    private boolean applySettings() {
+    private void settingsChanged(int delayTicks) {
+        settingsEdited = true;
+        settingsSaveDelay = delayTicks;
+        if (delayTicks == 0) applySettings();
+    }
+
+    /** ドラッグ/文字入力の連続操作はまとめ、最後の変更だけをサーバーへ送る。 */
+    private void tickSettingsAutoSave() {
+        if (settingsEdited && settingsSaveDelay > 0 && --settingsSaveDelay == 0) applySettings();
+    }
+
+    private CompoundTag settingsPayload() {
         Integer seconds = validSeconds();
-        if (seconds == null) return false;
-        if (!settingsEdited) return true;
-        draftSeconds = Integer.toString(seconds);
-        if (sidebarControls != null) sidebarControls.sync();
+        if (seconds == null) return null;
         CompoundTag data = new CompoundTag();
         data.putInt("access", draftAccess);
         data.putInt("lifetime", draftLifetime);
         data.putInt("seconds", seconds);
         data.putDouble("size", draftSize);
-        pendingSettings = new SettingsDraft(draftAccess, draftLifetime, seconds, draftSize);
-        request("settings", data);
+        return data;
+    }
+
+    /** 自動保存に加え、画面終了・転送操作の直前にも未送信の入力を確定させる。 */
+    private boolean applySettings() {
+        CompoundTag data = settingsPayload();
+        if (data == null) return false;
+        if (!settingsEdited) return true;
+        settingsSaveDelay = 0;
+        SettingsDraft selected = new SettingsDraft(draftAccess, draftLifetime,
+                data.getInt("seconds"), draftSize);
+        if (!selected.equals(pendingSettings)) {
+            pendingSettings = selected;
+            request("settings", data);
+        }
         return true;
     }
 
@@ -436,10 +467,10 @@ public final class YamatoTravelScreen extends Screen {
         try {
             int value = Integer.parseInt(draftSeconds);
             if (value >= 1 && value <= 180) return value;
-            return draftLifetime == 2 ? 1 : null;
         } catch (NumberFormatException invalid) {
-            return draftLifetime == 2 ? 1 : null;
+            // 数字を入力途中なら送信を待つ。無制限モードでは最後の正しい秒数を保持する。
         }
+        return draftLifetime == 2 ? lastValidSeconds : null;
     }
 
     private List<YamatoDropdown> dropdowns() {
@@ -481,8 +512,18 @@ public final class YamatoTravelScreen extends Screen {
     @Override
     public void tick() {
         super.tick();
-        if (!hasBlade()) onClose();
+        if (!hasBlade()) {
+            onClose();
+            return;
+        }
+        tickSettingsAutoSave();
         if (sidebarControls != null) sidebarControls.updateButtons();
+    }
+
+    @Override
+    public void onClose() {
+        applySettings();
+        super.onClose();
     }
 
     private static boolean hasBlade() {
@@ -617,21 +658,27 @@ public final class YamatoTravelScreen extends Screen {
         private final YamatoDropdown lifetime;
         private final EditBox seconds;
         private final SizeSlider size;
-        private final Button apply;
 
         private SettingsControls(Consumer<AbstractWidget> add, int x, int y, int width, int step, int offset,
-                                 int controlHeight, int applyY, int actionHeight) {
+                                 int controlHeight) {
             this.x = x;
             this.y = y;
             this.width = width;
             this.step = step;
             access = new YamatoDropdown(x, y + offset, width, controlHeight, options("access", 7), draftAccess, tr("access_hint"), value -> {
                 draftAccess = value;
-                settingsEdited = true;
+                settingsChanged(0);
             });
             lifetime = new YamatoDropdown(x, y + step + offset, width, controlHeight, options("lifetime", 3), draftLifetime, tr("lifetime_hint"), value -> {
                 draftLifetime = value;
-                settingsEdited = true;
+                // 秒数を一時的に空にしていても、閉じ方の選択は古い設定に戻さない。
+                if (draftLifetime != 2 && validSeconds() == null) {
+                    draftSeconds = Integer.toString(lastValidSeconds);
+                    applyingSnapshot = true;
+                    seconds.setValue(draftSeconds);
+                    applyingSnapshot = false;
+                }
+                settingsChanged(0);
                 updateButtons();
             });
             seconds = new EditBox(font, x, y + step * 2 + offset, width, controlHeight, tr("seconds"));
@@ -641,18 +688,21 @@ public final class YamatoTravelScreen extends Screen {
             seconds.setResponder(text -> {
                 if (applyingSnapshot) return;
                 draftSeconds = text;
-                settingsEdited = true;
+                try {
+                    int parsed = Integer.parseInt(text);
+                    if (parsed >= 1 && parsed <= 180) lastValidSeconds = parsed;
+                } catch (NumberFormatException ignored) {
+                    // 空欄は次の入力を待つ。
+                }
+                settingsChanged(5);
                 updateButtons();
             });
             seconds.setTooltip(Tooltip.create(tr("seconds_hint")));
             size = new SizeSlider(x, y + step * 3 + offset, width, controlHeight);
-            apply = Button.builder(tr("apply_settings"), b -> applySettings()).bounds(x, applyY, width, actionHeight)
-                    .tooltip(Tooltip.create(tr("settings_auto_hint"))).build();
             add.accept(access);
             add.accept(lifetime);
             add.accept(seconds);
             add.accept(size);
-            add.accept(apply);
             updateButtons();
         }
 
@@ -672,7 +722,6 @@ public final class YamatoTravelScreen extends Screen {
 
         private void updateButtons() {
             seconds.setEditable(draftLifetime != 2);
-            apply.active = settingsEdited && validSeconds() != null;
             seconds.setTextColor(validSeconds() == null ? 0xFFFF7777 : TEXT);
         }
 
@@ -711,7 +760,7 @@ public final class YamatoTravelScreen extends Screen {
             double selectedSize = Math.max(0.5, Math.min(5.0, multiplier));
             if (draftSize != selectedSize) {
                 draftSize = selectedSize;
-                settingsEdited = true;
+                settingsChanged(3);
             }
             sync();
         }
@@ -785,12 +834,12 @@ public final class YamatoTravelScreen extends Screen {
 
         @Override
         protected void init() {
-            sizePanel(344, 282);
+            sizePanel(344, 252);
             int step = panelHeight < 230 ? 27 : 36;
             int controlHeight = step == 27 ? 17 : 20;
             int actionHeight = step == 27 ? 18 : 20;
             controls = parent.new SettingsControls(this::addRenderableWidget, panelX + 12, panelY + 26, panelWidth - 24,
-                    step, step == 27 ? 10 : 12, controlHeight, panelY + 28 + step * 4, actionHeight);
+                    step, step == 27 ? 10 : 12, controlHeight);
             addRenderableWidget(Button.builder(tr("done"), b -> onClose())
                     .bounds(panelX + 12, panelY + panelHeight - 28, panelWidth - 24, 20)
                     .tooltip(Tooltip.create(tr("settings_auto_hint"))).build());
@@ -813,13 +862,22 @@ public final class YamatoTravelScreen extends Screen {
         @Override
         public void tick() {
             super.tick();
+            parent.tickSettingsAutoSave();
             controls.updateButtons();
+        }
+
+        @Override
+        public void onClose() {
+            parent.applySettings();
+            super.onClose();
         }
 
         @Override
         public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
             super.render(graphics, mouseX, mouseY, partialTick);
             controls.renderLabels(graphics);
+            parent.drawWrapped(graphics, tr("settings_auto_label"), panelX + 12,
+                    panelY + panelHeight - 54, panelWidth - 24, MUTED);
             for (YamatoDropdown dropdown : controls.dropdowns()) dropdown.renderMenu(graphics, mouseX, mouseY, width, height);
         }
     }
