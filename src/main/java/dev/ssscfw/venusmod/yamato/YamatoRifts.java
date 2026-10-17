@@ -50,6 +50,9 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
 public final class YamatoRifts extends SavedData {
     private static final TicketType<UUID> RIFT_TICKET = TicketType.<UUID>create("venusmod_yamato_rift", Comparator.naturalOrder(), 60);
     private static final int MAX_ACTIVE_PER_PLAYER = 64;
+    // 通常の落下でも1tickで面の厚みを飛び越え得る。高速移動の前tick軌跡を限定距離で探索する。
+    private static final double MAX_SWEEP_DISTANCE = 6.0;
+    private static final double SWEEP_STEP_DISTANCE = 0.2;
     private final Map<UUID, Pair> pairs = new LinkedHashMap<>();
     private final YamatoRiftRules.ArrivalLocks arrivalLocks = new YamatoRiftRules.ArrivalLocks();
     private final Map<UUID, Pending> pending = new HashMap<>();
@@ -241,12 +244,13 @@ public final class YamatoRifts extends SavedData {
         if (source == null || target == null) return;
         double scale = YamatoRiftGeometry.scale(now, pair.openedAt, pair.closesAt());
         if (scale <= 0) return;
-        // Minecraftの広域AABB検索は面への接触を含まないため、候補だけを僅かに広げて曲線で再判定する。
-        List<Entity> candidates = source.getEntities((Entity)null, from.bounds().inflate(1.0E-7), entity -> entity.isAlive() && !entity.isSpectator());
+        // 速度が大きい対象は1tickで薄い面を跨ぐ。法線方向へ広げて候補を集め、移動軌跡を細かく判定する。
+        List<Entity> candidates = source.getEntities((Entity)null, sweepSearchBounds(from),
+                entity -> entity.isAlive() && !entity.isSpectator());
         for (Entity entity : candidates) {
             if (entity.isRemoved() || transferred.contains(entity.getUUID()) || !entity.level().dimension().equals(source.dimension())
-                    || arrivalLocks.blocked(entity.getUUID(), from.id) || !touching(entity.getBoundingBox(), from, scale)
-                    || !allowed(pair, entity)) continue;
+                    || arrivalLocks.blocked(entity.getUUID(), from.id) || !allowed(pair, entity)
+                    || !touchingDuringTick(entity, from, scale)) continue;
             // 許可された乗り物全体は根から一度だけ転送する。許可されない乗り物からは対象自身だけ降りられる。
             if (entity.isPassenger() && entity.getRootVehicle().getSelfAndPassengers().allMatch(member -> allowed(pair, member))) continue;
             List<Entity> group = entity.getSelfAndPassengers().toList();
@@ -302,7 +306,8 @@ public final class YamatoRifts extends SavedData {
             // 未ログイン/未読込を「離れた」と扱わない。再ログイン直後の往復を防ぐ。
             if (entity == null) continue;
             boolean touching = entity.isAlive() && entity.level().dimension().location().toString().equals(endpoint.dimension)
-                    && touching(entity.getBoundingBox(), endpoint, 1);
+                    && touchingDuringTick(entity, endpoint, 1);
+            // 直前の通過軌跡がまだ到着面を通っている間はロックを保持する。
             if (arrivalLocks.observe(id, endpoint.id, touching)) setDirty();
         }
     }
@@ -318,6 +323,31 @@ public final class YamatoRifts extends SavedData {
             if (dimension.equals(endpoint.dimension) && touching(entity.getBoundingBox(), endpoint, 1))
                 arrivalLocks.arrived(entity.getUUID(), endpoint.id);
         }
+    }
+
+    /** 面の法線に沿って候補を広げる。全方向に巨大な箱を作るより、複数ゲートの負荷を抑えられる。 */
+    private static AABB sweepSearchBounds(Endpoint endpoint) {
+        YamatoRiftGeometry.Vector normal = YamatoRiftGeometry.frame(endpoint.yaw, endpoint.pitch).normal();
+        return endpoint.bounds().inflate(1 + Math.abs(normal.x()) * MAX_SWEEP_DISTANCE,
+                1 + Math.abs(normal.y()) * MAX_SWEEP_DISTANCE,
+                1 + Math.abs(normal.z()) * MAX_SWEEP_DISTANCE);
+    }
+
+    /** 現在のAABBが外側でも、直前の移動中に曲線面を通過していれば接触として扱う。 */
+    private static boolean touchingDuringTick(Entity entity, Endpoint endpoint, double scale) {
+        AABB box = entity.getBoundingBox();
+        if (touching(box, endpoint, scale)) return true;
+        Vec3 velocity = entity.getDeltaMovement();
+        double lengthSqr = velocity.lengthSqr();
+        if (!Double.isFinite(lengthSqr) || lengthSqr < 1.0E-8) return false;
+        double length = Math.sqrt(lengthSqr);
+        double travel = Math.min(length, MAX_SWEEP_DISTANCE);
+        int steps = (int) Math.ceil(travel / SWEEP_STEP_DISTANCE);
+        Vec3 reverseTravel = velocity.scale(-travel / length);
+        for (int i = 1; i <= steps; i++) {
+            if (touching(box.move(reverseTravel.scale(i / (double) steps)), endpoint, scale)) return true;
+        }
+        return false;
     }
 
     public static boolean touching(AABB box, Endpoint endpoint, double scale) {

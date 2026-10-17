@@ -55,6 +55,40 @@ public final class YamatoRiftGameTests {
         data.releaseTickets(server);h.succeed();
     }
 
+
+    @GameTest(template = "test/wide_empty")
+    public static void fastFallCannotSkipThinHorizontalRifts(GameTestHelper h) {
+        var level=h.getLevel();var server=level.getServer();var data=new YamatoRifts();
+        Vec3 lower=Vec3.atBottomCenterOf(h.absolutePos(new BlockPos(2,3,2)));
+        Vec3 upper=lower.add(0,5,0);
+        var pair=data.openPair(UUID.randomUUID(),"fast loop",
+                YamatoRifts.Endpoint.at(level,lower,0,90,1),
+                YamatoRifts.Endpoint.at(level,upper,0,90,1),3,2,1,server);
+        h.assertTrue(pair!=null,"Vertical free-fall pair could not be created");
+        Pig pig=h.spawn(EntityType.PIG,new BlockPos(2,3,2));
+        pig.setNoAi(true);pig.setNoGravity(true);
+        Vec3 falling=new Vec3(0,-3.75,0);
+        pig.moveTo(lower.x,lower.y-1,lower.z,0,0);
+        pig.setDeltaMovement(falling);
+        h.assertTrue(!YamatoRifts.touching(pig.getBoundingBox(),YamatoRifts.Endpoint.at(level,lower,0,90,1),1),
+                "Fixture must miss the portal using only the current bounding box");
+        data.tick(server,level.getGameTime()+7);
+        h.assertTrue(pig.position().distanceToSqr(upper)<.01,"Fast-moving pig passed through lower gate without teleporting");
+        h.assertTrue(pig.getDeltaMovement().distanceToSqr(falling)<1.0E-12,"Fast-fall teleport erased momentum");
+        // 到着面から離れる時に、1tick前の接触軌跡による逆方向の誤転送を防止する。
+        pig.moveTo(upper.x,upper.y-1,upper.z,0,0);
+        data.tick(server,level.getGameTime()+8);
+        h.assertTrue(pig.position().distanceToSqr(upper.add(0,-1,0))<.01,
+                "Arrival lock was released while the swept motion still touched the exit");
+        pig.moveTo(lower.x,lower.y-1,lower.z,0,0);
+        data.tick(server,level.getGameTime()+9);
+        h.assertTrue(pig.position().distanceToSqr(upper)<.01,
+                "Fast-fall repeat transfer failed after leaving the upper gate");
+        h.assertTrue(pig.getDeltaMovement().distanceToSqr(falling)<1.0E-12,
+                "Repeated high-speed fall lost accumulated velocity");
+        data.releaseTickets(server);h.succeed();
+    }
+
     @GameTest(template = "test/wide_empty")
     public static void itemAndExperiencePortalsPreserveTheirOwnVelocity(GameTestHelper h) {
         var level=h.getLevel();var server=level.getServer();var data=new YamatoRifts();
