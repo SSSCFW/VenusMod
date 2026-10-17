@@ -1,6 +1,7 @@
 package dev.ssscfw.venusmod.entity;
 
 import dev.ssscfw.venusmod.compat.SlashBladeCompat;
+import dev.ssscfw.venusmod.entity.ai.VenusBladeAnimationClock;
 import dev.ssscfw.venusmod.entity.ai.VenusSlashBladeAttackGoal;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
@@ -75,6 +76,7 @@ public class VenusZombie extends Zombie {
     private EntityType<?> bladeDamageTargetType;
     private int bladeDamageTargetTicks;
     private boolean applyingBladeDamage;
+    private final VenusBladeAnimationClock bladeAnimationClock = new VenusBladeAnimationClock();
 
     public VenusZombie(EntityType<? extends Zombie> entityType, Level level) {
         super(entityType, level);
@@ -101,7 +103,10 @@ public class VenusZombie extends Zombie {
         super.tick();
         disableSlashBladeStun();
 
-        if (!level().isClientSide) {
+        if (level().isClientSide) {
+            // 描画されないtickも観測し、同じ技を次に使ったときの時計をリセットする。
+            bladeAnimationClock.observe(getBladeTechnique(), getBladeTechniqueTick(), tickCount);
+        } else {
             if (isSlashBladeWielder()) {
                 ensureSlashBladeEquipped();
                 applyBladeReach();
@@ -188,6 +193,19 @@ public class VenusZombie extends Zombie {
 
     public int getBladeTechniqueTick() {
         return entityData.get(DATA_BLADE_TECHNIQUE_TICK);
+    }
+
+    /**
+     * 見た目専用の時間。同期経過tickを毎フレーム使わず、
+     * 最初だけ時刻合わせしてクライアントのtickで滑らかに進める。
+     * サーバー側の当たり判定/コンボ長/クールタイムには影響しない。
+     */
+    public float getBladeTechniqueRenderTick(float partialTick) {
+        if (!level().isClientSide) {
+            return getBladeTechniqueTick() + Math.clamp(partialTick, 0.0F, 1.0F);
+        }
+        return bladeAnimationClock.getRenderTick(getBladeTechnique(),
+                getBladeTechniqueTick(), tickCount, partialTick);
     }
 
     public int getBladeTechniqueCooldown() {

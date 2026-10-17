@@ -165,7 +165,7 @@ public final class PlayerAnimatorCompat {
     private static Object prepareAnimation(VenusZombie zombie, float partialTick)
             throws ReflectiveOperationException {
         VenusBladeMotionTimeline.Sample sample = VenusBladeMotionTimeline.sample(
-                zombie.getBladeTechnique(), zombie.getBladeTechniqueTick() + partialTick);
+                zombie.getBladeTechnique(), zombie.getBladeTechniqueRenderTick(partialTick));
         if (sample == null) {
             return null;
         }

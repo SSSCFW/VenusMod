@@ -235,3 +235,25 @@ tasks.register('verifyVenusBladeForgeScreenTexture') {
     }
 }
 tasks.named('check') { dependsOn 'verifyVenusBladeForgeScreenTexture' }
+
+// 抜刀剣Mobの描画時計をMinecraft実行なしで検証する。
+// 通信の数tick単位の遅延・巻き戻りでVMDがブルブル震える退行をCIで検知する。
+def compileVenusBladeAnimationClockChecks = tasks.register('compileVenusBladeAnimationClockChecks', JavaCompile) {
+    source = files(
+            'src/main/java/dev/ssscfw/venusmod/entity/ai/VenusBladeAnimationClock.java',
+            'tools/tests/VenusBladeAnimationClockChecks.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('classes/venusBladeAnimationClockChecks')
+    javaCompiler = javaToolchains.compilerFor { languageVersion = JavaLanguageVersion.of(21) }
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+tasks.register('verifyVenusBladeAnimationClock', JavaExec) {
+    group = 'verification'
+    dependsOn compileVenusBladeAnimationClockChecks
+    classpath compileVenusBladeAnimationClockChecks.flatMap { it.destinationDirectory }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'VenusBladeAnimationClockChecks'
+}
+tasks.named('check') { dependsOn 'verifyVenusBladeAnimationClock' }

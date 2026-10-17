@@ -46,7 +46,7 @@ public final class VenusZombieModel<T extends VenusZombie> extends ZombieModel<T
      */
     private void applyBladePose(VenusZombie zombie, float ageInTicks) {
         int technique = zombie.getBladeTechnique();
-        float tick = zombie.getBladeTechniqueTick() + (ageInTicks - Mth.floor(ageInTicks));
+        float tick = zombie.getBladeTechniqueRenderTick(ageInTicks - Mth.floor(ageInTicks));
 
         if (technique == VenusZombie.BLADE_TECHNIQUE_COMBO) {
             int slashIndex = 0;
