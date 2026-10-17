@@ -5,7 +5,8 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "NaturalSpawnerMixin",
-    "SpawnStateAccessor"
+    "SpawnStateAccessor",
+    "RapidSlashMovementMixin"
   ],
   "client": [
     "YamatoHumanoidAnimationMixin"

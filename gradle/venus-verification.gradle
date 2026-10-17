@@ -257,3 +257,43 @@ tasks.register('verifyVenusBladeAnimationClock', JavaExec) {
     mainClass = 'VenusBladeAnimationClockChecks'
 }
 tasks.named('check') { dependsOn 'verifyVenusBladeAnimationClock' }
+
+
+// 疾走居合速度: SlashBlade本体がCIに無い場合でも倍率/発動条件を純Javaで検証する。
+def compileRapidSlashSpeedRulesChecks = tasks.register('compileRapidSlashSpeedRulesChecks', JavaCompile) {
+    source = files(
+            'src/main/java/dev/ssscfw/venusmod/compat/RapidSlashSpeedRules.java',
+            'tools/tests/RapidSlashSpeedRulesChecks.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('classes/rapidSlashSpeedRulesChecks')
+    javaCompiler = javaToolchains.compilerFor { languageVersion = JavaLanguageVersion.of(21) }
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+tasks.register('verifyRapidSlashSpeedRules', JavaExec) {
+    group = 'verification'
+    dependsOn compileRapidSlashSpeedRulesChecks
+    classpath compileRapidSlashSpeedRulesChecks.flatMap { it.destinationDirectory }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    mainClass = 'RapidSlashSpeedRulesChecks'
+}
+tasks.named('check') { dependsOn 'verifyRapidSlashSpeedRules' }
+
+tasks.register('verifyRapidSlashSpeedMixin') {
+    group = 'verification'
+    notCompatibleWithConfigurationCache('Checks optional SlashBlade Mixin wiring in source files')
+    doLast {
+        def mixins = new JsonSlurper().parse(file('src/main/resources/venusmod.mixins.json'))
+        if (!mixins.mixins.contains('RapidSlashMovementMixin'))
+            throw new GradleException('Common mixins must include RapidSlashMovementMixin.')
+        def hook = file('src/main/java/dev/ssscfw/venusmod/mixin/RapidSlashMovementMixin.java').text
+        if (!hook.contains('moveRelative(FLnet/minecraft/world/phys/Vec3;)V')
+                || !hook.contains('RapidSlashSpeedRules.isRapidSlashImpulse(')
+                || !hook.contains('RapidSlashSpeedRules.extraImpulse('))
+            throw new GradleException('Rapid Slash native movement injection must be present.')
+        if (file('src/main/java/dev/ssscfw/venusmod/VenusMod.java').text.contains('VenusRapidSlashEvents::onPlayerTick'))
+            throw new GradleException('Previous server-only tick movement hook must not be registered.')
+        println 'Verified common-side native Rapid Slash Mixin wiring.'
+    }
+}
+tasks.named('check') { dependsOn 'verifyRapidSlashSpeedMixin' }

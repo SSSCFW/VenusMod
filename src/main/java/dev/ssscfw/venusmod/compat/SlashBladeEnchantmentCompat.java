@@ -5,7 +5,6 @@ import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
@@ -29,16 +28,12 @@ public final class SlashBladeEnchantmentCompat {
             ResourceLocation.fromNamespaceAndPath(SlashBladeCompat.MOD_ID, "concentration");
     private static final ResourceLocation PROUDSOUL_TINY =
             ResourceLocation.fromNamespaceAndPath(SlashBladeCompat.MOD_ID, "proudsoul_tiny");
-    private static final ResourceLocation RAPID_SLASH_COMBO =
-            ResourceLocation.fromNamespaceAndPath(SlashBladeCompat.MOD_ID, "rapid_slash");
 
     private static boolean lookupDone;
     private static Class<?> slashBladeItemClass;
     private static Class<?> summonedSwordClass;
     private static Method bladeStateOfMethod;
     private static Method resolveCurrentComboMethod;
-    private static Method getComboSeqMethod;
-    private static Method getElapsedTimeMethod;
     private static Method getUnitCapacityMethod;
     private static Method getRankPointModifierDamageMethod;
     private static Method getRankPointModifierComboMethod;
@@ -64,28 +59,6 @@ public final class SlashBladeEnchantmentCompat {
 
     public static boolean isSummonedSword(Entity entity) {
         return entity != null && resolve() && summonedSwordClass.isInstance(entity);
-    }
-
-    /**
-     * Grounded Shift + forward + right-click is SlashBlade's rapid_slash combo.
-     * Its native tick action accelerates only during elapsed ticks 0 through 3.
-     */
-    public static boolean isRapidSlashMovementTick(ServerPlayer player) {
-        ItemStack stack = player.getMainHandItem();
-        if (!player.onGround() || !isBlade(stack)) {
-            return false;
-        }
-
-        try {
-            Object state = getBladeState(stack);
-            if (state == null || !RAPID_SLASH_COMBO.equals(getComboSeqMethod.invoke(state))) {
-                return false;
-            }
-            long elapsed = ((Number) getElapsedTimeMethod.invoke(state, player)).longValue();
-            return elapsed >= 0 && elapsed <= 3;
-        } catch (ReflectiveOperationException | LinkageError ignored) {
-            return false;
-        }
     }
 
     /**
@@ -373,8 +346,6 @@ public final class SlashBladeEnchantmentCompat {
                     "mods.flammpfeil.slashblade.capability.slashblade.ISlashBladeState");
             resolveCurrentComboMethod = bladeStateInterface.getMethod(
                     "resolvCurrentComboState", LivingEntity.class);
-            getComboSeqMethod = bladeStateInterface.getMethod("getComboSeq");
-            getElapsedTimeMethod = bladeStateInterface.getMethod("getElapsedTime", LivingEntity.class);
 
             Class<?> rankInterface = Class.forName(
                     "mods.flammpfeil.slashblade.capability.concentrationrank.IConcentrationRank");

@@ -5,7 +5,6 @@ import dev.ssscfw.venusmod.event.BladeUpgradeEvents;
 import dev.ssscfw.venusmod.event.KingsTreasuryEvents;
 import dev.ssscfw.venusmod.event.VenusCombatEvents;
 import dev.ssscfw.venusmod.event.VenusEnchantmentEvents;
-import dev.ssscfw.venusmod.event.VenusRapidSlashEvents;
 import dev.ssscfw.venusmod.registry.ModBlockEntities;
 import dev.ssscfw.venusmod.registry.ModBlocks;
 import dev.ssscfw.venusmod.registry.ModCreativeTabs;
@@ -48,9 +47,6 @@ public final class VenusMod {
 
         if (ModList.get().isLoaded("create")) {
             VenusCreateCompat.register(modBus);
-        }
-        if (ModList.get().isLoaded("slashblade")) {
-            NeoForge.EVENT_BUS.addListener(VenusRapidSlashEvents::onPlayerTick);
         }
 
         NeoForge.EVENT_BUS.addListener(VenusCombatEvents::onLivingIncomingDamage);
