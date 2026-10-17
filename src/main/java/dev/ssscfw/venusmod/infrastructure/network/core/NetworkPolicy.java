@@ -7,7 +7,7 @@ import java.util.*;
 public final class NetworkPolicy {
     public static final int MAX_RULES=64;
     public enum Direction { IN, OUT }
-    public enum Protocol { IP, ICMP, TCP, UDP, OSPF }
+    public enum Protocol { IP, ICMP, TCP, UDP, OSPF, VRRP }
     public record Prefix(long network,int length) {
         public Prefix { network &= Ipv4.mask(length); }
         public static Prefix parse(String text) {

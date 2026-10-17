@@ -58,8 +58,12 @@ public final class NetworkCoreTest {
         cycle.put("r1",p1);cycle.put("r2",p2);
         cycle.link(new NetworkSimulator.Link("r11","r1",0,"s1",3,CableGrade.CAT5E,1,false));
         cycle.link(new NetworkSimulator.Link("r22","r2",0,"s2",2,CableGrade.CAT5E,1,false));
-        check(cycle.ping("x",p1.vip).destination().equals("r1"),"virtual gateway priority");
-        p1.failed=true;cycle.invalidate();check(cycle.ping("x",p2.vip).destination().equals("r2"),"virtual gateway failover");
+        check(!cycle.ping("x",p1.vip).success(),"VRRP election is not instantaneous");
+        for(int tick=0;tick<120;tick++)cycle.advance(1);
+        check(cycle.ping("x",p1.vip).destination().equals("r1"),"virtual gateway priority after advertisements");
+        p1.failed=true;cycle.invalidate();check(!cycle.ping("x",p2.vip).success(),"VRRP backup waits for missing advertisements");
+        for(int tick=0;tick<100;tick++)cycle.advance(1);
+        check(cycle.ping("x",p2.vip).destination().equals("r2"),"virtual gateway failover after timeout");
         var invalid=NetworkCli.run(cycle,"x","ip invalid");check(!invalid.changed()&&cycle.nodes().get("x").address.equals("10.1.0.10"),"invalid command preserves configuration");
         check(NetworkCli.run(cycle,"x","bgp").lines().getFirst().contains("未実装"),"unsupported protocol explicitly rejected");
         System.out.println("NetworkCoreTest: "+assertions+" assertions passed");

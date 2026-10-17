@@ -1,6 +1,6 @@
 # ネットワーク機能 — 初期実装と使い方
 
-> 追加実装: [OSPF](NETWORK_OSPF.md)、[ACL/DHCPリレー](NETWORK_SERVICES_GUIDE.md)、[NAT/NAPT](NETWORK_NAT.md)。以下は初期段階の記録を含みます。現行の対応範囲は各機能の説明を参照してください。
+> 追加実装: [OSPF](NETWORK_OSPF.md)、[ACL/DHCPリレー](NETWORK_SERVICES_GUIDE.md)、[NAT/NAPT](NETWORK_NAT.md)、[VRRP広告・タイマー](NETWORK_VRRP.md)。以下は初期段階の記録を含みます。現行の対応範囲は各機能の説明を参照してください。
 
 対象はMinecraft 1.21.1 / NeoForge 21.1.x。Createは不要、JEIは任意です。全体計画は [NETWORK_SYSTEM_SPEC.md](NETWORK_SYSTEM_SPEC.md) を参照してください。**本書は初期実装を記録するもので、設計書全体の完成を意味しません。**
 
@@ -98,7 +98,7 @@ nslookup base.local
 
 手動試験は`fault`、修理はネットワーク修理キットで右クリックです。採掘して置き直しても故障状態は残ります。
 
-`stp on`は**VLAN別の簡略スパニングツリー**です。ループ経路を遮断し、リンク断後に代替経路を開きます。`vrrp 192.168.1.254 120`で簡略の仮想ゲートウェイを設定でき、同一L2区間の同じVIPを持つ機器から優先度で選出します。**BPDU、VRRP広告、収束タイマーを含む本来のSTP/RSTP/VRRPを完全に再現した実装ではありません。**
+`stp on`は**VLAN別の簡略スパニングツリー**です。ループ経路を遮断し、リンク断後に代替経路を開きます。VRRPは広告・期限によるMaster/Backup選出へ更新済みです。`vrrp 192.168.1.254 120`とLAN側の担当ポートを設定し、同じVIP・VRIDの広告で役割を決めます。**STPのBPDU/タイマー、IPv6 VRRPや複数グループ等は未対応**です。詳しくは [VRRP](NETWORK_VRRP.md) を参照してください。
 
 ## 安全な設備操作と権限
 
@@ -126,3 +126,7 @@ GUIの「ガイド」から接続例・コマンド・制限を読めます。�
 独立したJavaテスト47アサーションと、生成された174 JSON・74 PNGの参照/画像寸法/全方向モデル/4/16幅の静的検査を実行済みです。`gradle check`にも純JavaテストとJDK版アセット検査を登録しています。
 
 実BlockStateの全ケーブル状態および実ItemStackでの機器ドロップ・保存・再配置を確認するGameTestを追加しています。**全体ビルドとGameTestの合否は該当コミットのGitHub Actionsを確認してください。初期作成時点では未確認です。** 手動の実クライアント表示、JEI画面、シェーダー併用、複数人による実操作、大規模TPS負荷測定は未実施です。
+
+## VRRP広告・タイマー
+
+簡略VIP選出を、Master/Backupの広告・期限・preempt・仮想MAC・広告ACLの方式に更新しました。旧形式の設定と細いケーブルは維持します。手順と制限は [VRRPの構成と使い方](NETWORK_VRRP.md) を参照してください。従来の「VRRP広告タイマー未対応」という記述はこの更新より前の実装状況です。

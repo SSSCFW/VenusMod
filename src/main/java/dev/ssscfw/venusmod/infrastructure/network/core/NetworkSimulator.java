@@ -65,6 +65,10 @@ public final class NetworkSimulator {
     private final NatTable natTable=new NatTable();
     public NatTable nat(){return natTable;}
     public OspfEngine ospf(){return ospfRuntime.engine();}
+    private final VrrpSimulation vrrpRuntime=new VrrpSimulation(this);
+    public VrrpEngine vrrp(){return vrrpRuntime.engine();}
+    public void shutdownVrrp(String id){vrrpRuntime.shutdown(id);}
+    public boolean vrrpMaster(String id){return vrrpRuntime.master(id);}
     private final Set<String> changedProfiles=new LinkedHashSet<>();
     public static final int WEB_PORT=80, TRANSFER_PORT=5000, CONTROL_PORT=25570;
     /** DHCPサーバー側の予約変更もBlockEntityの保存対象にする。 */
@@ -73,7 +77,7 @@ public final class NetworkSimulator {
         if(!nodes.containsKey(id)&&nodes.size()>=MAX_NODES)throw new IllegalStateException("機器数上限");
         Objects.requireNonNull(id);Objects.requireNonNull(profile);
         natTable.clear();nodes.put(id,profile);macAddresses.computeIfAbsent(id,NetworkSimulator::macAddress);
-        ports.computeIfAbsent(id,k->new Link[6]);forestDirty=true;ospfRuntime.changed();
+        ports.computeIfAbsent(id,k->new Link[6]);forestDirty=true;ospfRuntime.changed();vrrpRuntime.changed();
     }
     public void remove(String id){new ArrayList<>(links.values()).stream().filter(l->l.a.equals(id)||l.b.equals(id)).forEach(l->unlink(l.id));nodes.remove(id);ports.remove(id);macAddresses.remove(id);mac.remove(id);arp.remove(id);logs.remove(id);invalidate();}
     public void link(Link link){
@@ -84,7 +88,7 @@ public final class NetworkSimulator {
         links.put(link.id,link);ports.get(link.a)[link.ap]=link;ports.get(link.b)[link.bp]=link;invalidate();
     }
     public void unlink(String id){Link link=links.remove(id);if(link!=null){ports.get(link.a)[link.ap]=null;ports.get(link.b)[link.bp]=null;invalidate();}}
-    public void invalidate(){natTable.clear();ospfRuntime.changed();forestDirty=true;mac.clear();arp.clear();for(var flow:flows)log(flow.source,"転送 #"+flow.id+": 構成変更で中断");flows.clear();}
+    public void invalidate(){natTable.clear();ospfRuntime.changed();vrrpRuntime.changed();forestDirty=true;mac.clear();arp.clear();for(var flow:flows)log(flow.source,"転送 #"+flow.id+": 構成変更で中断");flows.clear();}
     public Map<String,NetworkProfile> nodes(){return Collections.unmodifiableMap(nodes);}
     public Collection<Link> links(){return Collections.unmodifiableCollection(links.values());}
     public List<Flow> flows(){return List.copyOf(flows);}
@@ -185,12 +189,13 @@ public final class NetworkSimulator {
             var port=p.ports[n];
             if(n!=ingress&&!(p.kind==DeviceKind.L3_SWITCH&&port.vlan==p.ports[ingress].vlan))continue;
             if(!port.enabled||port.address.isBlank())continue;
-            if(ip.equals(port.address)||ip.equals(p.vip)&&Ipv4.sameSubnet(ip,port.address,port.prefix))return true;
+            if(ip.equals(port.address))return true;
+            if(ip.equals(p.vip)&&vrrpRuntime.master(id)&&ingress==p.vrrp.resolvePort(p))return true;
         }
         return false;
     }
     private boolean owns(String node,String ip){var p=nodes.get(node);if(p==null||p.failed)return false;
-        if(!p.address.isBlank()&&ip.equals(p.address))return true;for(var port:p.ports)if(ip.equals(port.address))return true;return ip.equals(p.vip)&&p.kind.routing();}
+        if(!p.address.isBlank()&&ip.equals(p.address))return true;for(var port:p.ports)if(ip.equals(port.address))return true;return ip.equals(p.vip)&&vrrpRuntime.master(node);}
     private record Decision(int port,String nextHop,String sourceIp){}
     private List<Decision> decisions(String node,String target){
         var p=nodes.get(node);List<Decision> choices=new ArrayList<>();if(p==null||p.failed)return choices;
@@ -243,9 +248,9 @@ public final class NetworkSimulator {
                 if(hits.isEmpty())continue;
                 Map<String,Step> unique=new LinkedHashMap<>();for(Step hit:hits)unique.putIfAbsent(hit.id,hit);
                 boolean virtual=unique.values().stream().allMatch(step->sought.equals(nodes.get(step.id).vip));
-                if(unique.size()>1&&!virtual)return new Delivery(Result.fail("ARP応答競合: IPアドレスが重複しています"),packet);
-                reached=unique.values().stream().sorted(Comparator.<Step>comparingInt(step->nodes.get(step.id).vrrpPriority).reversed().thenComparing(Step::id)).findFirst().orElseThrow();
-                selected=choice;learn(arp,current,sought,macAddresses.get(reached.id));break;
+                if(unique.size()>1)return new Delivery(Result.fail(virtual?"VRRP競合: 同じLANに複数のMasterが応答しました。広告/VLAN/VRIDを確認":"ARP応答競合: IPアドレスが重複しています"),packet);
+                reached=unique.values().iterator().next();
+                selected=choice;var responder=nodes.get(reached.id);learn(arp,current,sought,sought.equals(responder.vip)?VrrpSettings.virtualMac(responder.vrrp.group):macAddresses.get(reached.id));break;
             }
             if(reached==null)return new Delivery(Result.fail("到達不能: IP/経路/VLAN/媒体/断線を確認してください"),packet);
             packet=transaction.egress(current,profile,ingress,selected.port,translated);
@@ -284,7 +289,7 @@ public final class NetworkSimulator {
         try {
             if(expectedServicePort< -1||expectedServicePort>65535)throw new IllegalArgumentException("サービスのポート番号が不正です");
             var type=NetworkPolicy.Protocol.valueOf(protocol.toUpperCase(Locale.ROOT));
-            if(type==NetworkPolicy.Protocol.IP||type==NetworkPolicy.Protocol.OSPF||type==NetworkPolicy.Protocol.ICMP&&destinationPort!=0)throw new IllegalArgumentException("requestはicmp(0), tcp, udpです");
+            if(type==NetworkPolicy.Protocol.IP||type==NetworkPolicy.Protocol.OSPF||type==NetworkPolicy.Protocol.VRRP||type==NetworkPolicy.Protocol.ICMP&&destinationPort!=0)throw new IllegalArgumentException("requestはicmp(0), tcp, udpです");
             return exchange(source,replyAddress(source,target),target,protocol,type==NetworkPolicy.Protocol.ICMP?0:49152,destinationPort,new SearchBudget(),expectedServicePort);
         }catch(SearchLimit|IllegalArgumentException e){return Result.fail(e.getMessage());}
     }
@@ -417,8 +422,29 @@ public final class NetworkSimulator {
             return List.copyOf(peers);
         }catch(SearchLimit limit){throw new IllegalStateException(limit.getMessage());}
     }
+    /** VRRPは224.0.0.18宛てのリンクローカル広告。L3経路/NATを使って中継しない。 */
+    List<String> findVrrpPeers(String id,int port){
+        try{
+            var local=nodes.get(id);if(local==null||local.failed||local.ports[port].address.isBlank())return List.of();
+            var budget=new SearchBudget();var packet=NetworkPolicy.Packet.of("vrrp",local.ports[port].address,"224.0.0.18",0,0);
+            Set<String> peers=new LinkedHashSet<>();
+            for(Step path:segment(id,port,(peer,in)->nodes.get(peer).kind.routing(),budget)){
+                var remote=nodes.get(path.id);
+                if(!remote.vrrp.enabled||remote.vip.isBlank()||remote.vrrp.resolvePort(remote)!=path.ingress)continue;
+                if(filterPath(path.path,path.wires,packet,budget)==null)peers.add(path.id);
+                if(peers.size()>VrrpEngine.MAX_PEERS)throw new IllegalStateException("VRRP受信候補上限");
+            }
+            return List.copyOf(peers);
+        }catch(SearchLimit limit){throw new IllegalStateException(limit.getMessage());}
+    }
     public void advance(long ticks){
         if(ticks<=0)return;
+        vrrpRuntime.advance(ticks);
+        if(!vrrpRuntime.drainOwners().isEmpty()){
+            // 役割変更だけでOSPF/VRRP自体を再起動しない。動的転送は再確立する。
+            mac.clear();arp.clear();natTable.clear();
+            for(var flow:flows)log(flow.source,"転送 #"+flow.id+": VRRP切替で中断。再送できます");flows.clear();
+        }
         ospfRuntime.advance(ticks);
         Set<String> changedRoutes=ospf().drainRouteChanges();
         if(!changedRoutes.isEmpty())flows.removeIf(flow->{

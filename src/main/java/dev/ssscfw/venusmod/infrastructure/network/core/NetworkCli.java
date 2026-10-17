@@ -9,7 +9,9 @@ public final class NetworkCli {
     public static Reply run(NetworkSimulator sim,String id,String input){
         if(input==null||input.length()>512||input.codePoints().anyMatch(Character::isISOControl))return reply(false,"コマンドは改行なし512文字以内です");
         var p=sim.nodes().get(id);if(p==null)return reply(false,"機器が読み込まれていません");
-        String[] t=input.trim().split("\\s+");String old=p.encode();
+        String[] t=input.trim().split("\\s+");
+        if(VrrpCommands.handles(t)){var reply=VrrpCommands.run(sim,id,t);return new Reply(reply.changed(),reply.lines());}
+        String old=p.encode();
         try{
             switch(t[0].toLowerCase(Locale.ROOT)){
                 case "help" -> {return new Reply(false,guide());}
@@ -55,7 +57,6 @@ public final class NetworkCli {
                 case "public" -> {need(t,2);p.publicService=on(t[1]);}
                 case "dns-record" -> {need(t,3);if(p.kind!=DeviceKind.SERVER&&!p.kind.routing())throw new IllegalArgumentException("DNSはサーバー/ルーターのみです");p.dnsRecords.put(t[1].toLowerCase(Locale.ROOT),Ipv4.normalize(t[2]));}
                 case "route" -> {if(!p.kind.routing())throw new IllegalArgumentException("経路追加はL3機器で行います");if(t.length==2&&t[1].equals("clear"))p.routes.clear();else{need(t,7);if(!t[1].equals("add")||!t[3].equals("via")||!t[5].equals("port"))throw new IllegalArgumentException("route add 10.0.0.0/24 via 192.168.1.1 port 0");var c=cidr(t[2]);p.routes.add(new NetworkProfile.Route(c[0],Integer.parseInt(c[1]),t[4],Integer.parseInt(t[6])));}}
-                case "vrrp" -> {need(t,3);if(!p.kind.routing())throw new IllegalArgumentException("L3機器のみです");p.vip=Ipv4.normalize(t[1]);p.vrrpPriority=Integer.parseInt(t[2]);}
                 case "stp" -> {need(t,2);if(!p.kind.bridge())throw new IllegalArgumentException("L2中継機器のみです");p.stp=on(t[1]);}
                 case "fault" -> {need(t,1);p.failed=true;}
                 case "ospf","bgp","ipv6","nat","ipsec","lacp" -> {return reply(false,"この版では未実装です。成功した通信として扱いません。");}
@@ -99,13 +100,13 @@ public final class NetworkCli {
         "transfer 192.168.1.20 100 (100MBの仮想転送)",
         "redstone 192.168.1.20 15 (許可された端末へ出力)",
         "共有: trust プレイヤー名 / untrust プレイヤー名",
-        "vrrp 192.168.1.254 120 (簡略の仮想GW選出)",
-        "相手は同VIP・低い優先度。同じL2区間に接続。",
+        "vrrp 192.168.1.254 120 / vrrp port 0 (広告で選出)",
+        "相手は同VIP・VRID。同じLANで広告を受信。vrrp helpを参照。",
         "stp on: VLAN別の簡略木方式でループを遮断します。",
         "fault: 自分の機器を故障させて切替試験。修理キットで復旧。",
         "完全安定化で内部のランダム故障だけ0%。断線は防ぎません。",
         "通常採掘で設定・モジュール・故障を保持。置き直し修理不可。",
         "外部Web/OSコマンドは一切実行しません。",
-        "OSPF/BGP/IPv6/NAT/LACP/BPDU・広告タイマーは未対応。",
+        "VRRPはIPv4・1機器1グループ。BGP/IPv6/LACP/BPDUは未対応。",
         "8/24ポート筐体・PON分岐・惑星間通信は後続段階です。");}
 }

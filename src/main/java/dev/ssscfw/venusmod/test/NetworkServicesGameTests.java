@@ -69,7 +69,7 @@ public final class NetworkServicesGameTests {
         }
         int steps=NetworkGuide.pages().stream().mapToInt(page->page.steps().size()).sum();
         h.assertTrue(NetworkGuide.recipes().size()==steps,"各ガイド手順を漏れなくJEIへ登録");
-        h.assertTrue(NetworkGuide.pages().stream().map(NetworkGuide.Page::id).collect(java.util.stream.Collectors.toSet()).containsAll(java.util.List.of("basic","vlan","routing","optical","wan","upgrades","redundancy","acl","dhcp_relay","services","ospf","nat")),"既存ページとOSPF/NATを維持");
+        h.assertTrue(NetworkGuide.pages().stream().map(NetworkGuide.Page::id).collect(java.util.stream.Collectors.toSet()).containsAll(java.util.List.of("basic","vlan","routing","optical","wan","upgrades","redundancy","acl","dhcp_relay","services","ospf","nat","vrrp")),"既存ページとOSPF/NAT/VRRPを維持");
         h.assertTrue(NetworkGuide.pages().stream().anyMatch(page->page.id().equals("ospf")&&page.steps().size()==4),"OSPFの設定・隣接・迂回を4手順で案内");
         h.succeed();
     }

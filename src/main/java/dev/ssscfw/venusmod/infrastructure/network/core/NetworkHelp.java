@@ -26,7 +26,9 @@ public final class NetworkHelp {
         "ospf port 1 on / ospf port 0 passive / ospf cost 1 10",
         "ospf neighbors / ospf database / show ip route / ospf help",
         "OSPFはHello/Dead・単一エリア内LSA/SPF。全隣接方式です。",
-        "stp on / vrrp 192.168.1.254 120 (STP/VRRPは簡略選出)",
+        "stp on (簡略木) / vrrp 192.168.1.254 120 (広告で選出)",
+        "vrrp port 0 / vrrp group 1 / vrrp status / vrrp help",
+        "vrrp preempt off / vrrp interval 1 / vrrp on|off",
         "open IP[:PORT] (外部Webではない固定管理画面)",
         "nat port 0 inside / nat port 1 outside / nat on",
         "nat forward add 1 tcp 8080 192.168.10.20 80",
@@ -36,6 +38,6 @@ public final class NetworkHelp {
         "完全安定化で内部ランダム故障だけ0%。故障は修理キットで復旧。",
         "通常採掘で設定・アップグレード・故障・権限を保持します。",
         "未対応: BGP/IPv6/IPsec/LACP、OSPFのABR/DR/BDR/ECMP。",
-        "STP/VRRPの本来のタイマー、8/24ポート、PON分岐、惑星間通信は後続段階。",
+        "STPのBPDU/タイマー、VRRPのIPv6/複数VIP/NAT同期、8/24ポート、PON分岐、惑星間通信は後続段階。",
         "実OSシェル・ソケット・外部Web・JavaScriptは使用しません。");}
 }

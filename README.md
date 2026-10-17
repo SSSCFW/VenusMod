@@ -102,3 +102,7 @@ Add registries and mod-bus listeners from `VenusMod.java` as features are implem
 ### 動的経路・仮想アドレス変換
 
 [OSPFによるエリア内経路学習](docs/NETWORK_OSPF.md) と [NAT/NAPT・ポート転送](docs/NETWORK_NAT.md) に対応しています。NATは既定OFFで、GUI/JEIガイドから内外ポート・公開設定・制約を確認できます。これらはMinecraft内だけの仮想通信です。
+
+## VRRP広告・タイマー
+
+簡略VIP選出を、Master/Backupの広告・期限・preempt・仮想MAC・広告ACLの方式に更新しました。旧形式の設定と細いケーブルは維持します。手順と制限は [VRRPの構成と使い方](docs/NETWORK_VRRP.md) を参照してください。従来の「VRRP広告タイマー未対応」という記述はこの更新より前の実装状況です。

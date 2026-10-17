@@ -12,6 +12,7 @@ public final class NetworkServiceCommands {
         var nat=NatCommands.run(simulator,id,input);if(nat.handled())return nat;
         String[] t=input.trim().split("\\s+");
         if(t.length==1&&t[0].equals("help"))return new Reply(true,false,NetworkHelp.lines());
+        if(VrrpCommands.handles(t))return VrrpCommands.run(simulator,id,t);
         if(OspfCommands.handles(t))return OspfCommands.run(simulator,id,t);
         if(!COMMANDS.contains(t[0]))return new Reply(false,false,List.of());
         NetworkProfile old=simulator.nodes().get(id);if(old==null)return reply(true,false,"機器が未登録です");
