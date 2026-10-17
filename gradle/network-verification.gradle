@@ -13,7 +13,20 @@ def generateNetworkAssets = tasks.register('generateNetworkAssets', JavaExec) {
 sourceSets.main.resources.srcDir(networkResources)
 tasks.named('processResources') { dependsOn generateNetworkAssets }
 
+// 既存CIの診断artifactに再現可能な試験入力を保存。ワールド/キャッシュ/秘密値は対象外。
+def snapshotNetworkTestInputs = tasks.register('snapshotNetworkTestInputs', Zip) {
+    archiveFileName = 'network-test-inputs.zip'
+    destinationDirectory = layout.buildDirectory.dir('reports/network')
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+    from(layout.projectDirectory) {
+        include 'src/main/**', 'src/generated/**', 'tests/**', 'tools/java/**', 'gradle/**'
+        include 'docs/**', 'AGENTS.md', 'README.md', 'build.gradle', 'settings.gradle', 'gradle.properties'
+        exclude '**/.cache/**'
+    }
+}
 def compileNetworkTests = tasks.register('compileNetworkTests', JavaCompile) {
+    dependsOn snapshotNetworkTestInputs
     source = files(fileTree('src/main/java/dev/ssscfw/venusmod/infrastructure/network/core') { include '**/*.java' }, fileTree('tests/network') { include '*.java' })
     classpath = files()
     destinationDirectory = layout.buildDirectory.dir('classes/networkTests')
@@ -36,9 +49,8 @@ def verifyNetworkAssets = tasks.register('verifyNetworkAssets', JavaExec) {
 }
 tasks.named('check') { dependsOn verifyNetworkCore, verifyNetworkAssets }
 
-// 新サービス・共通ガイドと、既存のマルチプレイ境界値の検査を通常buildへ含める。
 ['NetworkContinuationTest', 'NetworkRequestBudgetTest', 'NetworkServicesTest', 'NetworkGuideTest',
- 'OspfPresenceTest', 'OspfEngineTest', 'OspfCommandTest', 'OspfIntegrationTest'].each { checkClassName ->
+ 'OspfCommandTest', 'OspfEngineTest', 'OspfIntegrationTest', 'OspfPresenceTest', 'NatIntegrationTest'].each { checkClassName ->
     def verification = tasks.register('verify' + checkClassName.replace('Test', ''), JavaExec) {
         dependsOn compileNetworkTests
         classpath = files(layout.buildDirectory.dir('classes/networkTests'))
