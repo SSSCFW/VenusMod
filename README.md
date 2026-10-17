@@ -92,3 +92,7 @@ Add registries and mod-bus listeners from `VenusMod.java` as features are implem
 ## 閻魔刀の次元移動
 
 魔剣「閻魔刀」を持ってHキーで、地点保存・フォルダー整理・転送条件を設定できる「次元移動」を開けます。操作と隙間の設定は [閻魔刀の次元移動](docs/YAMATO_DIMENSION_TRAVEL.md) を参照してください。
+
+## ネットワークインフラ（設計案）
+
+マルチプレイ向けの仮想ネットワーク、LAN/光配線、L2/L3スイッチ、ルーター、ONU/OLT、仮想ISP、帯域・ポート強化、故障・冗長化、GUI/JEIによる使い方のガイドは [ネットワークインフラ仕様書](docs/NETWORK_SYSTEM_SPEC.md) を参照してください。**仕様案の段階であり、機能は未実装です。**
