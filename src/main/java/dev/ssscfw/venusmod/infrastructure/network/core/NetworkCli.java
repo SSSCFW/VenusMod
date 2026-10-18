@@ -77,39 +77,5 @@ public final class NetworkCli {
     private static boolean on(String s){if(!s.equals("on")&&!s.equals("off"))throw new IllegalArgumentException("on または off");return s.equals("on");}
     public static long speed(String s){return switch(s.toLowerCase(Locale.ROOT)){case "auto"->0;case "10m"->10_000_000L;case "100m"->100_000_000L;case "1g"->1_000_000_000L;case "10g"->10_000_000_000L;case "40g"->40_000_000_000L;case "100g"->100_000_000_000L;case "400g"->400_000_000_000L;default->throw new IllegalArgumentException("auto/10m/100m/1g/10g/40g/100g/400g を指定してください");};}
     public static String portName(int p){return switch(p){case 0->"北";case 1->"東";case 2->"南";case 3->"西";case 4->"上";case 5->"下";default->"?";};}
-    public static List<String> guide(){return List.of(
-        "バッファ: 送信元の同時仮想転送枠を4枠ずつ増設 (標準4)。帯域は共有します。",
-        "PC ─ 同一種類のケーブル ─ L2SW ─ PC",
-        "ケーブル: 中央4/16幅。途中のT字分岐は禁止です。",
-        "同じ太さでも規格ごとに色・距離・最大速度が違います。",
-        "機器には6面のポート: 0北 1東 2南 3西 4上 5下。",
-        "初期ポートは1Gbps。高速モジュールをポート枠に装着。",
-        "光: port 0 media fiber (通常機器は対応モジュールが必要)",
-        "ONU/OLTのP0は標準で光。両者間のリンクだけWAN制限。",
-        "show / ports / mac / arp / routes / log / flows",
-        "端末設定: ip 192.168.1.10/24",
-        "相手端末: ip 192.168.1.20/24",
-        "確認: ping 192.168.1.20 / trace 192.168.1.20",
-        "自動IP: dhcp (ルーター初期LANはP0=192.168.1.1)",
-        "gateway 192.168.1.1 / dns 192.168.1.1",
-        "L3側: port 1 ip 192.168.2.1/24",
-        "port 0 vlan 10 / port 1 mode trunk",
-        "port 0 speed 100m / port 0 speed auto",
-        "port 0 enable / port 0 disable",
-        "route add 10.0.0.0/24 via 192.168.1.1 port 0",
-        "dhcp-server on / dns-record base.local 192.168.1.20",
-        "nslookup base.local / web on / public on",
-        "open 192.168.1.20 (ゲーム内の固定監視画面のみ)",
-        "transfer 192.168.1.20 100 (100MBの仮想転送)",
-        "redstone 192.168.1.20 15 (許可された端末へ出力)",
-        "共有: trust プレイヤー名 / untrust プレイヤー名",
-        "vrrp 192.168.1.254 120 / vrrp port 0 (広告で選出)",
-        "相手は同VIP・VRID。同じLANで広告を受信。vrrp helpを参照。",
-        "stp mode simple|classic / stp status / stp help",
-        "fault: 自分の機器を故障させて切替試験。修理キットで復旧。",
-        "完全安定化で内部のランダム故障だけ0%。断線は防ぎません。",
-        "通常採掘で設定・モジュール・故障を保持。置き直し修理不可。",
-        "外部Web/OSコマンドは一切実行しません。",
-        "VRRPはIPv4・1機器1グループ。BGP/IPv6/LACP/RSTP/TCNは未対応。",
-        "8/24ポート筐体・PON分岐・惑星間通信は後続段階です。");}
+    public static List<String> guide(){return NetworkHelp.lines();}
 }

@@ -7,6 +7,10 @@ public final class BgpCompatibilityTest {
         sim.put("r",r);sim.put("x",BgpContractTest.host("10.0.0.10","10.0.0.1"));sim.put("y",BgpContractTest.host("10.0.0.20","10.0.0.2"));
         BgpContractTest.link(sim,"rx","r",0,"x",0);BgpContractTest.link(sim,"ry","r",1,"y",0);
         if(!sim.route("r","10.0.0.20").success())throw new AssertionError("同じ長さの直結候補を1ポートに切り詰めない (一方向診断)");
-        System.out.println("BgpCompatibilityTest: existing connected candidate enumeration passed");
+        if(NetworkGuide.pages().stream().flatMap(page->page.steps().stream()).flatMap(step->step.lines().stream()).anyMatch(line->line.contains("BGPは未対応")))
+            throw new AssertionError("共通接続ガイドが実装済みBGPを未対応と表示しない");
+        if(NetworkCli.guide().stream().anyMatch(line->line.contains("BGP/IPv6")))
+            throw new AssertionError("旧コンソールヘルプも実装済みBGPの説明と一致する");
+        System.out.println("BgpCompatibilityTest: 3 compatibility and guide checks passed");
     }
 }
