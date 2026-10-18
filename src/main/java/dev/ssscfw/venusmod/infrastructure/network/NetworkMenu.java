@@ -95,7 +95,7 @@ public final class NetworkMenu extends AbstractContainerMenu {
     public DeviceKind kind(){return kind;}
     public void receive(int kind,String text){if(kind>=0&&kind<DeviceKind.values().length)this.kind=DeviceKind.values()[kind];snapshot=text;}
     public void command(ServerPlayer sender,String text){
-        if(sender!=player||target==null||!stillValid(sender)||text==null||text.length()>512||text.codePoints().anyMatch(Character::isISOControl))return;
+        if(sender!=player||target==null||sender.containerMenu!=this||!stillValid(sender)||text==null||text.length()>512||text.codePoints().anyMatch(Character::isISOControl))return;
         long now=sender.serverLevel().getGameTime();if(lastCommandTick==now){if(++commandsThisTick>2)return;}else{if(lastCommandTick!=Long.MIN_VALUE&&now-lastCommandTick<2)return;lastCommandTick=now;commandsThisTick=1;}
         var world=NetworkWorld.get(sender.serverLevel());
         // メニューを開き直しても、ディメンション/プレイヤー共通の予算を使う。
@@ -105,7 +105,7 @@ public final class NetworkMenu extends AbstractContainerMenu {
         try{
             var service=NetworkServiceCommands.run(simulator,target.id(),text);
             if(service.handled()){
-                target.adoptProfile(simulator.nodes().get(target.id()));output=String.join("\n",service.lines());if(service.changed()){if(DnsCommands.handles(t)||SyslogCommands.handles(t)||MonitorCommands.handles(t))target.setChanged();else target.refreshState();}
+                target.adoptProfile(simulator.nodes().get(target.id()));output=String.join("\n",service.lines());if(service.changed()){if(DnsCommands.handles(t)||SyslogCommands.handles(t)||MonitorCommands.handles(t)||ControlSafetyCommands.handles(t))target.setChanged();else target.refreshState();}
             }else if(t[0].equals("topology")){
                 if(t.length==1)output=world.diagnostic()+"\n今回tickの局所解析作業: "+world.topologyLastSteps()+" / 累計: "+world.topologySteps();
                 else if(t.length==2&&t[1].equals("rebuild")){
@@ -116,16 +116,17 @@ public final class NetworkMenu extends AbstractContainerMenu {
                 if(target.owner()!=null&&!target.owner().equals(sender.getUUID())&&!sender.hasPermissions(2)){output="共有権限の変更は所有者のみです";}
                 else if(t.length!=2){output="trust プレイヤー名 / untrust プレイヤー名";}
                 else{var other=sender.getServer().getPlayerList().getPlayerByName(t[1]);output=other==null?"対象プレイヤーがオンラインではありません":target.trust(other.getUUID(),t[0].equals("trust"))?"共有権限を変更しました":"共有人数の上限です";}
-            }else if(t[0].equals("open")||t[0].equals("redstone")){
-                if(t.length!=(t[0].equals("open")?2:3))throw new IllegalArgumentException("open 名前/IP[:PORT] / redstone 名前/IP[:PORT] 0〜15");
-                int expectedPort=t[0].equals("open")?NetworkSimulator.WEB_PORT:NetworkSimulator.CONTROL_PORT;
-                ServiceAddress endpoint=simulator.resolveEndpoint(target.id(),t[1],expectedPort);
-                NetworkSimulator.Result route=simulator.requestService(target.id(),endpoint.address(),"tcp",endpoint.port(),expectedPort);
+            }else if(t[0].equals("control-status")){
+                if(t.length!=1)throw new IllegalArgumentException("control-status");output=world.controls().status(target);
+            }else if(t[0].equals("redstone")){
+                output=world.controls().command(target,sender,t);
+            }else if(t[0].equals("open")){
+                if(t.length!=2)throw new IllegalArgumentException("open 名前/IP[:PORT]");
+                ServiceAddress endpoint=simulator.resolveEndpoint(target.id(),t[1],NetworkSimulator.WEB_PORT);
+                NetworkSimulator.Result route=simulator.requestService(target.id(),endpoint.address(),"tcp",endpoint.port(),NetworkSimulator.WEB_PORT);
                 if(!route.success())output=route.message();else{var other=world.device(route.destination());
                     if(other==null||!other.canControl(sender))output="通信先のサービス利用権限がありません";
-                    else if(t[0].equals("open")){output=other.profile().kind==DeviceKind.SERVER&&other.profile().web?"[ゲーム内管理画面]\n"+other.profile().name+"\n状態: "+(other.profile().failed?"故障":"正常")+"\nIP: "+other.profile().address+"\n上限: "+CableGrade.speed(route.bps())+"\n外部HTML・JavaScriptは使用しません":"仮想Webサービスが停止しています";}
-                    else if(other.profile().kind!=DeviceKind.REDSTONE_TERMINAL)output="通信先はレッドストーン端末ではありません";
-                    else{int value=Integer.parseInt(t[2]);if(value<0||value>15)throw new IllegalArgumentException("出力は0〜15です");other.setRedstone(value);output="通信に成功し、出力を"+value+"に設定しました";}
+                    else output=other.profile().kind==DeviceKind.SERVER&&other.profile().web?"[ゲーム内管理画面]\n"+other.profile().name+"\n状態: "+(other.profile().failed?"故障":"正常")+"\nIP: "+other.profile().address+"\n上限: "+CableGrade.speed(route.bps())+"\n外部HTML・JavaScriptは使用しません":"仮想Webサービスが停止しています";
                 }
             }else{
                 NetworkCli.Reply result=NetworkCli.run(simulator,target.id(),text);target.adoptProfile(simulator.nodes().get(target.id()));output=String.join("\n",result.lines());if(result.changed())target.refreshState();

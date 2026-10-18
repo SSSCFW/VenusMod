@@ -108,6 +108,11 @@ public final class NetworkSimulator {
         var current=nodes.get(id);if(current==null)throw new IllegalArgumentException("機器が未登録です");
         current.monitor.copyFrom(validated.monitor);monitorRuntime.synchronize(id);changedProfiles.add(id);
     }
+    /** 安全方針の変更はルートや無関係な転送を失効させない。 */
+    void applyControlSafety(String id,NetworkProfile validated){
+        var current=nodes.get(id);if(current==null)throw new IllegalArgumentException("機器が未登録です");
+        current.controlSafety.copyFrom(validated.controlSafety);changedProfiles.add(id);
+    }
     /** 定期プローブは平常/失敗の操作ログを出さず、状態変化だけ監視側で通知する。 */
     MonitorRuntime.Probe probeMonitor(String source,MonitorTarget target){
         suppressProbeLogs++;
@@ -490,6 +495,15 @@ public final class NetworkSimulator {
             return exchange(source,replyAddress(source,target),target,protocol,type==NetworkPolicy.Protocol.ICMP?0:49152,destinationPort,new SearchBudget(),expectedServicePort);
         }catch(SearchLimit|IllegalArgumentException e){return Result.fail(e.getMessage());}
     }
+    /** 制御命令・更新の認可もNAT取引の中で検査。定期更新は操作ログを増殖させない。 */
+    public Result controlRequest(String source,ServiceAddress endpoint,java.util.function.Function<String,String> authorize){
+        Objects.requireNonNull(endpoint);Objects.requireNonNull(authorize);suppressProbeLogs++;
+        try{
+            return exchange(source,replyAddress(source,endpoint.address()),endpoint.address(),"tcp",49152,endpoint.port(),new SearchBudget(),CONTROL_PORT,
+                    (id,p)->p!=null&&p.kind==DeviceKind.REDSTONE_TERMINAL?Objects.requireNonNull(authorize.apply(id)):"受信先はレッドストーン通信端末ではありません");
+        }catch(SearchLimit|IllegalArgumentException invalid){return Result.fail(invalid.getMessage());}
+        finally{suppressProbeLogs--;}
+    }
     private Result exchange(String source,String local,String target,String protocol,int sourcePort,int destinationPort,SearchBudget budget){
         return exchange(source,local,target,protocol,sourcePort,destinationPort,budget,-1);
     }
@@ -499,6 +513,10 @@ public final class NetworkSimulator {
     /** 稼働判定もNAT取引内。監視で停止を観測しても変換エントリーを延命しない。 */
     private Result exchange(String source,String local,String target,String protocol,int sourcePort,int destinationPort,SearchBudget budget,int expectedServicePort,
                             java.util.function.Function<NetworkProfile,String> availability){
+        return exchange(source,local,target,protocol,sourcePort,destinationPort,budget,expectedServicePort,(id,p)->availability.apply(p));
+    }
+    private Result exchange(String source,String local,String target,String protocol,int sourcePort,int destinationPort,SearchBudget budget,int expectedServicePort,
+                            java.util.function.BiFunction<String,NetworkProfile,String> availability){
         if(local.isBlank()||!owns(source,local))return Result.fail("送信元IPが未設定または機器に属していません");
         var packet=NetworkPolicy.Packet.of(protocol,local,target,sourcePort,destinationPort);
         try(var transaction=natTable.begin()){
@@ -508,7 +526,7 @@ public final class NetworkSimulator {
                 return Result.fail("NAT転送先ポートが実サービスと一致しません (必要: "+expectedServicePort+")");
             if(expectedServicePort==53&&!DnsSettings.available(nodes.get(forward.result.destination)))
                 return Result.fail("DNSサービスが停止または非対応です");
-            String unavailable=availability.apply(nodes.get(forward.result.destination));
+            String unavailable=availability.apply(forward.result.destination,nodes.get(forward.result.destination));
             if(!unavailable.isEmpty())return Result.fail(unavailable);
             var reverse=walk(forward.result.destination,budget,forward.packet.reverse(),transaction);
             if(!reverse.result.success)return Result.fail("応答経路なし: "+reverse.result.message);

@@ -44,6 +44,8 @@ public final class NetworkHelp {
         "nat forward add 1 tcp 8080 192.168.10.20 80",
         "nat sessions / nat clear / nat help (動的変換表は保存しません)",
         "redstone 名前/IP[:PORT] 15 / transfer 名前/IP[:PORT] 100 (仮想100MB) / flows",
+        "端末: control-safety hold / stop 5 / value 7 5 / control-status",
+        "制御元: redstone maintain 名前/IP[:PORT] 15 / redstone stop / redstone links",
         "trust プレイヤー名 / untrust プレイヤー名 / public on|off",
         "完全安定化で内部ランダム故障だけ0%。故障は修理キットで復旧。",
         "通常採掘で設定・アップグレード・故障・権限を保持します。",

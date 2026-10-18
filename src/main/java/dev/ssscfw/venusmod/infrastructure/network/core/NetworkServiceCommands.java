@@ -12,6 +12,7 @@ public final class NetworkServiceCommands {
         var nat=NatCommands.run(simulator,id,input);if(nat.handled())return nat;
         String[] t=input.trim().split("\\s+");
         if(t.length==1&&t[0].equals("help"))return new Reply(true,false,NetworkHelp.lines());
+        if(ControlSafetyCommands.handles(t))return ControlSafetyCommands.run(simulator,id,t);
         if(MonitorCommands.handles(t))return MonitorCommands.run(simulator,id,t);
         if(SyslogCommands.handles(t))return SyslogCommands.run(simulator,id,t);
         if(DnsCommands.handles(t))return DnsCommands.run(simulator,id,t);

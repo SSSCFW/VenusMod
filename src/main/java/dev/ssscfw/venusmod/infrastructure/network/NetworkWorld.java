@@ -15,6 +15,7 @@ public final class NetworkWorld {
     private final ServerLevel level;
     private final Map<BlockPos,NetworkDeviceEntity> devices=new LinkedHashMap<>();
     private final NetworkSimulator simulator=new NetworkSimulator();
+    private final NetworkControl controls;
     private final Map<BlockPos,String> registeredIds=new HashMap<>();
     private final CableTopology<BlockPos> topology;
     private final NetworkRequestBudget requestBudget=new NetworkRequestBudget(4,2);
@@ -23,7 +24,7 @@ public final class NetworkWorld {
     private record FailureEvent(long due,long generation,NetworkDeviceEntity device){}
     public static NetworkWorld get(ServerLevel level){return WORLDS.computeIfAbsent(level,NetworkWorld::new);}
     private NetworkWorld(ServerLevel level){
-        this.level=level;
+        this.level=level;controls=new NetworkControl(level,this);
         topology=new CableTopology<>(new CableTopology.View<BlockPos>(){
             public BlockPos adjacent(BlockPos pos,int port){return pos.relative(NetworkCableBlock.DIRECTIONS[port]).immutable();}
             public long chunk(BlockPos pos){return new ChunkPos(pos).toLong();}
@@ -39,6 +40,7 @@ public final class NetworkWorld {
         });
     }
     public NetworkSimulator simulator(){return simulator;}
+    public NetworkControl controls(){return controls;}
     public boolean ready(){return topology.idle();}
     public String diagnostic(){return topology.diagnostic();}
     public long topologySteps(){return topology.totalSteps();}
@@ -52,7 +54,7 @@ public final class NetworkWorld {
         NetworkDeviceEntity previous=devices.put(entity.getBlockPos().immutable(),entity);
         if(previous!=entity||entity.nextFailureTime==0){entity.scheduleGeneration++;entity.nextFailureTime=level.getGameTime()+Math.clamp(entity.failureRemaining,1,1200);failures.add(new FailureEvent(entity.nextFailureTime,entity.scheduleGeneration,entity));}
         String oldId=registeredIds.put(entity.getBlockPos().immutable(),entity.id());
-        if(oldId!=null&&!oldId.equals(entity.id()))simulator.remove(oldId);
+        if(oldId!=null&&!oldId.equals(entity.id())){controls.runtime().removed(oldId);simulator.remove(oldId);}
         if(simulator.nodes().get(entity.id())!=entity.profile())simulator.put(entity.id(),entity.profile());
         topology.changed(entity.getBlockPos().immutable());
     }
@@ -60,7 +62,7 @@ public final class NetworkWorld {
         if(devices.get(entity.getBlockPos())!=entity)return;
         entity.failureRemaining=Math.clamp(entity.nextFailureTime-level.getGameTime(),1,1200);entity.nextFailureTime=0;entity.scheduleGeneration++;
         topology.changed(entity.getBlockPos().immutable());
-        devices.remove(entity.getBlockPos());String oldId=registeredIds.remove(entity.getBlockPos());if(oldId!=null)simulator.remove(oldId);
+        devices.remove(entity.getBlockPos());String oldId=registeredIds.remove(entity.getBlockPos());if(oldId!=null){controls.runtime().removed(oldId);simulator.remove(oldId);}
     }
     public void configurationChanged(NetworkDeviceEntity entity){if(devices.get(entity.getBlockPos())!=entity)return;simulator.put(entity.id(),entity.profile());}
     public NetworkDeviceEntity device(String id){for(var device:devices.values())if(device.id().equals(id))return device;return null;}
@@ -68,7 +70,7 @@ public final class NetworkWorld {
     private void tick(){
         topology.step(NetworkContent.TOPOLOGY_BUDGET.get());
         // 解析中でも確認済みの別区間と全制御タイマーを進める。未確定リンクは未公開。
-        simulator.advance(1);
+        simulator.advance(1);controls.tick();
         long now=level.getGameTime();int work=0;
         while(!failures.isEmpty()&&failures.peek().due<=now&&work++<64){var event=failures.remove();var device=event.device;
             if(device.isRemoved()||devices.get(device.getBlockPos())!=device||device.scheduleGeneration!=event.generation)continue;

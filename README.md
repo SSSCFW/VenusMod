@@ -138,3 +138,7 @@ IPv4 eBGP/iBGPのピア、経路広告・撤回、AS_PATH・NEXT_HOP、ピアご
 ## サービス別の定期監視
 
 ICMPとWeb/TCP80・DNS/UDP53・仮想転送・制御端末の応答を分けて監視します。サービス停止、NAT公開ポート、ACLと返信の検査、設定保存を [サービス監視](docs/NETWORK_SERVICE_MONITOR.md) にまとめています。[検証記録](docs/NETWORK_SERVICE_MONITOR_VERIFICATION.md) では自動検査と未実施のクライアント確認を区別します。
+
+### 通信断時の安全出力
+
+レッドストーン通信端末の保持/停止/指定値、認可付きの定期更新、期限切れ後の明示的な再開は [制御通信の安全動作](docs/NETWORK_CONTROL_SAFETY.md) を参照してください。既存端末はholdのままで、新しい保護は任意設定です。

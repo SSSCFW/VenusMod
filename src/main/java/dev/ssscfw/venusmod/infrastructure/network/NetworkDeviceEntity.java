@@ -25,6 +25,8 @@ public final class NetworkDeviceEntity extends BlockEntity implements MenuProvid
     private NetworkProfile profile;
     private boolean loading;
     private int redstone;
+    private ControlSafetySettings.Config appliedSafety=new ControlSafetySettings().config();
+    private boolean appliedFailure;
     long nextFailureTime;
     long failureRemaining=1200;
     long scheduleGeneration;
@@ -35,14 +37,34 @@ public final class NetworkDeviceEntity extends BlockEntity implements MenuProvid
     public NetworkDeviceEntity(BlockPos pos,BlockState state){super(NetworkContent.DEVICE_ENTITY.get(),pos,state);profile=new NetworkProfile(((NetworkDeviceBlock)state.getBlock()).kind);}
     public String id(){return deviceId.toString();}
     public NetworkProfile profile(){return profile;}
-    public void adoptProfile(NetworkProfile value){if(value.kind!=profile.kind)throw new IllegalArgumentException("機種不一致");profile=value;applyModules();}
+    public void adoptProfile(NetworkProfile value){if(value.kind!=profile.kind)throw new IllegalArgumentException("機種不一致");profile=value;applyModules();reconcileControl(false);}
     public boolean canUse(Player player){return player.isAlive()&&!player.isSpectator()&&(owner==null||owner.equals(player.getUUID())||trusted.contains(player.getUUID())||player.hasPermissions(2));}
     public boolean canControl(Player player){return canUse(player)||profile.publicService&&player.isAlive()&&!player.isSpectator();}
+    /** 自動更新用の現在の明示権限。ログアウトで無効化せず、OPの一時権限は記録しない。 */
+    public boolean configuredManager(UUID actor){return owner==null||owner.equals(actor)||trusted.contains(actor);}
+    public boolean configuredControl(UUID actor){return configuredManager(actor)||profile.publicService;}
     public UUID owner(){return owner;}
     public void setOwnerIfAbsent(Player player){if(owner==null){owner=player.getUUID();setChanged();}}
     public boolean trust(UUID player,boolean add){if(add){if(trusted.size()>=16&&!trusted.contains(player))return false;trusted.add(player);}else trusted.remove(player);setChanged();return true;}
     void renewId(){deviceId=UUID.randomUUID();setChanged();}
-    public int redstone(){return profile.failed?0:redstone;}
+    public int redstone(){
+        if(profile.failed)return 0;
+        var config=profile.controlSafety.config();
+        return !config.guarded()||controlActive()?redstone:config.fallback();
+    }
+    private boolean controlActive(){return level instanceof ServerLevel s&&NetworkWorld.get(s).controls().runtime().active(id(),s.getGameTime());}
+    /** 方針変更/ロード/故障で許可を持ち越さない。holdへの切替でも古い出力を復活させない。 */
+    void reconcileControl(boolean reloaded){
+        if(profile.kind!=DeviceKind.REDSTONE_TERMINAL)return;
+        var next=profile.controlSafety.config();boolean changed=!next.equals(appliedSafety);
+        if(reloaded||changed||profile.failed&&!appliedFailure){
+            int previous=!appliedSafety.guarded()||controlActive()?redstone:appliedSafety.fallback();
+            if(level instanceof ServerLevel s)NetworkWorld.get(s).controls().runtime().cancelTarget(id());
+            if(next.guarded())setRedstone(next.fallback());
+            else if(changed)setRedstone(previous);
+        }
+        appliedSafety=next;appliedFailure=profile.failed;
+    }
     public void setRedstone(int value){redstone=Math.clamp(value,0,15);setChanged();if(level!=null){level.updateNeighborsAt(worldPosition,getBlockState().getBlock());level.sendBlockUpdated(worldPosition,getBlockState(),getBlockState(),3);}}
     public void applyModules(){
         profile.stability=0;profile.processor=0;profile.buffer=0;
@@ -58,7 +80,7 @@ public final class NetworkDeviceEntity extends BlockEntity implements MenuProvid
     }
     public void repair(){profile.failed=false;refreshState();}
     public void refreshState(){
-        setChanged();if(level instanceof ServerLevel s){BlockState state=getBlockState();if(state.getValue(NetworkDeviceBlock.FAULTED)!=profile.failed)s.setBlock(worldPosition,state.setValue(NetworkDeviceBlock.FAULTED,profile.failed),3);
+        reconcileControl(false);setChanged();if(level instanceof ServerLevel s){BlockState state=getBlockState();if(state.getValue(NetworkDeviceBlock.FAULTED)!=profile.failed)s.setBlock(worldPosition,state.setValue(NetworkDeviceBlock.FAULTED,profile.failed),3);
             NetworkWorld.get(s).configurationChanged(this);s.updateNeighborsAt(worldPosition,state.getBlock());}
     }
     void failureCheck(ServerLevel server){
@@ -66,7 +88,7 @@ public final class NetworkDeviceEntity extends BlockEntity implements MenuProvid
         if(!profile.failed&&probability>0&&server.random.nextDouble()<probability){profile.failed=true;refreshState();NetworkWorld.get(server).simulator().log(id(),"内部故障: 修理キットで復旧できます");}
         failureRemaining=1200;setChanged();
     }
-    @Override public void onLoad(){super.onLoad();applyModules();if(level instanceof ServerLevel s)NetworkWorld.get(s).add(this);}
+    @Override public void onLoad(){super.onLoad();applyModules();if(level instanceof ServerLevel s){NetworkWorld.get(s).add(this);reconcileControl(true);}}
     @Override public void setRemoved(){if(level instanceof ServerLevel s)NetworkWorld.get(s).remove(this);super.setRemoved();}
     @Override public void onChunkUnloaded(){if(level instanceof ServerLevel s)NetworkWorld.get(s).remove(this);super.onChunkUnloaded();}
     @Override public Component getDisplayName(){return Component.translatable(getBlockState().getBlock().getDescriptionId());}
@@ -94,7 +116,7 @@ public final class NetworkDeviceEntity extends BlockEntity implements MenuProvid
     }
     public void restoreItem(ItemStack stack){
         if(level==null)return;CustomData data=stack.get(DataComponents.CUSTOM_DATA);if(data!=null){CompoundTag root=data.copyTag();if(root.contains("venus_network",Tag.TAG_COMPOUND))restore(root.getCompound("venus_network"),level.registryAccess());}
-        nextFailureTime=0;if(level instanceof ServerLevel s)NetworkWorld.get(s).add(this);refreshState();
+        nextFailureTime=0;if(level instanceof ServerLevel s)NetworkWorld.get(s).add(this);reconcileControl(true);refreshState();
     }
     @Override protected void saveAdditional(CompoundTag tag,HolderLookup.Provider registries){super.saveAdditional(tag,registries);tag.put("Network",persistent(registries));}
     @Override protected void loadAdditional(CompoundTag tag,HolderLookup.Provider registries){super.loadAdditional(tag,registries);if(tag.contains("Network",Tag.TAG_COMPOUND))restore(tag.getCompound("Network"),registries);}
