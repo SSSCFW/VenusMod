@@ -130,3 +130,7 @@ IPv4 eBGP/iBGPのピア、経路広告・撤回、AS_PATH・NEXT_HOP、ピアご
 ## Syslog集中ログ収集
 
 既存サーバーで各機器の新しいログを集中収集できます。UDP514の片方向経路・ACL/NAT・受信元フィルターと、配送/保持上限を適用します。操作と揮発性履歴の注意点は [Syslogの使い方](docs/NETWORK_SYSLOG.md)、検証は [Syslog検証記録](docs/NETWORK_SYSLOG_VERIFICATION.md) を参照してください。細いケーブル・テクスチャは変更していません。
+
+## 定期監視
+
+ネットワークサーバーから仮想ICMPの応答を定期確認し、連続失敗/成功で障害・復旧を記録します。設定と制限は [定期監視の使い方](docs/NETWORK_MONITOR.md)、実施済み/未実施の検査は [検証記録](docs/NETWORK_MONITOR_VERIFICATION.md) を参照してください。既存の色付きケーブルと専用タブは維持します。

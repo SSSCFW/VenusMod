@@ -67,7 +67,9 @@ public final class NetworkSimulator {
     private final NatTable natTable=new NatTable();
     private final DnsResolver dnsResolver=new DnsResolver(this);
     private final SyslogRuntime syslogRuntime=new SyslogRuntime(this);
-    private int suppressSyslog;
+    private int suppressSyslog,suppressProbeLogs;
+    private final MonitorRuntime monitorRuntime=new MonitorRuntime(this);
+    public MonitorRuntime monitor(){return monitorRuntime;}
     public SyslogRuntime syslog(){return syslogRuntime;}
     public DnsResolver dnsResolver(){return dnsResolver;}
     public NatTable nat(){return natTable;}
@@ -90,7 +92,7 @@ public final class NetworkSimulator {
         Objects.requireNonNull(id);Objects.requireNonNull(profile);
         if(!nodes.containsKey(id)&&nodes.size()>=MAX_NODES)throw new IllegalStateException("機器数上限");
         nodes.put(id,profile);dnsResolver.synchronizeClient(id,profile);macAddresses.computeIfAbsent(id,NetworkSimulator::macAddress);
-        ports.computeIfAbsent(id,k->new Link[6]);invalidate(id);
+        ports.computeIfAbsent(id,k->new Link[6]);monitorRuntime.synchronize(id);invalidate(id);
     }
     /** 権威DNSの編集は経路変更ではない。既存接続と遠隔キャッシュを維持する。 */
     void applyDnsSettings(String id,NetworkProfile validated){
@@ -102,12 +104,24 @@ public final class NetworkSimulator {
         var current=nodes.get(id);if(current==null)throw new IllegalArgumentException("機器が未登録です");
         current.syslog.copyFrom(validated.syslog);syslogRuntime.configurationChanged(id);changedProfiles.add(id);
     }
+    void applyMonitorSettings(String id,NetworkProfile validated){
+        var current=nodes.get(id);if(current==null)throw new IllegalArgumentException("機器が未登録です");
+        current.monitor.copyFrom(validated.monitor);monitorRuntime.synchronize(id);changedProfiles.add(id);
+    }
+    /** 定期プローブは平常/失敗の操作ログを出さず、状態変化だけ監視側で通知する。 */
+    MonitorRuntime.Probe probeMonitor(String source,String target){
+        suppressProbeLogs++;
+        try{return new MonitorRuntime.Probe(exchange(source,replyAddress(source,target),target,"icmp",0,0,new SearchBudget()),false);}
+        catch(SearchLimit limit){return new MonitorRuntime.Probe(Result.fail(limit.getMessage()),true);}
+        catch(IllegalArgumentException invalid){return new MonitorRuntime.Probe(Result.fail(invalid.getMessage()),false);}
+        finally{suppressProbeLogs--;}
+    }
     public void remove(String id){
         if(!nodes.containsKey(id))return;
         // 分割前の成分を確保。切断の反対側も再確立させるが、別物理網は保護する。
         Set<String> affected=component(Set.of(id));
         for(Link link:new ArrayList<>(links.values()))if(link.a.equals(id)||link.b.equals(id))detach(link);
-        nodes.remove(id);ports.remove(id);macAddresses.remove(id);mac.remove(id);arp.remove(id);logs.remove(id);changedProfiles.remove(id);dnsResolver.removeDevice(id);syslogRuntime.remove(id);
+        nodes.remove(id);ports.remove(id);macAddresses.remove(id);mac.remove(id);arp.remove(id);logs.remove(id);changedProfiles.remove(id);dnsResolver.removeDevice(id);syslogRuntime.remove(id);monitorRuntime.remove(id);
         invalidateComponents(affected,"機器の削除で再確立");
     }
     public void link(Link link){
@@ -160,6 +174,7 @@ public final class NetworkSimulator {
     public List<String> logs(String id){return List.copyOf(logs.getOrDefault(id,new ArrayDeque<>()));}
     public void log(String id,String text){log(id,6,text);}
     public void log(String id,int severity,String text){
+        if(suppressProbeLogs>0)return;
         if(severity<0||severity>7)throw new IllegalArgumentException("severityは0〜7です");
         String safe=SyslogRuntime.text(text,200);var q=logs.computeIfAbsent(id,k->new ArrayDeque<>());while(q.size()>=64)q.removeFirst();q.addLast(safe);
         if(suppressSyslog==0)syslogRuntime.offer(id,severity,safe);
@@ -650,6 +665,7 @@ public final class NetworkSimulator {
             if(!live){log(f.source,"転送 #"+f.id+": リンク断で中断");it.remove();continue;}
             f.remaining-=rate/8.0*time/20.0;if(f.remaining<=0){log(f.source,"転送 #"+f.id+": 完了");it.remove();}
         }
+        monitorRuntime.advance(ticks);
         syslogRuntime.dispatch();
     }
 }
