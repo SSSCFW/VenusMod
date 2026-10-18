@@ -3,6 +3,10 @@ package dev.ssscfw.venusmod.test;
 import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.infrastructure.network.*;
 import dev.ssscfw.venusmod.infrastructure.network.core.*;
+import dev.ssscfw.venusmod.registry.ModCreativeTabs;
+import java.util.HashSet;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.Item;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.*;
 import net.minecraft.world.item.ItemStack;
@@ -27,6 +31,28 @@ public final class NetworkInfrastructureGameTests {
         }
         h.succeed();
     }
+    @GameTest(template="test/empty")
+    public static void cableCreativeTabRegistration(GameTestHelper h) {
+        h.assertTrue(!ModCreativeTabs.NETWORK_CABLES_TAB_KEY.equals(ModCreativeTabs.VENUS_TAB_KEY),
+                "ケーブル用タブは金星メインタブとは異なるIDを使う");
+        h.assertTrue(ModCreativeTabs.NETWORK_CABLES_TAB.get() != ModCreativeTabs.VENUS_TAB.get(),
+                "ネットワークケーブル専用タブが登録される");
+        var unique=new HashSet<Item>();
+        for(var grade:CableGrade.values()){
+            Item plain=NetworkContent.NETWORK_ITEMS.get(grade.id()).get();
+            h.assertTrue(plain instanceof NetworkCableItem,"無染色ケーブルも専用タブの対象: "+grade.id());
+            unique.add(plain);
+            for(var color:DyeColor.values()){
+                Item dyed=NetworkContent.NETWORK_ITEMS.get(grade.id()+"_"+color.getName()).get();
+                h.assertTrue(dyed instanceof NetworkCableItem,"全16色がケーブルアイテム: "+grade.id()+"/"+color.getName());
+                unique.add(dyed);
+            }
+        }
+        h.assertTrue(unique.size()==CableGrade.values().length*(DyeColor.values().length+1),
+                "8規格×(無染色+16色)の136アイテムが重複なく登録される");
+        h.succeed();
+    }
+
     @GameTest(template="test/empty")
     public static void deviceItemRoundTrip(GameTestHelper h) {
         BlockPos p=h.absolutePos(new BlockPos(1,1,1));

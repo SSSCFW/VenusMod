@@ -1,12 +1,15 @@
 package dev.ssscfw.venusmod.registry;
 
 import dev.ssscfw.venusmod.VenusMod;
+import dev.ssscfw.venusmod.infrastructure.network.NetworkContent;
+import dev.ssscfw.venusmod.infrastructure.network.core.CableGrade;
 import dev.ssscfw.venusmod.treasure.KingsTreasure;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -39,6 +42,27 @@ public final class ModCreativeTabs {
                         output.accept(ModItems.VENUS_CREEPER_SPAWN_EGG.get());
                         output.accept(ModItems.VENUS_SPIDER_SPAWN_EGG.get());
                         output.accept(ModItems.VENUS_ENDERMAN_SPAWN_EGG.get());
+                    })
+                    .build());
+
+    /** Network cable variants live in their own tab instead of flooding VenusMod's main tab. */
+    public static final ResourceKey<CreativeModeTab> NETWORK_CABLES_TAB_KEY = ResourceKey.create(
+            Registries.CREATIVE_MODE_TAB,
+            ResourceLocation.fromNamespaceAndPath(VenusMod.MOD_ID, "network_cables"));
+
+    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> NETWORK_CABLES_TAB =
+            CREATIVE_MODE_TABS.register("network_cables", () -> CreativeModeTab.builder()
+                    .title(Component.translatable("itemGroup.venusmod.network_cables"))
+                    .icon(() -> new ItemStack(NetworkContent.CABLES.get(CableGrade.CAT5E).get()))
+                    .withTabsBefore(VENUS_TAB_KEY)
+                    .withSearchBar()
+                    .displayItems((parameters, output) -> {
+                        for (CableGrade grade : CableGrade.values()) {
+                            output.accept(NetworkContent.CABLES.get(grade).get());
+                            for (DyeColor color : DyeColor.values()) {
+                                output.accept(NetworkContent.DYED_CABLES.get(grade).get(color).get());
+                            }
+                        }
                     })
                     .build());
 

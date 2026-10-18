@@ -1,5 +1,6 @@
 {
   "itemGroup.venusmod": "VenusMod",
+  "itemGroup.venusmod.network_cables": "Network Cables",
   "entity.venusmod.venus_zombie": "Venus Zombie",
   "entity.venusmod.venus_skeleton": "Venus Skeleton",
   "entity.venusmod.venus_creeper": "Venus Creeper",

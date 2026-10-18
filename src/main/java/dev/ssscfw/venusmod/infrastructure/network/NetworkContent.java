@@ -77,9 +77,12 @@ public final class NetworkContent {
     private static void creative(BuildCreativeModeTabContentsEvent e){
         if(!e.getTabKey().equals(ModCreativeTabs.VENUS_TAB_KEY))return;
         for(var entry:NETWORK_ITEMS.entrySet()){
+            Item item=entry.getValue().get();
+            // ケーブル(無染色と16色)はネットワークケーブル専用タブにのみ表示する。
+            if(item instanceof NetworkCableItem)continue;
             if(entry.getKey().equals("combined_network_goggles")
                     && !net.neoforged.fml.ModList.get().isLoaded("create"))continue;
-            e.accept(entry.getValue().get());
+            e.accept(item);
         }
     }
     public static boolean wearingNetworkGoggles(net.minecraft.world.entity.player.Player player){

@@ -1,5 +1,6 @@
 {
   "itemGroup.venusmod": "VenusMod",
+  "itemGroup.venusmod.network_cables": "ネットワークケーブル",
   "entity.venusmod.venus_zombie": "金星ゾンビ",
   "entity.venusmod.venus_skeleton": "金星スケルトン",
   "entity.venusmod.venus_creeper": "金星クリーパー",
