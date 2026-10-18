@@ -28,5 +28,9 @@
 - [x] 既存APIで監視未対応の失敗を確認し、基準v9 fixtureを生成。
 - [x] 設定/期限/閾値/CLI/静かなプローブを実装、保存と通信統合を検査。
 - [x] GUIの監視ボタンと共通ガイド、実配線/実メニュー/機器回収のGameTestを追加。
-- [ ] 既存純Java/画像参照検査、差分自己レビュー、変更blob照合後にpush。
-- [ ] 既存CIのBuild/check/GameTest/JARを確認し、実行済みと未実施を区別して記録。
+- [x] 既存純Java/画像参照検査、差分自己レビュー、変更blob照合後にpush。
+- [x] 既存CIのBuild/check/GameTest/JARを確認し、実行済みと未実施を区別して記録。
+
+Ruling: 初回ネイティブの失敗はServerPlayer試験fixtureの接続欠落。実メニューの検査を省略せず、NeoForgeのダミー接続付きFakePlayerへ変更する。本番側の送受信・認可は変更しない。
+
+検証完了: 47e2cc6 / run39125884713。全体Build/check、必須132GameTest、JAR公開成功。CI入力の変更30ファイルを検査済みGit blobと照合。実クライアント/JEI操作・実マルチプレイ・TPSは未実施。
