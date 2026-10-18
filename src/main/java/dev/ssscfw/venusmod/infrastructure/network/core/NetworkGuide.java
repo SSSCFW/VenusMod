@@ -14,7 +14,7 @@ public final class NetworkGuide {
     private static final List<Page> BASE_PAGES=List.of(
         page("basic","LANの基本接続",chain("network_pc","PC-A","network_l2_switch","L2SW","network_pc","PC-B"),
             step("1. 独立したケーブルで接続","PC-AとL2SW、L2SWとPC-Bを別々のCat5eケーブルで接続します。","途中のT字分岐は不可。配線に分岐がある場合はスイッチを置きます。"),
-            step("2. IPを設定","PC-A: ip 192.168.1.10/24","PC-B: ip 192.168.1.20/24","機器を右クリックしてコンソールへ入力します。"),
+            step("2. IPを設定","PC-A: ip 192.168.1.10/24","PC-B: ip 192.168.1.20/24","GUIの「設定」からIPv4とプレフィックスを入力することもできます。"),
             step("3. 往復の通信を確認","PC-A: ping 192.168.1.20","mac / arp で学習した情報、ports でリンク状態を確認できます。","機器は6面ポート。0北・1東・2南・3西・4上・5下です。")),
         page("vlan","VLANでLANを分離",chain("network_pc","VLAN10","network_l2_switch","SW-A","network_l2_switch","SW-B","network_pc","VLAN10"),
             step("1. PC側をAccessにする","スイッチのPC側: port 0 vlan 10","port 0 mode access","PC側のフレームにタグを付けなくても、スイッチ内ではVLAN10です。"),
@@ -55,7 +55,7 @@ public final class NetworkGuide {
             step("2. レッドストーン出力","端末にIPを設定し、PCで redstone 192.168.1.30 15","通信と権限を確認して出力を変更します。0〜15を指定できます。","図は構成の概念図です。各端末はスイッチの別ポートへつなぎます。"),
             step("3. 他のプレイヤーと共有","trust プレイヤー名 / untrust プレイヤー名","オンラインのプレイヤーに管理権限を共有します。","public on は遠隔サービスだけを公開し、設定画面は公開しません。"))
     );
-    private static final List<Page> PAGES=java.util.stream.Stream.concat(BASE_PAGES.stream(),java.util.stream.Stream.of(OspfGuide.page(),NatGuide.page(),VrrpGuide.page(),StpGuide.page(),BgpGuide.page(),DnsGuide.page())).toList();
+    private static final List<Page> PAGES=java.util.stream.Stream.concat(BASE_PAGES.stream(),java.util.stream.Stream.of(OspfGuide.page(),NatGuide.page(),VrrpGuide.page(),StpGuide.page(),BgpGuide.page(),DnsGuide.page(),NetworkFormGuide.page())).toList();
     private NetworkGuide(){}
     public static List<Page> pages(){return PAGES;}
     public static List<Recipe> recipes(){List<Recipe> result=new ArrayList<>();for(Page page:PAGES)for(int i=0;i<page.steps.size();i++)result.add(new Recipe(page,i));return List.copyOf(result);}

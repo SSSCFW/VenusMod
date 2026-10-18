@@ -122,3 +122,7 @@ IPv4 eBGP/iBGPのピア、経路広告・撤回、AS_PATH・NEXT_HOP、ピアご
 ## DNSと名前による設備接続
 
 ゲーム内DNSのTTL付きキャッシュ、複数Aレコードのラウンドロビン、名前でのping・Web・仮想転送・レッドストーン操作に対応しました。外部DNSには接続しません。[DNSの使い方と制約](docs/NETWORK_DNS.md)、[検証記録](docs/NETWORK_DNS_VERIFICATION.md) を参照してください。
+
+## 基本・ポート設定のフォームGUI
+
+機器GUIの「設定」「ポート」から、IP/GW/DNS・ポート速度・VLAN・媒体をフォームで編集できます。同時編集の競合とサーバー側の権限検査に対応します。[操作と保存のルール](docs/NETWORK_SETTINGS_GUI.md)、[検証記録](docs/NETWORK_SETTINGS_GUI_VERIFICATION.md)を参照してください。高度なプロトコル設定は従来CLIを併用します。

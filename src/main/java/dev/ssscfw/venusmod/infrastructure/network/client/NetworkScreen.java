@@ -15,50 +15,61 @@ import org.lwjgl.glfw.GLFW;
 /** 仮想コンソールと図付きガイド。ガイド表示中は背後のスロット操作を遮断する。 */
 public final class NetworkScreen extends AbstractContainerScreen<NetworkMenu> {
     private EditBox command;
-    private boolean guide;
+    private boolean guide,configuring;
+    private final NetworkSettingsPanel settings;
     private int scroll,selectedPort,guidePage;
     private String lastText="";
     private Button portButton;
     private final List<AbstractWidget> normalWidgets=new ArrayList<>(),guideWidgets=new ArrayList<>();
-    public NetworkScreen(NetworkMenu menu,Inventory inventory,Component title){super(menu,inventory,title);imageWidth=320;imageHeight=240;inventoryLabelY=148;}
+    public NetworkScreen(NetworkMenu menu,Inventory inventory,Component title){super(menu,inventory,title);imageWidth=320;imageHeight=240;inventoryLabelY=148;settings=new NetworkSettingsPanel(menu);}
     @Override protected void init(){
         super.init();normalWidgets.clear();guideWidgets.clear();
-        button("状態",8,22,36,()->send("show"));button("ポート",46,22,44,()->send("ports"));
+        button("状態",8,22,36,()->send("show"));button("ポート",46,22,44,()->openSettings(selectedPort));
         button("DHCP",92,22,40,()->send("dhcp"));button("MAC",134,22,32,()->send("mac"));
         button("ガイド",168,22,44,()->{guidePage=NetworkGuide.initialPage(menu.kind());guide=true;scroll=0;visibility();});
         portButton=button("P0:北",214,22,44,()->{selectedPort=(selectedPort+1)%6;portButton.setMessage(Component.literal("P"+selectedPort+":"+NetworkCli.portName(selectedPort)));});
-        button("設定",260,22,52,()->{command.setValue("port "+selectedPort+" speed auto");setFocused(command);command.setFocused(true);});
+        button("設定",260,22,52,()->openSettings(-1));
         command=addRenderableWidget(new EditBox(font,leftPos+9,topPos+98,251,18,Component.literal("仮想CLI")));normalWidgets.add(command);
         command.setMaxLength(512);command.setHint(Component.literal("例: ip 192.168.1.10/24"));button("送信",264,97,47,this::submit);
         guideButton("前の項目",8,216,80,()->page(-1));guideButton("設定へ戻る",105,216,110,()->{guide=false;scroll=0;visibility();});guideButton("次の項目",232,216,80,()->page(1));
+        settings.mount(font,leftPos,topPos,w->addRenderableWidget(w),w->setFocused(w),()->{configuring=false;visibility();});
         visibility();
     }
     private Button button(String label,int x,int y,int width,Runnable action){var b=addRenderableWidget(Button.builder(Component.literal(label),v->action.run()).bounds(leftPos+x,topPos+y,width,18).build());normalWidgets.add(b);return b;}
     private void guideButton(String label,int x,int y,int width,Runnable action){guideWidgets.add(addRenderableWidget(Button.builder(Component.literal(label),v->action.run()).bounds(leftPos+x,topPos+y,width,18).build()));}
-    private void visibility(){for(var w:normalWidgets){w.visible=!guide;w.active=!guide;}for(var w:guideWidgets){w.visible=guide;w.active=guide;}setFocused(null);if(command!=null)command.setFocused(false);}
+    private void visibility(){
+        for(var w:normalWidgets){w.visible=!guide&&!configuring;w.active=w.visible;}
+        for(var w:guideWidgets){w.visible=guide&&!configuring;w.active=w.visible;}
+        settings.visible(configuring);setFocused(null);if(command!=null)command.setFocused(false);
+    }
+    private void openSettings(int scope){guide=false;configuring=true;visibility();settings.open(scope);}
+    @Override protected void containerTick(){super.containerTick();settings.tick();}
     private void page(int direction){guidePage=Math.floorMod(guidePage+direction,NetworkGuide.pages().size());scroll=0;}
     private void submit(){if(command!=null&&!command.getValue().isBlank()){send(command.getValue());command.setValue("");}}
     private void send(String text){scroll=0;PacketDistributor.sendToServer(new NetworkPackets.Command(menu.containerId,text));}
     @Override public boolean keyPressed(int key,int scan,int modifiers){
+        if(configuring)return settings.keyPressed(key,scan,modifiers);
         if(guide){if(key==GLFW.GLFW_KEY_ESCAPE){guide=false;scroll=0;visibility();}else if(key==GLFW.GLFW_KEY_RIGHT)page(1);else if(key==GLFW.GLFW_KEY_LEFT)page(-1);else if(key==GLFW.GLFW_KEY_DOWN)scroll++;else if(key==GLFW.GLFW_KEY_UP)scroll=Math.max(0,scroll-1);return true;}
         if(command!=null&&command.isFocused()){if(key==GLFW.GLFW_KEY_ENTER||key==GLFW.GLFW_KEY_KP_ENTER){submit();return true;}if(key!=GLFW.GLFW_KEY_ESCAPE)return command.keyPressed(key,scan,modifiers)||command.canConsumeInput();}
         return super.keyPressed(key,scan,modifiers);
     }
-    @Override public boolean charTyped(char c,int modifiers){return guide||super.charTyped(c,modifiers);}
-    @Override public boolean mouseClicked(double x,double y,int button){if(guide){for(var w:guideWidgets)if(w.mouseClicked(x,y,button))return true;return true;}return super.mouseClicked(x,y,button);}
-    @Override public boolean mouseReleased(double x,double y,int button){return guide||super.mouseReleased(x,y,button);}
-    @Override public boolean mouseDragged(double x,double y,int button,double dx,double dy){return guide||super.mouseDragged(x,y,button,dx,dy);}
+    @Override public boolean charTyped(char c,int modifiers){return configuring?settings.charTyped(c,modifiers):guide||super.charTyped(c,modifiers);}
+    @Override public boolean mouseClicked(double x,double y,int button){if(configuring)return settings.mouseClicked(x,y,button);if(guide){for(var w:guideWidgets)if(w.mouseClicked(x,y,button))return true;return true;}return super.mouseClicked(x,y,button);}
+    @Override public boolean mouseReleased(double x,double y,int button){return configuring?settings.mouseReleased(x,y,button):guide||super.mouseReleased(x,y,button);}
+    @Override public boolean mouseDragged(double x,double y,int button,double dx,double dy){return configuring?settings.mouseDragged(x,y,button,dx,dy):guide||super.mouseDragged(x,y,button,dx,dy);}
     private List<FormattedCharSequence> textLines(){
         String text;if(guide){var page=NetworkGuide.pages().get(guidePage);var b=new StringBuilder();for(var step:page.steps()){b.append(step.title()).append('\n');for(var line:step.lines())b.append(line).append('\n');b.append('\n');}text=b.toString();}else text=menu.snapshot();
         if(!text.equals(lastText)){scroll=0;lastText=text;}
         List<FormattedCharSequence> lines=new ArrayList<>();for(String line:text.split("\n",-1))lines.addAll(font.split(Component.literal(line.isEmpty()?" ":line),286));return lines;
     }
     @Override public boolean mouseScrolled(double x,double y,double horizontal,double vertical){
+        if(configuring)return true;
         if(guide||x>=leftPos+8&&x<leftPos+312&&y>=topPos+44&&y<topPos+96){int visible=guide?12:5;scroll=Math.clamp(scroll-(int)Math.signum(vertical)*3,0,Math.max(0,textLines().size()-visible));return true;}
         return super.mouseScrolled(x,y,horizontal,vertical);
     }
     @Override public void render(GuiGraphics g,int x,int y,float tick){
         renderBackground(g,x,y,tick);
+        if(configuring){settings.render(g,x,y,tick);return;}
         if(guide){renderGuide(g);for(var widget:guideWidgets)widget.render(g,x,y,tick);return;}
         super.render(g,x,y,tick);renderTooltip(g,x,y);
     }

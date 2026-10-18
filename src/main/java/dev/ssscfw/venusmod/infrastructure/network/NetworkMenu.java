@@ -46,6 +46,51 @@ public final class NetworkMenu extends AbstractContainerMenu {
         else{for(int i=0;i<NetworkDeviceEntity.SLOTS;i++)if(slots.get(i).mayPlace(stack)&&moveItemStackTo(stack,i,i+1,false)){moved=true;if(stack.isEmpty())break;}}
         if(!moved)return ItemStack.EMPTY;if(stack.isEmpty())slot.set(ItemStack.EMPTY);else slot.setChanged();slot.onTake(p,stack);return original;
     }
+    private List<String> formPages=List.of(),formPorts=List.of(),sentFormPages=List.of(),sentFormPorts=List.of();
+    private long formRevision;
+    private int formResponseId;
+    private boolean formAccepted;
+    private String formMessage="";
+    private static final String FORM_RATE_LIMIT="操作上限です。再試行してください";
+    public List<String> formPages(){return formPages;}
+    public List<String> formPorts(){return formPorts;}
+    public long formRevision(){return formRevision;}
+    public int formResponseId(){return formResponseId;}
+    public boolean formAccepted(){return formAccepted;}
+    public String formMessage(){return formMessage;}
+    public void receiveForm(List<String> pages,List<String> ports,int responseId,boolean accepted,String message){
+        formPages=List.copyOf(pages);formPorts=List.copyOf(ports);formRevision++;
+        formResponseId=responseId;formAccepted=accepted;formMessage=message;
+    }
+    /** Payload入口と同じ認可条件を実メニューの検査でも使う。実サービスの公開設定は管理許可ではない。 */
+    public NetworkForm.Outcome editForm(ServerPlayer sender,String expected,String edit){
+        if(sender!=player||target==null||sender.containerMenu!=this||!stillValid(sender))
+            return NetworkForm.Outcome.reject("この機器の設定画面を操作する権限がありません");
+        if(expected==null||edit==null||expected.length()>NetworkForm.MAX_ENCODED||edit.length()>NetworkForm.MAX_ENCODED)
+            return NetworkForm.Outcome.reject("フォーム容量の上限です");
+        var world=NetworkWorld.get(sender.serverLevel());
+        if(!world.admitRequest(sender.getUUID())){output=FORM_RATE_LIMIT;return NetworkForm.Outcome.reject(FORM_RATE_LIMIT);}
+        var sim=world.simulator();var result=NetworkForm.apply(sim,target.id(),expected,edit);
+        if(result.changed()){target.adoptProfile(sim.nodes().get(target.id()));target.setChanged();}
+        for(String id:sim.drainChangedProfiles()){var changed=world.device(id);if(changed!=null)changed.setChanged();}
+        output=result.message();return result;
+    }
+    public void submitForm(ServerPlayer sender,int requestId,String expected,String edit){
+        // 無効な画面や権限失効後には、応答にも最新の機器設定を含めない。
+        if(sender!=player||target==null||sender.containerMenu!=this||!stillValid(sender)||requestId<=0)return;
+        var result=editForm(sender,expected,edit);
+        // レート超過の要求に大きい設定応答を返して増幅させない。通常周期の状態欄で通知する。
+        if(!result.message().equals(FORM_RATE_LIMIT))syncForm(sender,requestId,result.accepted(),result.message());
+    }
+    private void syncForm(ServerPlayer sender,int requestId,boolean accepted,String message){
+        if(target==null||sender.containerMenu!=this||!stillValid(sender))return;
+        var pages=NetworkForm.captureAll(target.profile());var statuses=new ArrayList<String>(6);
+        var sim=NetworkWorld.get(sender.serverLevel()).simulator();
+        for(int i=0;i<6;i++){String status=sim.portStatus(target.id(),i);statuses.add(status.length()>160?status.substring(0,160):status);}
+        if(requestId==0&&pages.equals(sentFormPages)&&statuses.equals(sentFormPorts))return;
+        sentFormPages=pages;sentFormPorts=List.copyOf(statuses);
+        NetworkPackets.formState(sender,containerId,requestId,accepted,message,pages,statuses);
+    }
     public String snapshot(){return snapshot;}
     public DeviceKind kind(){return kind;}
     public void receive(int kind,String text){if(kind>=0&&kind<DeviceKind.values().length)this.kind=DeviceKind.values()[kind];snapshot=text;}
@@ -94,6 +139,6 @@ public final class NetworkMenu extends AbstractContainerMenu {
     @Override public void broadcastChanges(){super.broadcastChanges();if(player instanceof ServerPlayer server&&target!=null&&stillValid(player)){long now=server.serverLevel().getGameTime();if(now-lastSnapshotTick>=20){lastSnapshotTick=now;sendSnapshot(server);}}}
     private void sendSnapshot(ServerPlayer server){
         var world=NetworkWorld.get(server.serverLevel());String text=(target.profile().failed?"[故障] ":"[正常] ")+target.profile().name+" / "+world.diagnostic()+"\n"+output;
-        if(text.length()>8000)text=text.substring(0,8000);NetworkPackets.snapshot(server,containerId,target.profile().kind.ordinal(),text);
+        if(text.length()>8000)text=text.substring(0,8000);NetworkPackets.snapshot(server,containerId,target.profile().kind.ordinal(),text);syncForm(server,0,true,"");
     }
 }

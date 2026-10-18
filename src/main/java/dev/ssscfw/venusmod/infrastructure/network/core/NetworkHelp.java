@@ -6,6 +6,7 @@ public final class NetworkHelp {
     private NetworkHelp(){}
     public static List<String> lines(){return List.of(
         "詳細な接続図は機器GUIのガイド、またはJEIのネットワーク接続ガイドへ。",
+        "GUIの設定フォームで基本IP/GW/DNS、ポート画面で速度/VLAN/媒体を編集できます。",
         "PC ─ Cat5e ─ L2SW ─ Cat5e ─ PC。T字分岐は禁止です。",
         "全ケーブルは4/16幅。違うケーブル種類の間は中継機器が必要です。",
         "P0北 / P1東 / P2南 / P3西 / P4上 / P5下。",
