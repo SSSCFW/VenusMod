@@ -97,7 +97,7 @@ Add registries and mod-bus listeners from `VenusMod.java` as features are implem
 
 4/16幅のLAN・光ケーブル8種類、ネットワーク機器8種類、Java製の仮想通信、ポート強化、故障・設定保存、機器GUI・JEI説明を追加しています。操作例と実装範囲は [ネットワーク機能の使い方と実装状況](docs/NETWORK_IMPLEMENTATION.md) を参照してください。
 
-全体計画は [ネットワークインフラ仕様書](docs/NETWORK_SYSTEM_SPEC.md) です。**現段階は初期実装であり、全仕様の完成ではありません。BGP/IPv6、複数エリアOSPF、完全なSTP/VRRPなどの未対応項目は各機能の実装状況に明記しています。**
+全体計画は [ネットワークインフラ仕様書](docs/NETWORK_SYSTEM_SPEC.md) です。**現段階は初期実装であり、全仕様の完成ではありません。IPv6、複数エリアOSPF、BGP/STP/VRRPの未対応拡張などの残項目は各機能の実装状況に明記しています。**
 
 ### 動的経路・仮想アドレス変換
 

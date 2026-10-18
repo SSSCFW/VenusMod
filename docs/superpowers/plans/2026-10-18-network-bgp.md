@@ -25,7 +25,7 @@ IPv6、RR/confederation、AS_SET、BGP multipath、GR、完全なTCP/BGPバイ�
 - [x] 3. `BgpEngine`を追加。相互設定・ASN/ID・期限・ループ・withdraw・政策・NEXT_HOPの単体試験。
 - [x] 4. `BgpSimulation`を既存IPv4に接続。L2/VLAN/ACLと静的/OSPFの下位経路、転送時のBGPを統合。
 - [x] 5. GUI/JEIの図付き共通ガイド、実ブロック通信とItemStackの保存GameTestを追加する。
-- [ ] 6. 全体回帰・アセット検査・差分自己レビュー、GitHubへpushし既存CI結果を確認する。
+- [x] 6. 全体回帰・アセット検査・差分自己レビュー、GitHubへpushし既存CI結果を確認する。
 
 ## 重点確認
 
@@ -41,3 +41,6 @@ IPv6、RR/confederation、AS_SET、BGP multipath、GR、完全なTCP/BGPバイ�
 完全なプロトコル再現と手動クライアント目視/大規模TPS測定の合格を混同しない。
 
 ローカルJava21で新規151検査、既存ネットワーク検査一式、174 JSON/74 PNGの生成・参照検査が成功。BGP未対応時の公開CLI失敗、NAT併用/下位経路変化/直結候補の回帰を確認して修正した。全体ビルドと実ブロックGameTestは既存CIで検証する。
+
+
+最終コード `7f89456`（BGP本体 `5cbd1ac`）を既存ブランチへpush。共有ヘルプの旧説明を回帰検査2件で修正し、新規検査は153件。既存CI run39096299547は全体Build/check、必須120 GameTests、JAR公開すべて成功。ダウンロードしたCI入力の変更28ファイルは検査済みローカル入力とGit blobハッシュが一致しました。記録は `docs/NETWORK_BGP_VERIFICATION.md`。実クライアント目視・JEI実操作・複数人の実操作・大規模TPS測定は未実施です。
