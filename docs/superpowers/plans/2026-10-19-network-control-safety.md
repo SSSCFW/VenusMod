@@ -32,12 +32,13 @@
 - [x] 1. ControlSafetySettings/ControlLeaseRuntime/ControlSafetyCommandsの失敗テスト→実装→純Java検証。v11固定fixtureで移行を確認。
 - [x] 2. NetworkSimulatorの認可付きcontrolRequestとNetworkControl/Entity/World/Menuを接続。実通信の失敗と期限動作を検証。
 - [x] 3. 共通ControlSafetyGuide・help・操作説明。既存全テストとアセットを実行。
-- [ ] 4. 実配線、NAT/ACL、停止/保持/指定値、権限、通常ドロップと再配置のGameTest。差分レビュー後に同じブランチへpush、既存CI結果と公開を確認して記録。
+- [x] 4. 実配線、NAT/ACL、停止/保持/指定値、権限、通常ドロップと再配置のGameTest。差分レビュー後に同じブランチへpush、既存CI結果と公開を確認して記録。
 
 ## Verification ledger
-- 開始点51f8011。コンテナにはネット接続がないため、前回CI5bb99d5の診断artifact内ソースを使用。開始点までのコード変更はなく検証文書のみ。更新ファイルのGit blobをpush前に照合する。
-- 今回の新規検査・全体ビルド・実クライアント目視はまだ未実施。
-
+- 開始点51f8011。コンテナにはネット接続がないため、前回CI5bb99d5の診断artifact内ソースを使用。開始点までのコード変更はなく検証文書のみ。
 - ローカルJava21: 新規5クラスを含む64テストクラス成功。新規通信API・公開設定・ガイドの失敗記録を保持。
 - アセット: 1,594 JSON / 204 PNG、全参照解決。既存画像生成器は無変更。
-- Native GameTest3件を追加。CIでの実行は未確認。
+- Native GameTest3件を追加。制御期限やNAT表をテスト側から注入せず、通常配線・サーバーtick・実メニューとドロップで検査。
+- push前に、GitHub上の8a125f4と検査済み入力35ファイルすべてのGit blobを照合して一致。無関係なファイルの変更なし。
+- CI run39143956072 / code8a125f4: Build/check、必須137 GameTests、JAR検査・公開が成功。2026-10-19（日本時間）に診断ログとci-latestの対象コミットを確認。
+- 実クライアント目視、JEI画面、シェーダー、実際の複数人操作、大規模TPS測定は未実施。詳細はdocs/NETWORK_CONTROL_SAFETY_VERIFICATION.md。
