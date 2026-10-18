@@ -12,6 +12,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.*;
+import net.neoforged.neoforge.common.util.FakePlayer;
 
 /** 通常の配線・サーバーtick・実機器ドロップ。監視結果/期限はテスト側で注入しない。 */
 @GameTestHolder(VenusMod.MOD_ID)
@@ -57,8 +58,10 @@ public final class NetworkMonitorGameTests {
     @GameTest(template="test/wide_empty",batch="network_monitor_persistence",timeoutTicks=100)
     public static void monitorMenuPrivacyAndDeviceDrop(GameTestHelper h){
         var d=device(h,DeviceKind.SERVER,2,2,"10.97.0.20");var w=NetworkWorld.get(h.getLevel());
-        var owner=new ServerPlayer(h.getLevel().getServer(),h.getLevel(),new GameProfile(UUID.randomUUID(),"monitor-owner"),ClientInformation.createDefault());
-        var guest=new ServerPlayer(h.getLevel().getServer(),h.getLevel(),new GameProfile(UUID.randomUUID(),"monitor-guest"),ClientInformation.createDefault());
+        // 実メニューの応答先には、外部接続しないNeoForgeの模擬接続を用意する。
+        var owner=new FakePlayer(h.getLevel(),new GameProfile(UUID.randomUUID(),"monitor-owner"));
+        var guest=new FakePlayer(h.getLevel(),new GameProfile(UUID.randomUUID(),"monitor-guest"));
+        h.assertTrue(owner.connection!=null&&guest.connection!=null,"模擬プレイヤーはGUI応答を受けるダミー接続を持つ");
         owner.setPos(d.getBlockPos().getX()+0.5,d.getBlockPos().getY()+0.5,d.getBlockPos().getZ()+0.5);guest.setPos(owner.getX(),owner.getY(),owner.getZ());d.setOwnerIfAbsent(owner);
         h.startSequence().thenIdle(10).thenExecute(()->{
             config(h,w,d,"monitor add private_target 10.97.0.21");config(h,w,d,"monitor interval 2");config(h,w,d,"monitor thresholds 2 3");
