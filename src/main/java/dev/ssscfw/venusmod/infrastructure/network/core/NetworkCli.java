@@ -10,10 +10,11 @@ public final class NetworkCli {
         if(input==null||input.length()>512||input.codePoints().anyMatch(Character::isISOControl))return reply(false,"コマンドは改行なし512文字以内です");
         var original=sim.nodes().get(id);if(original==null)return reply(false,"機器が読み込まれていません");
         String[] t=input.trim().split("\\s+");
+        if(DnsCommands.handles(t)){var reply=DnsCommands.run(sim,id,t);return new Reply(reply.changed(),reply.lines());}
         if(BgpCommands.handles(t)){var reply=BgpCommands.run(sim,id,t);return new Reply(reply.changed(),reply.lines());}
         if(StpCommands.handles(t)){var reply=StpCommands.run(sim,id,t);return new Reply(reply.changed(),reply.lines());}
         if(VrrpCommands.handles(t)){var reply=VrrpCommands.run(sim,id,t);return new Reply(reply.changed(),reply.lines());}
-        boolean editing=Set.of("name","ip","gateway","dns","port","dhcp-server","web","public","dns-record","route","fault").contains(t[0].toLowerCase(Locale.ROOT));
+        boolean editing=Set.of("name","ip","gateway","dns","port","dhcp-server","web","public","route","fault").contains(t[0].toLowerCase(Locale.ROOT));
         // 誤入力時は既存オブジェクトにも通信表にも触れない。
         var p=editing?NetworkProfile.decode(original.kind,original.encode()):original;
         if(editing){p.stability=original.stability;p.processor=original.processor;p.buffer=original.buffer;p.wanTier=original.wanTier;for(int i=0;i<6;i++)p.ports[i].moduleTier=original.ports[i].moduleTier;}
@@ -37,7 +38,6 @@ public final class NetworkCli {
                 case "flows" -> {return new Reply(false,sim.flows().stream().filter(f->f.source.equals(id)).map(f->"#"+f.id+" "+String.format(Locale.ROOT,"%.1f%%",f.progress()*100)+" / "+f.totalBytes+" bytes").toList());}
                 case "ping","trace" -> {need(t,2);var result=sim.ping(id,t[1]);List<String> lines=new ArrayList<>();lines.add(result.message());if(result.success()){lines.add("上限 "+CableGrade.speed(result.bps()));if(t[0].equals("trace"))for(String node:result.nodes())lines.add("→ "+sim.nodes().get(node).name);}return new Reply(false,lines);}
                 case "dhcp" -> {need(t,1);var r=sim.dhcp(id);return reply(r.success(),r.message());}
-                case "nslookup" -> {need(t,2);return reply(false,sim.resolve(id,t[1]).message());}
                 case "transfer" -> {need(t,3);long bytes=Math.multiplyExact(Long.parseLong(t[2]),1_000_000L);return reply(false,sim.startTransfer(id,t[1],bytes).message());}
                 case "name" -> {if(t.length<2)throw new IllegalArgumentException("name 機器名");p.name=input.substring(input.indexOf(' ')+1).trim();}
                 case "ip" -> {need(t,2);var cidr=cidr(t[1]);if(p.kind.routing()){p.ports[0].address=cidr[0];p.ports[0].prefix=Integer.parseInt(cidr[1]);}else{p.address=cidr[0];p.prefix=Integer.parseInt(cidr[1]);}}
@@ -60,7 +60,6 @@ public final class NetworkCli {
                 case "dhcp-server" -> {need(t,2);if(!p.kind.routing()&&p.kind!=DeviceKind.SERVER)throw new IllegalArgumentException("DHCPはルーター/サーバーのみです");p.dhcp=on(t[1]);}
                 case "web" -> {need(t,2);if(p.kind!=DeviceKind.SERVER)throw new IllegalArgumentException("Webはサーバーのみです");p.web=on(t[1]);}
                 case "public" -> {need(t,2);p.publicService=on(t[1]);}
-                case "dns-record" -> {need(t,3);if(p.kind!=DeviceKind.SERVER&&!p.kind.routing())throw new IllegalArgumentException("DNSはサーバー/ルーターのみです");p.dnsRecords.put(t[1].toLowerCase(Locale.ROOT),Ipv4.normalize(t[2]));}
                 case "route" -> {if(!p.kind.routing())throw new IllegalArgumentException("経路追加はL3機器で行います");if(t.length==2&&t[1].equals("clear"))p.routes.clear();else{need(t,7);if(!t[1].equals("add")||!t[3].equals("via")||!t[5].equals("port"))throw new IllegalArgumentException("route add 10.0.0.0/24 via 192.168.1.1 port 0");var c=cidr(t[2]);p.routes.add(new NetworkProfile.Route(c[0],Integer.parseInt(c[1]),t[4],Integer.parseInt(t[6])));}}
                 case "fault" -> {need(t,1);p.failed=true;}
                 case "ospf","ipv6","nat","ipsec","lacp" -> {return reply(false,"この版では未実装です。成功した通信として扱いません。");}

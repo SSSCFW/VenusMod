@@ -55,7 +55,7 @@ public final class NetworkGuide {
             step("2. レッドストーン出力","端末にIPを設定し、PCで redstone 192.168.1.30 15","通信と権限を確認して出力を変更します。0〜15を指定できます。","図は構成の概念図です。各端末はスイッチの別ポートへつなぎます。"),
             step("3. 他のプレイヤーと共有","trust プレイヤー名 / untrust プレイヤー名","オンラインのプレイヤーに管理権限を共有します。","public on は遠隔サービスだけを公開し、設定画面は公開しません。"))
     );
-    private static final List<Page> PAGES=java.util.stream.Stream.concat(BASE_PAGES.stream(),java.util.stream.Stream.of(OspfGuide.page(),NatGuide.page(),VrrpGuide.page(),StpGuide.page(),BgpGuide.page())).toList();
+    private static final List<Page> PAGES=java.util.stream.Stream.concat(BASE_PAGES.stream(),java.util.stream.Stream.of(OspfGuide.page(),NatGuide.page(),VrrpGuide.page(),StpGuide.page(),BgpGuide.page(),DnsGuide.page())).toList();
     private NetworkGuide(){}
     public static List<Page> pages(){return PAGES;}
     public static List<Recipe> recipes(){List<Recipe> result=new ArrayList<>();for(Page page:PAGES)for(int i=0;i<page.steps.size();i++)result.add(new Recipe(page,i));return List.copyOf(result);}

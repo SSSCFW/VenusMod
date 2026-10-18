@@ -12,6 +12,7 @@ public final class NetworkServiceCommands {
         var nat=NatCommands.run(simulator,id,input);if(nat.handled())return nat;
         String[] t=input.trim().split("\\s+");
         if(t.length==1&&t[0].equals("help"))return new Reply(true,false,NetworkHelp.lines());
+        if(DnsCommands.handles(t))return DnsCommands.run(simulator,id,t);
         if(BgpCommands.handles(t))return BgpCommands.run(simulator,id,t);
         if(StpCommands.handles(t))return StpCommands.run(simulator,id,t);
         if(VrrpCommands.handles(t))return VrrpCommands.run(simulator,id,t);

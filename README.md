@@ -118,3 +118,7 @@ VLAN別のルート選出、Root/Designated/Alternate、Listening/Learning/Forwa
 ## BGPによる拠点間経路制御
 
 IPv4 eBGP/iBGPのピア、経路広告・撤回、AS_PATH・NEXT_HOP、ピアごとのLOCAL_PREF/MED/prependとフィルターを追加しました。接続例・制約は [BGPの使い方](docs/NETWORK_BGP.md)、検証状況は [BGP検証記録](docs/NETWORK_BGP_VERIFICATION.md) を参照してください。全プロトコルの実装完了を意味しません。
+
+## DNSと名前による設備接続
+
+ゲーム内DNSのTTL付きキャッシュ、複数Aレコードのラウンドロビン、名前でのping・Web・仮想転送・レッドストーン操作に対応しました。外部DNSには接続しません。[DNSの使い方と制約](docs/NETWORK_DNS.md)、[検証記録](docs/NETWORK_DNS_VERIFICATION.md) を参照してください。

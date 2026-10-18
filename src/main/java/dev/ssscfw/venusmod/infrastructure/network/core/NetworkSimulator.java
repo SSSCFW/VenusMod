@@ -65,6 +65,8 @@ public final class NetworkSimulator {
     private final BgpSimulation bgpRuntime=new BgpSimulation(this);
     public BgpEngine bgp(){return bgpRuntime.engine();}
     private final NatTable natTable=new NatTable();
+    private final DnsResolver dnsResolver=new DnsResolver(this);
+    public DnsResolver dnsResolver(){return dnsResolver;}
     public NatTable nat(){return natTable;}
     public OspfEngine ospf(){return ospfRuntime.engine();}
     private final StpSimulation stpRuntime=new StpSimulation(this);
@@ -84,15 +86,21 @@ public final class NetworkSimulator {
     public void put(String id,NetworkProfile profile){
         Objects.requireNonNull(id);Objects.requireNonNull(profile);
         if(!nodes.containsKey(id)&&nodes.size()>=MAX_NODES)throw new IllegalStateException("機器数上限");
-        nodes.put(id,profile);macAddresses.computeIfAbsent(id,NetworkSimulator::macAddress);
+        nodes.put(id,profile);dnsResolver.synchronizeClient(id,profile);macAddresses.computeIfAbsent(id,NetworkSimulator::macAddress);
         ports.computeIfAbsent(id,k->new Link[6]);invalidate(id);
+    }
+    /** 権威DNSの編集は経路変更ではない。既存接続と遠隔キャッシュを維持する。 */
+    void applyDnsSettings(String id,NetworkProfile validated){
+        var current=nodes.get(id);if(current==null)throw new IllegalArgumentException("機器が未登録です");
+        current.dnsRecords.clear();current.dnsRecords.putAll(validated.dnsRecords);
+        current.dnsSettings.copyFrom(validated.dnsSettings);changedProfiles.add(id);
     }
     public void remove(String id){
         if(!nodes.containsKey(id))return;
         // 分割前の成分を確保。切断の反対側も再確立させるが、別物理網は保護する。
         Set<String> affected=component(Set.of(id));
         for(Link link:new ArrayList<>(links.values()))if(link.a.equals(id)||link.b.equals(id))detach(link);
-        nodes.remove(id);ports.remove(id);macAddresses.remove(id);mac.remove(id);arp.remove(id);logs.remove(id);changedProfiles.remove(id);
+        nodes.remove(id);ports.remove(id);macAddresses.remove(id);mac.remove(id);arp.remove(id);logs.remove(id);changedProfiles.remove(id);dnsResolver.removeDevice(id);
         invalidateComponents(affected,"機器の削除で再確立");
     }
     public void link(Link link){
@@ -406,7 +414,16 @@ public final class NetworkSimulator {
         for(int i=0;i<verdict.checked();i++)budget.spend();
         return verdict.allowed()?null:"ACL拒否: "+profile.name+" P"+port+" "+direction+" "+(verdict.sequence()==0?"暗黙のdeny":"#"+verdict.sequence());
     }
-    public Result ping(String source,String target){return request(source,target,"icmp",0);}
+    public Result ping(String source,String target){
+        try{return request(source,resolveAddress(source,target),"icmp",0);}catch(IllegalArgumentException e){return Result.fail(e.getMessage());}
+    }
+    public String resolveAddress(String source,String target){
+        String normalized=DnsNames.target(target);if(DnsNames.numeric(normalized))return normalized;
+        var answer=dnsResolver.lookup(source,normalized);if(!answer.success())throw new IllegalArgumentException(answer.message());return answer.selected();
+    }
+    public ServiceAddress resolveEndpoint(String source,String text,int defaultPort){
+        var endpoint=DnsNames.endpoint(text,defaultPort);return new ServiceAddress(resolveAddress(source,endpoint.host()),endpoint.port());
+    }
     /** メタデータによる往復検査。実TCPハンドシェイクや外部ソケットは生成しない。 */
     public Result request(String source,String target,String protocol,int destinationPort){
         return requestService(source,target,protocol,destinationPort,-1);
@@ -431,6 +448,8 @@ public final class NetworkSimulator {
             var forward=walk(source,budget,packet,transaction);if(!forward.result.success)return forward.result;
             if(expectedServicePort>=0&&forward.packet.destinationPort()!=expectedServicePort)
                 return Result.fail("NAT転送先ポートが実サービスと一致しません (必要: "+expectedServicePort+")");
+            if(expectedServicePort==53&&!DnsSettings.available(nodes.get(forward.result.destination)))
+                return Result.fail("DNSサービスが停止または非対応です");
             var reverse=walk(forward.result.destination,budget,forward.packet.reverse(),transaction);
             if(!reverse.result.success)return Result.fail("応答経路なし: "+reverse.result.message);
             if(!reverse.result.destination.equals(source)||!reverse.packet.equals(packet.reverse()))
@@ -518,17 +537,17 @@ public final class NetworkSimulator {
         if(p.kind==DeviceKind.L3_SWITCH)for(var other:p.ports)if(other.enabled&&other.vlan==port.vlan&&!other.address.isBlank())return other;
         return null;
     }
+    /** nslookup互換の直接問い合わせ。アプリケーション用のキャッシュとは別。 */
     public Result resolve(String source,String name){
-        var p=nodes.get(source);if(p==null||p.dns.isBlank())return Result.fail("DNSサーバー未設定");
-        Result path=requestService(source,p.dns,"udp",53,53);if(!path.success)return path;
-        String ip=nodes.get(path.destination).dnsRecords.get(name.toLowerCase(Locale.ROOT));
-        return ip==null?Result.fail("NXDOMAIN (仮想DNS)"):new Result(true,name+" = "+ip,path.bps,path.milliseconds,path.nodes,path.links,ip);
+        var answer=dnsResolver.query(source,name,null);if(!answer.success())return Result.fail(answer.message());
+        var path=answer.transport();return new Result(true,answer.message(),path.bps(),path.milliseconds(),path.nodes(),path.links(),answer.selected());
     }
+
     public Result startTransfer(String source,String destination,long bytes){
         if(bytes<=0||bytes>1_000_000_000_000L)return Result.fail("転送量は1〜1TBです");if(flows.size()>=MAX_FLOWS)return Result.fail("同時転送の上限です");
         var sender=nodes.get(source);if(sender==null)return Result.fail("送信元なし");
         if(flows.stream().filter(f->f.source.equals(source)).count()>=4+Math.clamp(sender.buffer,0,6)*4)return Result.fail("送信バッファ満杯: バッファモジュールで同時転送枠を増設できます");
-        final ServiceAddress endpoint;try{endpoint=ServiceAddress.parse(destination,TRANSFER_PORT);}catch(IllegalArgumentException e){return Result.fail(e.getMessage());}
+        final ServiceAddress endpoint;try{endpoint=resolveEndpoint(source,destination,TRANSFER_PORT);}catch(IllegalArgumentException e){return Result.fail(e.getMessage());}
         Result path=requestService(source,endpoint.address(),"tcp",endpoint.port(),TRANSFER_PORT);if(!path.success)return path;var flow=new Flow(nextFlow++,bytes,source,path);flows.add(flow);log(source,"仮想転送 #"+flow.id+": "+bytes+" bytes");return new Result(true,"転送 #"+flow.id+" 開始 (実ファイルは生成しません)",path.bps,path.milliseconds,path.nodes,path.links,path.destination);
     }
     /** OSPFのローカルリンク帯域。経路探索やチャンク読み込みはしない。 */
@@ -566,6 +585,7 @@ public final class NetworkSimulator {
     }
     public void advance(long ticks){
         if(ticks<=0)return;
+        dnsResolver.advance(ticks);
         stpRuntime.advance(ticks);
         Set<String> stpChanged=stpRuntime.drainChanges();
         if(!stpChanged.isEmpty()){

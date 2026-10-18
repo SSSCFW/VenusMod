@@ -50,7 +50,7 @@ def verifyNetworkAssets = tasks.register('verifyNetworkAssets', JavaExec) {
 tasks.named('check') { dependsOn verifyNetworkCore, verifyNetworkAssets }
 
 ['NetworkContinuationTest', 'NetworkRequestBudgetTest', 'NetworkServicesTest', 'NetworkGuideTest',
- 'OspfCommandTest', 'OspfEngineTest', 'OspfIntegrationTest', 'OspfPresenceTest', 'NatIntegrationTest', 'NatTableTest', 'NatServiceTest', 'NatRoutingTest', 'NatLimitsTest', 'VrrpEngineTest', 'VrrpIntegrationTest', 'VrrpBoundaryTest', 'VrrpCodecTest', 'StpContractTest', 'StpEngineTest', 'StpIntegrationTest', 'StpBoundaryTest', 'TopologyIsolationTest', 'CableTopologyTest', 'CableTopologyFuzzTest', 'CableTopologyScaleTest', 'BgpContractTest', 'BgpIntegrationTest', 'BgpEngineTest', 'BgpBoundaryTest', 'BgpCodecTest', 'BgpLimitsTest', 'BgpCompatibilityTest'].each { checkClassName ->
+ 'OspfCommandTest', 'OspfEngineTest', 'OspfIntegrationTest', 'OspfPresenceTest', 'NatIntegrationTest', 'NatTableTest', 'NatServiceTest', 'NatRoutingTest', 'NatLimitsTest', 'VrrpEngineTest', 'VrrpIntegrationTest', 'VrrpBoundaryTest', 'VrrpCodecTest', 'StpContractTest', 'StpEngineTest', 'StpIntegrationTest', 'StpBoundaryTest', 'TopologyIsolationTest', 'CableTopologyTest', 'CableTopologyFuzzTest', 'CableTopologyScaleTest', 'BgpContractTest', 'BgpIntegrationTest', 'BgpEngineTest', 'BgpBoundaryTest', 'BgpCodecTest', 'BgpLimitsTest', 'BgpCompatibilityTest', 'DnsContractTest', 'DnsBehaviorTest', 'DnsNetworkTest', 'DnsLimitsTest', 'DnsCodecTest', 'DnsGuideTest'].each { checkClassName ->
     def verification = tasks.register('verify' + checkClassName.replace('Test', ''), JavaExec) {
         dependsOn compileNetworkTests
         classpath = files(layout.buildDirectory.dir('classes/networkTests'))
