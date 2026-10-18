@@ -126,3 +126,7 @@ IPv4 eBGP/iBGPのピア、経路広告・撤回、AS_PATH・NEXT_HOP、ピアご
 ## 基本・ポート設定のフォームGUI
 
 機器GUIの「設定」「ポート」から、IP/GW/DNS・ポート速度・VLAN・媒体をフォームで編集できます。同時編集の競合とサーバー側の権限検査に対応します。[操作と保存のルール](docs/NETWORK_SETTINGS_GUI.md)、[検証記録](docs/NETWORK_SETTINGS_GUI_VERIFICATION.md)を参照してください。高度なプロトコル設定は従来CLIを併用します。
+
+## Syslog集中ログ収集
+
+既存サーバーで各機器の新しいログを集中収集できます。UDP514の片方向経路・ACL/NAT・受信元フィルターと、配送/保持上限を適用します。操作と揮発性履歴の注意点は [Syslogの使い方](docs/NETWORK_SYSLOG.md)、検証は [Syslog検証記録](docs/NETWORK_SYSLOG_VERIFICATION.md) を参照してください。細いケーブル・テクスチャは変更していません。

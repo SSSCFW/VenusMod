@@ -66,6 +66,9 @@ public final class NetworkSimulator {
     public BgpEngine bgp(){return bgpRuntime.engine();}
     private final NatTable natTable=new NatTable();
     private final DnsResolver dnsResolver=new DnsResolver(this);
+    private final SyslogRuntime syslogRuntime=new SyslogRuntime(this);
+    private int suppressSyslog;
+    public SyslogRuntime syslog(){return syslogRuntime;}
     public DnsResolver dnsResolver(){return dnsResolver;}
     public NatTable nat(){return natTable;}
     public OspfEngine ospf(){return ospfRuntime.engine();}
@@ -95,12 +98,16 @@ public final class NetworkSimulator {
         current.dnsRecords.clear();current.dnsRecords.putAll(validated.dnsRecords);
         current.dnsSettings.copyFrom(validated.dnsSettings);changedProfiles.add(id);
     }
+    void applySyslogSettings(String id,NetworkProfile validated){
+        var current=nodes.get(id);if(current==null)throw new IllegalArgumentException("機器が未登録です");
+        current.syslog.copyFrom(validated.syslog);syslogRuntime.configurationChanged(id);changedProfiles.add(id);
+    }
     public void remove(String id){
         if(!nodes.containsKey(id))return;
         // 分割前の成分を確保。切断の反対側も再確立させるが、別物理網は保護する。
         Set<String> affected=component(Set.of(id));
         for(Link link:new ArrayList<>(links.values()))if(link.a.equals(id)||link.b.equals(id))detach(link);
-        nodes.remove(id);ports.remove(id);macAddresses.remove(id);mac.remove(id);arp.remove(id);logs.remove(id);changedProfiles.remove(id);dnsResolver.removeDevice(id);
+        nodes.remove(id);ports.remove(id);macAddresses.remove(id);mac.remove(id);arp.remove(id);logs.remove(id);changedProfiles.remove(id);dnsResolver.removeDevice(id);syslogRuntime.remove(id);
         invalidateComponents(affected,"機器の削除で再確立");
     }
     public void link(Link link){
@@ -145,7 +152,28 @@ public final class NetworkSimulator {
     public Map<String,Integer> macTable(String id){return Map.copyOf(mac.getOrDefault(id,Map.of()));}
     public Map<String,String> arpTable(String id){return Map.copyOf(arp.getOrDefault(id,Map.of()));}
     public List<String> logs(String id){return List.copyOf(logs.getOrDefault(id,new ArrayDeque<>()));}
-    public void log(String id,String text){var q=logs.computeIfAbsent(id,k->new ArrayDeque<>());while(q.size()>=64)q.removeFirst();q.addLast(text.length()>200?text.substring(0,200):text);}
+    public void log(String id,String text){log(id,6,text);}
+    public void log(String id,int severity,String text){
+        if(severity<0||severity>7)throw new IllegalArgumentException("severityは0〜7です");
+        String safe=SyslogRuntime.text(text,200);var q=logs.computeIfAbsent(id,k->new ArrayDeque<>());while(q.size()>=64)q.removeFirst();q.addLast(safe);
+        if(suppressSyslog==0)syslogRuntime.offer(id,severity,safe);
+    }
+    /** UDP片方向配送。失敗ログを自分の配送キューへ戻さず、返信も要求しない。 */
+    SyslogRuntime.Delivery deliverSyslog(String source,String target,int port){
+        suppressSyslog++;
+        try(var transaction=natTable.begin()){
+            String local=replyAddress(source,target);if(local.isBlank()||!owns(source,local))return SyslogRuntime.Delivery.fail("送信元IPなし/停止");
+            var packet=NetworkPolicy.Packet.of("udp",local,target,49154,port);transaction.localOrigin(source,packet);
+            var result=walk(source,new SearchBudget(),packet,transaction);
+            if(!result.result.success())return SyslogRuntime.Delivery.fail(result.result.message());
+            if(result.packet.destinationPort()!=SyslogSettings.PORT)return SyslogRuntime.Delivery.fail("Syslog転送先ポートは514である必要があります");
+            var receiver=nodes.get(result.result.destination());
+            if(receiver==null||receiver.failed||receiver.kind!=DeviceKind.SERVER||!receiver.syslog.server)return SyslogRuntime.Delivery.fail("Syslog受信サービス停止/非対応");
+            if(!NetworkPolicy.Prefix.parse(receiver.syslog.allow).contains(result.packet.source()))return SyslogRuntime.Delivery.fail("Syslog受信元フィルターで拒否");
+            transaction.commit();return new SyslogRuntime.Delivery(true,result.result.destination(),Ipv4.format(result.packet.source()),"");
+        }catch(SearchLimit|IllegalArgumentException failure){return SyslogRuntime.Delivery.fail(failure.getMessage());}
+        finally{suppressSyslog--;}
+    }
     public long linkCapacity(Link l){
         NetworkProfile a=nodes.get(l.a),b=nodes.get(l.b);
         if(a==null||b==null||a.failed||b.failed||l.length>l.grade.maxLength()||!a.accepts(l.ap,l.grade)||!b.accepts(l.bp,l.grade))return 0;
@@ -585,6 +613,7 @@ public final class NetworkSimulator {
     }
     public void advance(long ticks){
         if(ticks<=0)return;
+        syslogRuntime.elapse(ticks);
         dnsResolver.advance(ticks);
         stpRuntime.advance(ticks);
         Set<String> stpChanged=stpRuntime.drainChanges();
@@ -615,5 +644,6 @@ public final class NetworkSimulator {
             if(!live){log(f.source,"転送 #"+f.id+": リンク断で中断");it.remove();continue;}
             f.remaining-=rate/8.0*time/20.0;if(f.remaining<=0){log(f.source,"転送 #"+f.id+": 完了");it.remove();}
         }
+        syslogRuntime.dispatch();
     }
 }

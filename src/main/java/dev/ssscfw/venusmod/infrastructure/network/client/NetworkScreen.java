@@ -29,6 +29,7 @@ public final class NetworkScreen extends AbstractContainerScreen<NetworkMenu> {
         button("ガイド",168,22,44,()->{guidePage=NetworkGuide.initialPage(menu.kind());guide=true;scroll=0;visibility();});
         portButton=button("P0:北",214,22,44,()->{selectedPort=(selectedPort+1)%6;portButton.setMessage(Component.literal("P"+selectedPort+":"+NetworkCli.portName(selectedPort)));});
         button("設定",260,22,52,()->openSettings(-1));
+        button("ログ",270,2,42,()->send(menu.kind()==DeviceKind.SERVER?"syslog logs":"log"));
         command=addRenderableWidget(new EditBox(font,leftPos+9,topPos+98,251,18,Component.literal("仮想CLI")));normalWidgets.add(command);
         command.setMaxLength(512);command.setHint(Component.literal("例: ip 192.168.1.10/24"));button("送信",264,97,47,this::submit);
         guideButton("前の項目",8,216,80,()->page(-1));guideButton("設定へ戻る",105,216,110,()->{guide=false;scroll=0;visibility();});guideButton("次の項目",232,216,80,()->page(1));

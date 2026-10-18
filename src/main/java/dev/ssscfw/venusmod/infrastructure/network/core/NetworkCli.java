@@ -10,6 +10,7 @@ public final class NetworkCli {
         if(input==null||input.length()>512||input.codePoints().anyMatch(Character::isISOControl))return reply(false,"コマンドは改行なし512文字以内です");
         var original=sim.nodes().get(id);if(original==null)return reply(false,"機器が読み込まれていません");
         String[] t=input.trim().split("\\s+");
+        if(SyslogCommands.handles(t)){var reply=SyslogCommands.run(sim,id,t);return new Reply(reply.changed(),reply.lines());}
         if(DnsCommands.handles(t)){var reply=DnsCommands.run(sim,id,t);return new Reply(reply.changed(),reply.lines());}
         if(BgpCommands.handles(t)){var reply=BgpCommands.run(sim,id,t);return new Reply(reply.changed(),reply.lines());}
         if(StpCommands.handles(t)){var reply=StpCommands.run(sim,id,t);return new Reply(reply.changed(),reply.lines());}
