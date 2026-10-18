@@ -19,7 +19,9 @@ final class VrrpSimulation {
         });
     }
     VrrpEngine engine(){return engine;}
-    void changed(){dirty=true;peers.clear();pending.clear();}
+    void changed(Set<String> ids){
+        dirty=true;peers.keySet().removeIf(ids::contains);pending.removeIf(ids::contains);
+    }
     void shutdown(String id){engine.shutdown(id);}
     boolean master(String id){
         var p=simulator.nodes().get(id);if(p==null||!p.vrrp.enabled||p.vip.isBlank()||p.failed||!p.kind.routing())return false;
@@ -41,7 +43,7 @@ final class VrrpSimulation {
             var p=entry.getValue();if(!p.kind.routing()||!p.vrrp.enabled||p.vip.isBlank()||p.failed)continue;
             int port=p.vrrp.resolvePort(p);if(port<0||!p.ports[port].enabled||simulator.portSpeed(entry.getKey(),port)<=0)continue;
             if(configs.size()>=VrrpEngine.MAX_ROUTERS){engine.stop("VRRP有効機器は128台までです");pending.clear();return;}
-            try{p.vrrp.validate(p);var physical=p.ports[port];configs.put(entry.getKey(),new VrrpEngine.Configuration(port,physical.address,physical.prefix,p.vip,p.vrrp.group,p.vrrpPriority,p.vrrp.advertisementTicks,p.vrrp.preempt));pending.addLast(entry.getKey());}
+            try{p.vrrp.validate(p);var physical=p.ports[port];configs.put(entry.getKey(),new VrrpEngine.Configuration(port,physical.address,physical.prefix,p.vip,p.vrrp.group,p.vrrpPriority,p.vrrp.advertisementTicks,p.vrrp.preempt));if(!peers.containsKey(entry.getKey())&&!pending.contains(entry.getKey()))pending.addLast(entry.getKey());}
             catch(IllegalArgumentException e){simulator.log(entry.getKey(),"VRRP設定不正: "+e.getMessage());}
         }
         engine.synchronize(configs);

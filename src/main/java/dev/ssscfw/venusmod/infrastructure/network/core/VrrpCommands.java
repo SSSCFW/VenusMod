@@ -40,7 +40,7 @@ public final class VrrpCommands {
             }
             p.validate();p.encode();
             if(old.vrrp.enabled&&!p.vrrp.enabled)sim.shutdownVrrp(id);
-            sim.put(id,p);sim.invalidate();return reply(true,"VRRP設定を保存しました。役割は広告と稼働tickで決まります。");
+            sim.put(id,p);sim.invalidate(id);return reply(true,"VRRP設定を保存しました。役割は広告と稼働tickで決まります。");
         }catch(IllegalArgumentException|ArithmeticException e){return reply(false,"設定を変更しませんでした: "+e.getMessage());}
     }
     private static void count(String[] t,int n){if(t.length!=n)throw new IllegalArgumentException("vrrp help の構文を確認してください");}

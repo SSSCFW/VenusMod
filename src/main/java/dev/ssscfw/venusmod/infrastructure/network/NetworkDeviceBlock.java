@@ -51,5 +51,5 @@ public final class NetworkDeviceBlock extends BaseEntityBlock {
     @Override public ItemStack getCloneItemStack(LevelReader level,BlockPos pos,BlockState state){return level.getBlockEntity(pos) instanceof NetworkDeviceEntity device?device.savedItem():new ItemStack(this);}
     @Override protected boolean isSignalSource(BlockState state){return kind==DeviceKind.REDSTONE_TERMINAL;}
     @Override protected int getSignal(BlockState state,BlockGetter level,BlockPos pos,Direction direction){return kind==DeviceKind.REDSTONE_TERMINAL&&level.getBlockEntity(pos) instanceof NetworkDeviceEntity device?device.redstone():0;}
-    @Override protected void onRemove(BlockState state,Level level,BlockPos pos,BlockState next,boolean moved){if(!next.is(this))NetworkWorld.changed(level);super.onRemove(state,level,pos,next,moved);}
+    @Override protected void onRemove(BlockState state,Level level,BlockPos pos,BlockState next,boolean moved){if(!next.is(this))NetworkWorld.changed(level,pos);super.onRemove(state,level,pos,next,moved);}
 }

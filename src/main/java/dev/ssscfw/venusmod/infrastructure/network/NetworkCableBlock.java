@@ -30,6 +30,6 @@ public final class NetworkCableBlock extends Block {
     private static int mask(BlockState state){int m=0;for(int i=0;i<6;i++)if(state.getValue(CONNECTIONS[i]))m|=1<<i;return m;}
     @Override protected VoxelShape getShape(BlockState state,BlockGetter level,BlockPos pos,CollisionContext context){return SHAPES[mask(state)];}
     @Override protected VoxelShape getOcclusionShape(BlockState state,BlockGetter level,BlockPos pos){return Shapes.empty();}
-    @Override protected void onPlace(BlockState state,Level level,BlockPos pos,BlockState old,boolean moved){super.onPlace(state,level,pos,old,moved);if(!old.is(this))NetworkWorld.changed(level);}
-    @Override protected void onRemove(BlockState state,Level level,BlockPos pos,BlockState replacement,boolean moved){if(!replacement.is(this))NetworkWorld.changed(level);super.onRemove(state,level,pos,replacement,moved);}
+    @Override protected void onPlace(BlockState state,Level level,BlockPos pos,BlockState old,boolean moved){super.onPlace(state,level,pos,old,moved);if(!old.is(this))NetworkWorld.changed(level,pos);}
+    @Override protected void onRemove(BlockState state,Level level,BlockPos pos,BlockState replacement,boolean moved){if(!replacement.is(this))NetworkWorld.changed(level,pos);super.onRemove(state,level,pos,replacement,moved);}
 }

@@ -27,7 +27,7 @@ public final class NatCommands {
                 "入力ACL→宛先変換→経路→送信元変換→出力ACL。NATだけでACLを代用しません。",
                 "TCP/UDP/ICMP照会。hairpin・1対1公開IP・ALG・状態同期は未対応。"));
             if(!old.kind.routing())throw new IllegalArgumentException("NATはルーター/L3スイッチのみです");
-            if(t.length==2&&t[1].equals("clear")){sim.invalidate();return reply(true,"NAT変換表を消去し、稼働中の仮想転送を中断しました (設定は保持)");}
+            if(t.length==2&&t[1].equals("clear")){sim.invalidate(id);return reply(true,"NAT変換表を消去し、稼働中の仮想転送を中断しました (設定は保持)");}
             var p=NetworkProfile.decode(old.kind,old.encode());p.stability=old.stability;p.processor=old.processor;p.buffer=old.buffer;p.wanTier=old.wanTier;
             for(int i=0;i<6;i++)p.ports[i].moduleTier=old.ports[i].moduleTier;
             switch(t[1]){
@@ -44,7 +44,7 @@ public final class NatCommands {
                 }
                 default->throw new IllegalArgumentException("nat helpで構文を確認してください");
             }
-            p.validate();p.encode();sim.put(id,p);sim.invalidate();return reply(true,"NAT設定を保存しました: "+input);
+            p.validate();p.encode();sim.put(id,p);sim.invalidate(id);return reply(true,"NAT設定を保存しました: "+input);
         }catch(IllegalArgumentException e){return reply(false,"設定を変更しませんでした: "+e.getMessage());}
     }
     private static void count(String[] t,int n){if(t.length!=n)throw new IllegalArgumentException("引数の数が違います。nat helpを参照してください");}

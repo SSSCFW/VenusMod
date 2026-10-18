@@ -43,7 +43,7 @@ public final class StpCommands {
                     default->throw new IllegalArgumentException("STP portはcost/priority/edge/guardを指定");}}
                 default->throw new IllegalArgumentException("stp help で構文を確認してください");
             }
-            p.validate();p.encode();sim.put(id,p);sim.invalidate();return reply(true,"STP設定を保存しました。classicの状態はBPDUと稼働tickで決まります。");
+            p.validate();p.encode();sim.put(id,p);sim.invalidate(id);return reply(true,"STP設定を保存しました。classicの状態はBPDUと稼働tickで決まります。");
         }catch(IllegalArgumentException|ArithmeticException e){return reply(false,"設定を変更しませんでした: "+e.getMessage());}
     }
     private static int port(String text){int n=Integer.parseInt(text);if(n<0||n>=6)throw new IllegalArgumentException("ポートは0〜5です");return n;}

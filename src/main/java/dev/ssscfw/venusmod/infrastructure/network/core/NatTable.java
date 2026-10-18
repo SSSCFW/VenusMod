@@ -28,6 +28,14 @@ public final class NatTable {
     public List<Entry> sessions(String router){return routers.getOrDefault(router,new LinkedHashMap<>()).values().stream().filter(e->e.expiresAt>now).toList();}
     public boolean alive(long id){var e=entries.get(id);return e!=null&&e.expiresAt>now;}
     public void clear(){entries.clear();routers.clear();expiry.clear();revision++;}
+    /** 変更された物理網内のルーターだけを失効。別網の期限・通信IDは維持する。 */
+    public void clearRouters(Set<String> affected){
+        boolean changed=false;
+        for(String id:affected){var row=routers.get(id);if(row==null)continue;
+            for(Entry entry:new ArrayList<>(row.values()))remove(entry);changed=true;
+        }
+        if(changed)revision++;
+    }
     private void remove(Entry e){entries.remove(e.id);var r=routers.get(e.router);if(r!=null){r.remove(e.id);if(r.isEmpty())routers.remove(e.router);}expiry.remove(new Expiry(e.expiresAt,e.id));}
     private long deadline(Packet packet){long ttl=switch(packet.protocol()){case TCP->2400;case UDP->600;case ICMP->200;default->throw new IllegalArgumentException("NAT未対応プロトコル");};return Math.addExact(now,ttl);}
     private void store(Entry e){var old=entries.get(e.id);if(old!=null)expiry.remove(new Expiry(old.expiresAt,old.id));entries.put(e.id,e);routers.computeIfAbsent(e.router,k->new LinkedHashMap<>()).put(e.id,e);expiry.add(new Expiry(e.expiresAt,e.id));}

@@ -57,7 +57,7 @@ public final class NetworkServiceCommands {
                     count(t,2);if(!t[1].equals("clear"))throw new IllegalArgumentException("dhcp-bindings clear");p.services.clearBindings();
                 }
             }
-            p.validate();p.encode();simulator.put(id,p);simulator.invalidate();
+            p.validate();p.encode();simulator.put(id,p);simulator.invalidate(id);
             return reply(true,true,"設定を保存しました: "+input+(t[0].equals("acl")?" / 規則を設定した方向は未一致通信を拒否します":""));
         }catch(IllegalArgumentException e){return reply(true,false,"設定を変更しませんでした: "+e.getMessage());}
     }

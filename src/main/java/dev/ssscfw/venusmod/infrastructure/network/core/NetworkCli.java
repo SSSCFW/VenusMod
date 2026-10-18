@@ -8,11 +8,14 @@ public final class NetworkCli {
     private NetworkCli(){}
     public static Reply run(NetworkSimulator sim,String id,String input){
         if(input==null||input.length()>512||input.codePoints().anyMatch(Character::isISOControl))return reply(false,"コマンドは改行なし512文字以内です");
-        var p=sim.nodes().get(id);if(p==null)return reply(false,"機器が読み込まれていません");
+        var original=sim.nodes().get(id);if(original==null)return reply(false,"機器が読み込まれていません");
         String[] t=input.trim().split("\\s+");
         if(StpCommands.handles(t)){var reply=StpCommands.run(sim,id,t);return new Reply(reply.changed(),reply.lines());}
         if(VrrpCommands.handles(t)){var reply=VrrpCommands.run(sim,id,t);return new Reply(reply.changed(),reply.lines());}
-        String old=p.encode();
+        boolean editing=Set.of("name","ip","gateway","dns","port","dhcp-server","web","public","dns-record","route","fault").contains(t[0].toLowerCase(Locale.ROOT));
+        // 誤入力時は既存オブジェクトにも通信表にも触れない。
+        var p=editing?NetworkProfile.decode(original.kind,original.encode()):original;
+        if(editing){p.stability=original.stability;p.processor=original.processor;p.buffer=original.buffer;p.wanTier=original.wanTier;for(int i=0;i<6;i++)p.ports[i].moduleTier=original.ports[i].moduleTier;}
         try{
             switch(t[0].toLowerCase(Locale.ROOT)){
                 case "help" -> {return new Reply(false,guide());}
@@ -62,10 +65,9 @@ public final class NetworkCli {
                 case "ospf","bgp","ipv6","nat","ipsec","lacp" -> {return reply(false,"この版では未実装です。成功した通信として扱いません。");}
                 default -> {return reply(false,"不明なコマンドです。help で一覧を表示します");}
             }
-            p.validate();sim.invalidate();return reply(true,"設定を保存しました: "+input);
+            p.validate();p.encode();sim.put(id,p);return reply(true,"設定を保存しました: "+input);
         }catch(IllegalArgumentException|ArithmeticException e){
-            var restored=NetworkProfile.decode(p.kind,old);restored.stability=p.stability;restored.processor=p.processor;restored.buffer=p.buffer;restored.wanTier=p.wanTier;
-            for(int i=0;i<6;i++)restored.ports[i].moduleTier=p.ports[i].moduleTier;sim.put(id,restored);return reply(false,"設定を変更しませんでした: "+e.getMessage());
+            return reply(false,"設定を変更しませんでした: "+e.getMessage());
         }
     }
     private static Reply reply(boolean changed,String text){return new Reply(changed,List.of(text));}

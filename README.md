@@ -110,3 +110,7 @@ Add registries and mod-bus listeners from `VenusMod.java` as features are implem
 ## BPDUによるClassic STP
 
 VLAN別のルート選出、Root/Designated/Alternate、Listening/Learning/Forwarding、edgeとBPDU guardを追加しました。旧来のsimpleと選択式です。[STPの操作と再現範囲](docs/NETWORK_STP.md)、[検証記録](docs/NETWORK_STP_VERIFICATION.md) を参照してください。細い4/16幅ケーブルと既存テクスチャは維持します。
+
+## ネットワーク配線の局所更新
+
+配線の一部を変更しても、物理的に独立した別拠点の通信・NAT・OSPF/VRRP/STPを維持します。変更したケーブル区間だけを予算付きで再解析します。操作・無効化範囲・上限は [配線の局所更新](docs/NETWORK_TOPOLOGY.md)、実施した検査と未検証範囲は [検証記録](docs/NETWORK_TOPOLOGY_VERIFICATION.md) を参照してください。

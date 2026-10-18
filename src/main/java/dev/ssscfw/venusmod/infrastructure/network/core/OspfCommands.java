@@ -43,7 +43,7 @@ public final class OspfCommands {
                 case "timers"->{count(t,4);p.ospf.helloTicks=Math.multiplyExact(Integer.parseInt(t[2]),20);p.ospf.deadTicks=Math.multiplyExact(Integer.parseInt(t[3]),20);}
                 default->throw new IllegalArgumentException("ospf help を参照してください");
             }
-            p.validate();p.encode();sim.put(id,p);sim.invalidate();
+            p.validate();p.encode();sim.put(id,p);sim.invalidate(id);
             return reply(true,"OSPF設定を保存しました。稼働tickでHelloと経路広告を開始します。");
         }catch(IllegalArgumentException|ArithmeticException error){return reply(false,"設定を変更しませんでした: "+error.getMessage());}
     }

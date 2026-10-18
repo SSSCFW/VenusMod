@@ -80,21 +80,55 @@ public final class NetworkSimulator {
     /** DHCPサーバー側の予約変更もBlockEntityの保存対象にする。 */
     public Set<String> drainChangedProfiles(){var changed=Set.copyOf(changedProfiles);changedProfiles.clear();return changed;}
     public void put(String id,NetworkProfile profile){
-        if(!nodes.containsKey(id)&&nodes.size()>=MAX_NODES)throw new IllegalStateException("機器数上限");
         Objects.requireNonNull(id);Objects.requireNonNull(profile);
-        natTable.clear();nodes.put(id,profile);macAddresses.computeIfAbsent(id,NetworkSimulator::macAddress);
-        ports.computeIfAbsent(id,k->new Link[6]);forestDirty=true;ospfRuntime.changed();vrrpRuntime.changed();stpRuntime.changed();
+        if(!nodes.containsKey(id)&&nodes.size()>=MAX_NODES)throw new IllegalStateException("機器数上限");
+        nodes.put(id,profile);macAddresses.computeIfAbsent(id,NetworkSimulator::macAddress);
+        ports.computeIfAbsent(id,k->new Link[6]);invalidate(id);
     }
-    public void remove(String id){new ArrayList<>(links.values()).stream().filter(l->l.a.equals(id)||l.b.equals(id)).forEach(l->unlink(l.id));nodes.remove(id);ports.remove(id);macAddresses.remove(id);mac.remove(id);arp.remove(id);logs.remove(id);invalidate();}
+    public void remove(String id){
+        if(!nodes.containsKey(id))return;
+        // 分割前の成分を確保。切断の反対側も再確立させるが、別物理網は保護する。
+        Set<String> affected=component(Set.of(id));
+        for(Link link:new ArrayList<>(links.values()))if(link.a.equals(id)||link.b.equals(id))detach(link);
+        nodes.remove(id);ports.remove(id);macAddresses.remove(id);mac.remove(id);arp.remove(id);logs.remove(id);changedProfiles.remove(id);
+        invalidateComponents(affected,"機器の削除で再確立");
+    }
     public void link(Link link){
         if(links.size()>=MAX_LINKS)throw new IllegalStateException("リンク数上限");
         if(!nodes.containsKey(link.a)||!nodes.containsKey(link.b))throw new IllegalArgumentException("端点なし");
         if(ports.get(link.a)[link.ap]!=null||ports.get(link.b)[link.bp]!=null)throw new IllegalArgumentException("同じポートへの多重接続");
         if(links.containsKey(link.id))throw new IllegalArgumentException("リンクID重複");
-        links.put(link.id,link);ports.get(link.a)[link.ap]=link;ports.get(link.b)[link.bp]=link;invalidate();
+        links.put(link.id,link);ports.get(link.a)[link.ap]=link;ports.get(link.b)[link.bp]=link;
+        invalidateComponents(component(Set.of(link.a,link.b)),"配線の接続で再確立");
     }
-    public void unlink(String id){Link link=links.remove(id);if(link!=null){ports.get(link.a)[link.ap]=null;ports.get(link.b)[link.bp]=null;invalidate();}}
-    public void invalidate(){stpRuntime.changed();natTable.clear();ospfRuntime.changed();vrrpRuntime.changed();forestDirty=true;mac.clear();arp.clear();for(var flow:flows)log(flow.source,"転送 #"+flow.id+": 構成変更で中断");flows.clear();}
+    private void detach(Link link){links.remove(link.id);ports.get(link.a)[link.ap]=null;ports.get(link.b)[link.bp]=null;}
+    public void unlink(String id){
+        Link link=links.get(id);if(link==null)return;
+        Set<String> affected=component(Set.of(link.a,link.b));detach(link);
+        invalidateComponents(affected,"配線の切断で再確立");
+    }
+    /** 最大2048機器/6ポートの物理成分。VLAN、故障、管理Downも保守的に同じ成分とする。 */
+    private Set<String> component(Set<String> seeds){
+        var reached=new LinkedHashSet<String>();var todo=new ArrayDeque<String>();
+        for(String seed:seeds)if(reached.add(seed))todo.add(seed);
+        while(!todo.isEmpty()){String id=todo.removeFirst();var row=ports.get(id);if(row==null)continue;
+            for(Link link:row)if(link!=null){String peer=link.peer(id);if(reached.add(peer))todo.addLast(peer);}
+        }
+        return reached;
+    }
+    public void invalidate(String id){invalidateComponents(component(Set.of(id)),"機器設定の変更で再確立");}
+    /** 全体操作/低レベル試験用。通常のGUI・配線操作にはID付きの局所失効を使う。 */
+    public void invalidate(){invalidateComponents(Set.copyOf(nodes.keySet()),"全体設定の変更で再確立");}
+    private void invalidateComponents(Set<String> affected,String reason){
+        if(affected.isEmpty())return;
+        forestDirty=true;stpRuntime.changed(affected);ospfRuntime.changed(affected);vrrpRuntime.changed(affected);
+        invalidateData(affected,reason);
+    }
+    private void invalidateData(Set<String> affected,String reason){
+        for(String id:affected){mac.remove(id);arp.remove(id);}natTable.clearRouters(affected);
+        flows.removeIf(flow->{boolean hit=flow.nodes.stream().anyMatch(affected::contains);
+            if(hit)log(flow.source,"転送 #"+flow.id+": "+reason);return hit;});
+    }
     public Map<String,NetworkProfile> nodes(){return Collections.unmodifiableMap(nodes);}
     public Collection<Link> links(){return Collections.unmodifiableCollection(links.values());}
     public List<Flow> flows(){return List.copyOf(flows);}
@@ -451,17 +485,15 @@ public final class NetworkSimulator {
     public void advance(long ticks){
         if(ticks<=0)return;
         stpRuntime.advance(ticks);
-        if(stpRuntime.drainChanges()){
-            // 転送状態だけ変化した場合、STP自身の待ち時間はリセットしない。
-            mac.clear();arp.clear();natTable.clear();ospfRuntime.changed();vrrpRuntime.changed();
-            for(var flow:flows)log(flow.source,"転送 #"+flow.id+": STP状態変更で中断。再送できます");flows.clear();
+        Set<String> stpChanged=stpRuntime.drainChanges();
+        if(!stpChanged.isEmpty()){
+            var affected=component(stpChanged);invalidateData(affected,"STP状態変更で中断。再送できます");
+            // STP自身のListening/Forward Delayを再起動せず、当該網の広告経路だけ再探索。
+            ospfRuntime.changed(affected);vrrpRuntime.changed(affected);
         }
         vrrpRuntime.advance(ticks);
-        if(!vrrpRuntime.drainOwners().isEmpty()){
-            // 役割変更だけでOSPF/VRRP自体を再起動しない。動的転送は再確立する。
-            mac.clear();arp.clear();natTable.clear();
-            for(var flow:flows)log(flow.source,"転送 #"+flow.id+": VRRP切替で中断。再送できます");flows.clear();
-        }
+        Set<String> owners=vrrpRuntime.drainOwners();
+        if(!owners.isEmpty())invalidateData(component(owners),"VRRP切替で中断。再送できます");
         ospfRuntime.advance(ticks);
         Set<String> changedRoutes=ospf().drainRouteChanges();
         if(!changedRoutes.isEmpty())flows.removeIf(flow->{

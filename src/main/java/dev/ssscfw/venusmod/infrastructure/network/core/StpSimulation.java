@@ -8,18 +8,19 @@ final class StpSimulation implements StpEngine.Transport {
     private final StpEngine engine=new StpEngine(this);
     private Map<StpEngine.Key,StpEngine.Configuration> configurations=Map.of();
     private final Map<String,String> issues=new HashMap<>();
-    private boolean dirty=true,forwardingChanged;
+    private boolean dirty=true;
+    private final Set<String> dirtyNodes=new LinkedHashSet<>(),forwardingChanged=new LinkedHashSet<>();
     StpSimulation(NetworkSimulator sim){this.sim=sim;}
     StpEngine engine(){return engine;}
-    void changed(){dirty=true;}
-    boolean drainChanges(){boolean result=forwardingChanged;forwardingChanged=false;return result;}
+    void changed(Set<String> ids){dirty=true;dirtyNodes.addAll(ids);}
+    Set<String> drainChanges(){var result=Set.copyOf(forwardingChanged);forwardingChanged.clear();return result;}
     private static boolean classic(NetworkProfile p){return p!=null&&p.kind.bridge()&&p.stp&&p.spanning.classic;}
-    boolean forwarding(String id,int port,int vlan){var p=sim.nodes().get(id);return !classic(p)||!dirty&&engine.forwarding(new StpEngine.Key(id,vlan),port);}
-    boolean learning(String id,int port,int vlan){var p=sim.nodes().get(id);return classic(p)&&!dirty&&engine.learning(new StpEngine.Key(id,vlan),port);}
+    boolean forwarding(String id,int port,int vlan){var p=sim.nodes().get(id);return !classic(p)||!dirtyNodes.contains(id)&&engine.forwarding(new StpEngine.Key(id,vlan),port);}
+    boolean learning(String id,int port,int vlan){var p=sim.nodes().get(id);return classic(p)&&!dirtyNodes.contains(id)&&engine.learning(new StpEngine.Key(id,vlan),port);}
     List<StpEngine.Key> keys(String id){return configurations.keySet().stream().filter(k->k.device().equals(id)).sorted().toList();}
     String issue(String id,int port){return issues.getOrDefault(id+"/"+port,"");}
     void clearGuard(String id,int port){for(var key:keys(id))engine.clearGuard(key,port);}
-    public void changed(StpEngine.Key key){forwardingChanged=true;}
+    public void changed(StpEngine.Key key){forwardingChanged.add(key.device());}
     public void log(StpEngine.Key key,String message){sim.log(key.device(),"VLAN "+key.vlan()+" "+message);}
     public StpEngine.Peer peer(StpEngine.Key key,int port){
         var link=sim.physicalLink(key.device(),port);if(link==null||sim.linkCapacity(link)<=0)return null;
@@ -29,7 +30,7 @@ final class StpSimulation implements StpEngine.Transport {
         if(vlan<1||NetworkSimulator.receivedVlan(other.ports[otherPort],vlan,local.ports[port])!=key.vlan())return null;
         var target=new StpEngine.Key(otherId,vlan);return configurations.containsKey(target)?new StpEngine.Peer(target,otherPort):null;
     }
-    void advance(long ticks){if(dirty){dirty=false;configure();}engine.advance(ticks);}
+    void advance(long ticks){if(dirty){dirty=false;configure();dirtyNodes.clear();}engine.advance(ticks);}
     private void configure(){
         var vlans=new TreeSet<Integer>();vlans.add(1);for(var p:sim.nodes().values())for(var port:p.ports)if(port.enabled)vlans.add(port.vlan);
         issues.clear();var result=new TreeMap<StpEngine.Key,StpEngine.Configuration>();

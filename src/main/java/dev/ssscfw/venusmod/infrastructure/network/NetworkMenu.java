@@ -52,7 +52,7 @@ public final class NetworkMenu extends AbstractContainerMenu {
     public void command(ServerPlayer sender,String text){
         if(sender!=player||target==null||!stillValid(sender)||text==null||text.length()>512||text.codePoints().anyMatch(Character::isISOControl))return;
         long now=sender.serverLevel().getGameTime();if(lastCommandTick==now){if(++commandsThisTick>2)return;}else{if(lastCommandTick!=Long.MIN_VALUE&&now-lastCommandTick<2)return;lastCommandTick=now;commandsThisTick=1;}
-        var world=NetworkWorld.get(sender.serverLevel());if(!world.ready()){output=world.diagnostic();sendSnapshot(sender);return;}
+        var world=NetworkWorld.get(sender.serverLevel());
         // メニューを開き直しても、ディメンション/プレイヤー共通の予算を使う。
         if(!world.admitRequest(sender.getUUID())){output="同一tickの通信操作上限です。再試行してください";return;}
         if(!world.simulator().nodes().containsKey(target.id())){output="機器数上限または未登録の機器です";sendSnapshot(sender);return;}
@@ -61,6 +61,12 @@ public final class NetworkMenu extends AbstractContainerMenu {
             var service=NetworkServiceCommands.run(simulator,target.id(),text);
             if(service.handled()){
                 target.adoptProfile(simulator.nodes().get(target.id()));output=String.join("\n",service.lines());if(service.changed())target.refreshState();
+            }else if(t[0].equals("topology")){
+                if(t.length==1)output=world.diagnostic()+"\n今回tickの局所解析作業: "+world.topologyLastSteps()+" / 累計: "+world.topologySteps();
+                else if(t.length==2&&t[1].equals("rebuild")){
+                    if(!sender.hasPermissions(2))output="全体再解析は管理者専用です (通常の配線変更は自動で局所解析)";
+                    else{world.rebuildTopology();output="全配線の明示的な再解析を開始しました。影響する通信は再確立します。";}
+                }else output="topology / topology rebuild (管理者専用)";
             }else if(t[0].equals("trust")||t[0].equals("untrust")){
                 if(target.owner()!=null&&!target.owner().equals(sender.getUUID())&&!sender.hasPermissions(2)){output="共有権限の変更は所有者のみです";}
                 else if(t.length!=2){output="trust プレイヤー名 / untrust プレイヤー名";}

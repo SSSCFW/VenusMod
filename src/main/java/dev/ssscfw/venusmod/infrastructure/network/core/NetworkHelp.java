@@ -12,6 +12,8 @@ public final class NetworkHelp {
         "ip 192.168.1.10/24 / gateway 192.168.1.1 / dns 192.168.1.1",
         "ping IP / trace IP / nslookup base.local",
         "show / ports / mac / arp / routes / log / flows",
+        "topology: 局所配線の解析状態・作業数。変更していない別物理網の通信は維持。",
+        "topology rebuild: 管理者専用の全配線再解析 (上限停止後の復旧用)。",
         "port 0 speed auto / port 0 speed 100m / port 0 enable|disable",
         "port 0 vlan 10 / port 1 mode trunk / port 0 media fiber",
         "光は10G以上の対応モジュールが必要。ONU/OLTの北P0は標準光。",
