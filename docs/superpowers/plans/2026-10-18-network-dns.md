@@ -31,10 +31,13 @@ IPv4 Aレコードのみ。CNAME/AAAA/PTR/再帰/委譲/SOA/DNSSEC/mDNS/TCPフ�
 
 - [x] 契約試験を既存コードに対して失敗させ、DnsSettings/DnsResolverと保存v8を追加する。
 - [x] 名前対応をping/trace/open/transfer/redstoneへ統合し、既存ServiceAddressの厳密な数値APIは維持する。GUI・JEI共通DNSガイドを追加する。
-- [ ] 期限/ラウンドロビン/ACL/NAT/分離/上限の回帰とGameTestを追加。全体回帰・アセット検査・CIを実行しpush後の結果を記録する。
+- [x] 期限/ラウンドロビン/ACL/NAT/分離/上限の回帰とGameTestを追加。全体回帰・アセット検査・CIを実行しpush後の結果を記録する。
 
 ## Verification ledger
 
 開始点756a996、コードは7f89456のCIソース。ローカルJava21の基準NetworkCore49/Services162成功。現時点で新機能は未実装。
 
 ローカルの新規165検査と既存を含む39テストクラス、174 JSON/74PNG検査が成功。CLI構文不足とDNS設定切替の失敗を再現して修正した。BGP旧保存の試験はv6 fixtureを維持し、新v8ヘッダー期待値を更新。全体CIと実ブロック試験はpush後に確認する。
+
+
+60c8c6fをpushし、既存CI run39101205555のBuild/check、必須123 GameTests、JAR公開が成功。CIソースとローカルの変更25ファイルのGit blobハッシュは全て一致。検証結果をdocs/NETWORK_DNS_VERIFICATION.mdへ追記しました。実クライアント目視・JEI実操作・実マルチプレイ・TPSは未実施です。
