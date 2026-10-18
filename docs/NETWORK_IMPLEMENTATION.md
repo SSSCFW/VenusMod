@@ -1,6 +1,6 @@
 # ネットワーク機能 — 初期実装と使い方
 
-> 追加実装: [OSPF](NETWORK_OSPF.md)、[ACL/DHCPリレー](NETWORK_SERVICES_GUIDE.md)、[NAT/NAPT](NETWORK_NAT.md)、[VRRP広告・タイマー](NETWORK_VRRP.md)、[Classic STP](NETWORK_STP.md)。以下は初期段階の記録を含みます。現行の対応範囲は各機能の説明を参照してください。
+> 追加実装: [OSPF](NETWORK_OSPF.md)、[ACL/DHCPリレー](NETWORK_SERVICES_GUIDE.md)、[NAT/NAPT](NETWORK_NAT.md)、[VRRP広告・タイマー](NETWORK_VRRP.md)、[Classic STP](NETWORK_STP.md)、[配線の局所更新](NETWORK_TOPOLOGY.md)。以下は初期段階の記録を含みます。現行の対応範囲は各機能の説明を参照してください。
 
 対象はMinecraft 1.21.1 / NeoForge 21.1.x。Createは不要、JEIは任意です。全体計画は [NETWORK_SYSTEM_SPEC.md](NETWORK_SYSTEM_SPEC.md) を参照してください。**本書は初期実装を記録するもので、設計書全体の完成を意味しません。**
 
@@ -117,7 +117,7 @@ GUIの「ガイド」から接続例・コマンド・制限を読めます。�
 初期版の注意点:
 
 - 物理配線はロード済みチャンクだけで解析し、チャンクを強制ロードしません。途中のケーブル区間がアンロードされた場合も通信は休止します。保存済み配線で未ロード区間を常時中継する機能は未実装です。
-- 配線変更で同一ディメンションのトポロジーを予算付きで再解析し、仮想転送は中断します。別ネットワークへの影響を最小化する局所再計算は今後の改善項目です。
+- 配線の局所更新を追加しました。変更したケーブル区間だけを再解析し、物理的に独立した別ネットワークの転送・NAT・OSPF/VRRP/STPを保持します。同じ物理連結成分の通信は安全のため再確立する場合があります。全体上限やチャンク中継の制限は [局所更新の説明](NETWORK_TOPOLOGY.md) を参照してください。
 - MAC/ARP学習表を記録しますが、転送処理はVLANを考慮した経路探索で、実Ethernet/TCPスタックの完全なフレーム単位再現ではありません。
 - 単一エリアOSPF、ACL、DHCPリレー、NAPT/ポート転送は追加実装済みです。BGP、IPv6、IPsec、LACP、複数エリアOSPF、8/24ポート、光分岐、惑星間通信、カメラ映像、物流搬送、ファイル/メール/認証サーバーは未実装です。未対応CLIは成功したふりをせず拒否します。
 
