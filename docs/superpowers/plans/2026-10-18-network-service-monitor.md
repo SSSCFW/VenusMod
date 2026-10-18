@@ -49,10 +49,13 @@ Files: tests/network/MonitorService*Test.java, src/main/java/dev/ssscfw/venusmod
 
 Files: core/MonitorGuide.java, docs/NETWORK_SERVICE_MONITOR.md, docs/NETWORK_SERVICE_MONITOR_VERIFICATION.md, README.md.
 - [x] 既存ガイドを維持して接続例を追加。未対応範囲を明記。
-- [ ] 純Java全回帰、既存アセット検査、差分レビュー。
-- [ ] 最新headとの競合を確認、既存ブランチへpush。
-- [ ] 既存Actionsでbuild/checkとGameTest、公開結果を確認して記録。
+- [x] 純Java全回帰、既存アセット検査、差分レビュー。
+- [x] 最新headとの競合を確認、既存ブランチへpush。
+- [x] 既存Actionsでbuild/checkとGameTest、公開結果を確認して記録。
 
 ## Ledger
 
 - 基準head: ac1aff1b9b9f49e8b48a6d59941d3fa09f2ba2a4。ローカル入力は検証済み47e2cc6のCIスナップショット。基準headとの差は前回の検証文書のみ。コンテナに既存ワークスペースはなく、独立ディレクトリで検査する。
+- 新規138検査、既存を含む59純Javaテストクラス、19トピック79手順のガイド191検査、1,594 JSON・204 PNGの参照検査に成功。アップロードした25ファイルとCI入力ZIPの各Git blobが検査済み入力に一致。
+- コードコミット5bb99d577ee2c8e8ddd88481db70226130ef0c4a、既存Actions run39130028058でBuild/check、必須GameTest134件、JAR公開が成功。通常専用サーバースモークは選択しておらず、GameTestサーバーと区別する。
+- 実クライアント・JEI・実マルチプレイ操作・大規模TPSは未実施。追加した2件のGameTestと模擬プレイヤーによる検査に限定して記録。
