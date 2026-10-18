@@ -42,7 +42,7 @@ public final class NetworkFormSafetyTest {
             for(String encoded:pages){check(encoded.length()<=NetworkForm.MAX_ENCODED,"bounded snapshot "+kind);var v=NetworkForm.decodeView(encoded);check(v.equals(NetworkForm.decodeView(NetworkForm.encode(v))),"roundtrip "+kind);}
         }
         var old=NetworkProfile.decode(DeviceKind.PC,sim.nodes().get("a").encode());check(old.address.equals(sim.nodes().get("a").address),"persist via existing codec");
-        check(java.nio.ByteBuffer.wrap(Base64.getDecoder().decode(old.encode())).getInt()==10,"Syslogを含む保存v10、フォームは既存フィールドを維持");
+        check(java.nio.ByteBuffer.wrap(Base64.getDecoder().decode(old.encode())).getInt()==11,"Syslogを含む保存v11、フォームは既存フィールドを維持");
         System.out.println("NetworkFormSafetyTest: "+checks+" checks passed");
     }
 }

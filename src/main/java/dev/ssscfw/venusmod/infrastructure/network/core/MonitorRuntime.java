@@ -10,12 +10,13 @@ public final class MonitorRuntime {
     public record Snapshot(String label,String address,State state,long checked,long changed,long probes,int successes,int failures,double rtt,String detail){}
     private static final class Entry {
         final String owner,label,address;
+        final MonitorTarget target;
         State state=State.UNKNOWN;
         long due,order,checked=-1,changed=-1,probes;
         int successes,failures;
         double rtt=-1;
         String detail="未確認";
-        Entry(String owner,String label,String address){this.owner=owner;this.label=label;this.address=address;}
+        Entry(String owner,String label,MonitorTarget target){this.owner=owner;this.label=label;this.target=target;this.address=target.description();}
         Snapshot snapshot(){return new Snapshot(label,address,state,checked,changed,probes,successes,failures,rtt,detail);}
     }
     private static final class Owner {
@@ -48,7 +49,7 @@ public final class MonitorRuntime {
         var old=owners.get(id);var config=p.monitor.config();if(old!=null&&old.config.equals(config))return;
         try{p.monitor.validate(p);checkCapacity(id,p.monitor);}catch(IllegalArgumentException invalid){remove(id);issues.put(id,invalid.getMessage());return;}
         remove(id);var owner=new Owner(config);owner.paused=p.failed;owners.put(id,owner);
-        for(var target:config.targets().entrySet()){var entry=new Entry(id,target.getKey(),target.getValue());owner.entries.add(entry);schedule(entry,1);}
+        for(var target:config.targets().entrySet()){var entry=new Entry(id,target.getKey(),config.target(target.getKey()));owner.entries.add(entry);schedule(entry,1);}
     }
     public void remove(String id){Owner old=owners.remove(id);if(old!=null)due.removeAll(old.entries);issues.remove(id);}
     private static long plus(long a,long b){return a>Long.MAX_VALUE-b?Long.MAX_VALUE:a+b;}
@@ -61,7 +62,7 @@ public final class MonitorRuntime {
             if(owner==null||p==null)continue;
             if(p.failed){owner.paused=true;for(var member:owner.entries){member.successes=0;member.failures=0;}schedule(e,owner.config.interval()*20L);continue;}
             if(owner.paused){for(var member:owner.entries){member.successes=0;member.failures=0;}owner.paused=false;}
-            var attempt=simulator.probeMonitor(e.owner,e.address);var result=attempt.result();lastProbes++;totalProbes++;e.probes++;e.checked=now;
+            var attempt=simulator.probeMonitor(e.owner,e.target);var result=attempt.result();lastProbes++;totalProbes++;e.probes++;e.checked=now;
             e.detail=SyslogRuntime.text(result.message(),160);e.rtt=result.success()?result.milliseconds():-1;
             if(attempt.limited()){e.successes=0;e.failures=0;e.detail="判定保留(処理上限): "+e.detail;schedule(e,owner.config.interval()*20L);continue;}
             State previous=e.state;
@@ -79,7 +80,7 @@ public final class MonitorRuntime {
         lines.add("Monitor "+mode+" / "+config.intervalSeconds+"秒 / 失敗"+config.failures+"回・復旧"+config.recoveries+"回 / 時刻"+now+"tick");
         if(issues.containsKey(id))lines.add(issues.get(id));
         lines.add("DOWNは観測地点からの応答なし。機器故障の断定ではありません。");
-        if(owner==null){config.targets.forEach((label,address)->lines.add(label+" "+address+" UNKNOWN (未確認)"));}
+        if(owner==null){config.targets.forEach((label,address)->lines.add(label+" "+config.config().target(label).description()+" UNKNOWN (未確認)"));}
         else for(Entry e:owner.entries){lines.add(e.label+" "+e.address+" "+e.state+" / 確認"+e.probes+"回 / 成功"+e.successes+" 失敗"+e.failures);
             lines.add("  最終="+(e.checked<0?"未確認":e.checked+"tick")+" / "+(e.rtt<0?"RTTなし":String.format(Locale.ROOT,"RTT %.2fms",e.rtt))+" / "+e.detail);}
         return List.copyOf(lines);

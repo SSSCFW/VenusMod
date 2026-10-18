@@ -134,3 +134,7 @@ IPv4 eBGP/iBGPのピア、経路広告・撤回、AS_PATH・NEXT_HOP、ピアご
 ## 定期監視
 
 ネットワークサーバーから仮想ICMPの応答を定期確認し、連続失敗/成功で障害・復旧を記録します。設定と制限は [定期監視の使い方](docs/NETWORK_MONITOR.md)、実施済み/未実施の検査は [検証記録](docs/NETWORK_MONITOR_VERIFICATION.md) を参照してください。既存の色付きケーブルと専用タブは維持します。
+
+## サービス別の定期監視
+
+ICMPとWeb/TCP80・DNS/UDP53・仮想転送・制御端末の応答を分けて監視します。サービス停止、NAT公開ポート、ACLと返信の検査、設定保存を [サービス監視](docs/NETWORK_SERVICE_MONITOR.md) にまとめています。[検証記録](docs/NETWORK_SERVICE_MONITOR_VERIFICATION.md) では自動検査と未実施のクライアント確認を区別します。

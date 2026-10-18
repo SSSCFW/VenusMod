@@ -60,13 +60,13 @@ public final class NetworkProfile {
     public String encode(){
         try{
             var bytes=new ByteArrayOutputStream();var out=new DataOutputStream(bytes);
-            out.writeInt(10);out.writeUTF(name);out.writeUTF(address);out.writeInt(prefix);out.writeUTF(gateway);out.writeUTF(dns);
+            out.writeInt(11);out.writeUTF(name);out.writeUTF(address);out.writeInt(prefix);out.writeUTF(gateway);out.writeUTF(dns);
             out.writeBoolean(failed);out.writeBoolean(dhcp);out.writeBoolean(web);out.writeBoolean(stp);out.writeBoolean(publicService);
             out.writeUTF(vip);out.writeInt(vrrpPriority);
             for(Port p:ports){out.writeBoolean(p.enabled);out.writeBoolean(p.trunk);out.writeBoolean(p.optical);out.writeInt(p.vlan);out.writeUTF(p.address);out.writeInt(p.prefix);out.writeLong(p.speedLimitBps);}
             out.writeInt(routes.size());for(Route r:routes){out.writeUTF(r.network);out.writeInt(r.prefix);out.writeUTF(r.gateway);out.writeInt(r.port);}
             out.writeInt(dnsRecords.size());for(var entry:dnsRecords.entrySet()){out.writeUTF(entry.getKey());out.writeUTF(entry.getValue());}
-            services.write(out);ospf.write(out);nat.write(out);vrrp.write(out);spanning.write(out);bgp.write(out);dnsSettings.write(out);syslog.write(out);monitor.write(out);
+            services.write(out);ospf.write(out);nat.write(out);vrrp.write(out);spanning.write(out);bgp.write(out);dnsSettings.write(out);syslog.write(out);monitor.write(out);monitor.writeServices(out);
             String result=Base64.getEncoder().encodeToString(bytes.toByteArray());
             if(result.length()>MAX_TEXT)throw new IllegalArgumentException("設定容量の上限です");return result;
         }catch(IOException e){throw new IllegalStateException(e);}
@@ -75,7 +75,7 @@ public final class NetworkProfile {
         if(text==null||text.length()>MAX_TEXT)throw new IllegalArgumentException("設定サイズが不正です");
         try{
             var in=new DataInputStream(new ByteArrayInputStream(Base64.getDecoder().decode(text)));
-            int version=in.readInt();if(version<1||version>10)throw new IllegalArgumentException("設定バージョンが未対応です");
+            int version=in.readInt();if(version<1||version>11)throw new IllegalArgumentException("設定バージョンが未対応です");
             var p=new NetworkProfile(kind);p.name=in.readUTF();p.address=in.readUTF();p.prefix=in.readInt();p.gateway=in.readUTF();p.dns=in.readUTF();
             p.failed=in.readBoolean();p.dhcp=in.readBoolean();p.web=in.readBoolean();p.stp=in.readBoolean();p.publicService=in.readBoolean();p.vip=in.readUTF();p.vrrpPriority=in.readInt();
             for(Port port:p.ports){port.enabled=in.readBoolean();port.trunk=in.readBoolean();port.optical=in.readBoolean();port.vlan=in.readInt();port.address=in.readUTF();port.prefix=in.readInt();port.speedLimitBps=in.readLong();}
@@ -92,6 +92,7 @@ public final class NetworkProfile {
             if(version>=8)p.dnsSettings.read(in);
             if(version>=9)p.syslog.read(in);
             if(version>=10)p.monitor.read(in);
+            if(version>=11)p.monitor.readServices(in);
             if(in.available()!=0)throw new IllegalArgumentException("余分な設定データです");p.validate();return p;
         }catch(IOException|IllegalArgumentException e){throw new IllegalArgumentException("機器設定の形式が不正です",e);}
     }

@@ -109,9 +109,13 @@ public final class NetworkSimulator {
         current.monitor.copyFrom(validated.monitor);monitorRuntime.synchronize(id);changedProfiles.add(id);
     }
     /** 定期プローブは平常/失敗の操作ログを出さず、状態変化だけ監視側で通知する。 */
-    MonitorRuntime.Probe probeMonitor(String source,String target){
+    MonitorRuntime.Probe probeMonitor(String source,MonitorTarget target){
         suppressProbeLogs++;
-        try{return new MonitorRuntime.Probe(exchange(source,replyAddress(source,target),target,"icmp",0,0,new SearchBudget()),false);}
+        try{
+            var type=target.kind();
+            return new MonitorRuntime.Probe(exchange(source,replyAddress(source,target.address()),target.address(),type.protocol(),
+                    type==MonitorTarget.Kind.ICMP?0:49152,target.port(),new SearchBudget(),type==MonitorTarget.Kind.ICMP?-1:type.servicePort(),type::unavailable),false);
+        }
         catch(SearchLimit limit){return new MonitorRuntime.Probe(Result.fail(limit.getMessage()),true);}
         catch(IllegalArgumentException invalid){return new MonitorRuntime.Probe(Result.fail(invalid.getMessage()),false);}
         finally{suppressProbeLogs--;}
@@ -490,6 +494,11 @@ public final class NetworkSimulator {
         return exchange(source,local,target,protocol,sourcePort,destinationPort,budget,-1);
     }
     private Result exchange(String source,String local,String target,String protocol,int sourcePort,int destinationPort,SearchBudget budget,int expectedServicePort){
+        return exchange(source,local,target,protocol,sourcePort,destinationPort,budget,expectedServicePort,p->"");
+    }
+    /** 稼働判定もNAT取引内。監視で停止を観測しても変換エントリーを延命しない。 */
+    private Result exchange(String source,String local,String target,String protocol,int sourcePort,int destinationPort,SearchBudget budget,int expectedServicePort,
+                            java.util.function.Function<NetworkProfile,String> availability){
         if(local.isBlank()||!owns(source,local))return Result.fail("送信元IPが未設定または機器に属していません");
         var packet=NetworkPolicy.Packet.of(protocol,local,target,sourcePort,destinationPort);
         try(var transaction=natTable.begin()){
@@ -499,6 +508,8 @@ public final class NetworkSimulator {
                 return Result.fail("NAT転送先ポートが実サービスと一致しません (必要: "+expectedServicePort+")");
             if(expectedServicePort==53&&!DnsSettings.available(nodes.get(forward.result.destination)))
                 return Result.fail("DNSサービスが停止または非対応です");
+            String unavailable=availability.apply(nodes.get(forward.result.destination));
+            if(!unavailable.isEmpty())return Result.fail(unavailable);
             var reverse=walk(forward.result.destination,budget,forward.packet.reverse(),transaction);
             if(!reverse.result.success)return Result.fail("応答経路なし: "+reverse.result.message);
             if(!reverse.result.destination.equals(source)||!reverse.packet.equals(packet.reverse()))
