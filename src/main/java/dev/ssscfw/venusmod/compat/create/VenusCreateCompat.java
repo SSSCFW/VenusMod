@@ -1,6 +1,9 @@
 package dev.ssscfw.venusmod.compat.create;
 
 import com.simibubi.create.api.stress.BlockStressValues;
+import com.simibubi.create.content.equipment.goggles.GogglesItem;
+import dev.ssscfw.venusmod.infrastructure.network.NetworkContent;
+import net.minecraft.world.entity.EquipmentSlot;
 import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.item.MachineDescriptionItem;
 import dev.ssscfw.venusmod.registry.ModCreativeTabs;
@@ -176,6 +179,9 @@ public final class VenusCreateCompat {
             BlockStressValues.IMPACTS.register(BLADE_BREAKER.get(), () -> 8.0D);
             BlockStressValues.IMPACTS.register(METAL_SEPARATOR.get(), () -> 6.0D);
             BlockStressValues.IMPACTS.register(VENUS_BLADE_FORGE.get(), () -> 16.0D);
+            // Create本来のRPM/応力HUDにも合体ゴーグルを認識させる。
+            GogglesItem.addIsWearingPredicate(player ->
+                    player.getItemBySlot(EquipmentSlot.HEAD).is(NetworkContent.COMBINED_GOGGLES.get()));
         });
     }
 }

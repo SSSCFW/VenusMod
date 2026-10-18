@@ -2,6 +2,9 @@ package dev.ssscfw.venusmod.infrastructure.network;
 
 import dev.ssscfw.venusmod.VenusMod;
 import dev.ssscfw.venusmod.infrastructure.network.core.NetworkForm;
+import dev.ssscfw.venusmod.infrastructure.network.core.NetworkGogglesReadout;
+import dev.ssscfw.venusmod.infrastructure.network.core.DeviceKind;
+import net.minecraft.core.BlockPos;
 import java.util.*;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -26,12 +29,62 @@ public final class NetworkPackets {
             if(context.player().containerMenu instanceof NetworkMenu menu&&menu.containerId==packet.menu)
                 menu.receiveForm(packet.pages,packet.ports,packet.requestId,packet.accepted,packet.message);
         }));
+        // クライアント専用のHUDクラスをサーバーから読み込まない。
+        registry.playToClient(GoggleView.TYPE,GoggleView.CODEC,(packet,context)->
+                context.enqueueWork(()->NetworkGogglesStatus.accept(packet)));
         // クライアント専用クラスを参照せず、共通メニューの表示データだけ更新する。
         registry.playToClient(Snapshot.TYPE,Snapshot.CODEC,(packet,context)->context.enqueueWork(()->{if(context.player().containerMenu instanceof NetworkMenu menu&&menu.containerId==packet.menu)menu.receive(packet.kind,packet.text);}));
     }
     public static void snapshot(ServerPlayer player,int menu,int kind,String text){PacketDistributor.sendToPlayer(player,new Snapshot(menu,kind,text));}
     public static void formState(ServerPlayer player,int menu,int requestId,boolean accepted,String message,List<String> pages,List<String> ports){
         PacketDistributor.sendToPlayer(player,new FormState(menu,requestId,accepted,message,pages,ports));
+    }
+    /** ゴーグルの閲覧情報。所有者検査はサーバー側で済ませ、全6ポートを固定長で送る。 */
+    public record GoggleView(String dimension,BlockPos pos,int kind,String name,
+                             boolean faulted,boolean permitted,List<NetworkGogglesReadout.Port> ports)
+                             implements CustomPacketPayload {
+        public GoggleView {
+            ports=List.copyOf(ports);
+            if(ports.size()!=6||kind<0||kind>=DeviceKind.values().length
+                    ||dimension.length()>128||name.length()>48)
+                throw new IllegalArgumentException("不正なゴーグルデータ");
+        }
+        public static final Type<GoggleView> TYPE=new Type<>(
+                ResourceLocation.fromNamespaceAndPath(VenusMod.MOD_ID,"network_goggles_view"));
+        public static final StreamCodec<RegistryFriendlyByteBuf,GoggleView> CODEC=new StreamCodec<>(){
+            @Override public GoggleView decode(RegistryFriendlyByteBuf b){
+                String dimension=b.readUtf(128);
+                BlockPos pos=b.readBlockPos();
+                int kind=b.readVarInt();
+                String name=b.readUtf(48);
+                boolean faulted=b.readBoolean(),permitted=b.readBoolean();
+                List<NetworkGogglesReadout.Port> ports=new ArrayList<>(6);
+                for(int i=0;i<6;i++){
+                    boolean visible=b.readBoolean(),connected=b.readBoolean();
+                    boolean enabled=b.readBoolean(),linkUp=b.readBoolean();
+                    String cidr=b.readUtf(24);
+                    long maximum=b.readVarLong();
+                    int vlan=b.readVarInt();
+                    boolean trunk=b.readBoolean();
+                    ports.add(new NetworkGogglesReadout.Port(
+                            visible,connected,enabled,linkUp,cidr,maximum,vlan,trunk));
+                }
+                return new GoggleView(dimension,pos,kind,name,faulted,permitted,ports);
+            }
+            @Override public void encode(RegistryFriendlyByteBuf b,GoggleView p){
+                b.writeUtf(p.dimension,128);b.writeBlockPos(p.pos);
+                b.writeVarInt(p.kind);b.writeUtf(p.name,48);
+                b.writeBoolean(p.faulted);b.writeBoolean(p.permitted);
+                for(var port:p.ports){
+                    b.writeBoolean(port.visible());b.writeBoolean(port.connected());
+                    b.writeBoolean(port.enabled());b.writeBoolean(port.linkUp());
+                    b.writeUtf(port.cidr(),24);
+                    b.writeVarLong(port.maximumBps());b.writeVarInt(port.vlan());
+                    b.writeBoolean(port.trunk());
+                }
+            }
+        };
+        @Override public Type<GoggleView> type(){return TYPE;}
     }
     public record FormEdit(int menu,int requestId,String expected,String edit) implements CustomPacketPayload {
         public static final Type<FormEdit> TYPE=new Type<>(ResourceLocation.fromNamespaceAndPath(VenusMod.MOD_ID,"network_form_edit"));

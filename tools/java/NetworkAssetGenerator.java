@@ -30,6 +30,7 @@ public final class NetworkAssetGenerator {
         for(int i=0;i<CABLES.length;i++)cable(i);
         for(int i=0;i<DEVICES.length;i++)device(i);
         for(int i=0;i<MODULES.length;i++)module(i);
+        goggles();
         recipes();
         JA.put("tooltip.venusmod.network.max_bandwidth","最大伝送帯域: %s");
         EN.put("tooltip.venusmod.network.max_bandwidth","Maximum bandwidth: %s");
@@ -291,6 +292,79 @@ public final class NetworkAssetGenerator {
         json("assets/venusmod/blockstates/"+id+".json",Map.of("variants",variants));
         json("assets/venusmod/models/item/"+id+".json",Map.of("parent",modelId(id)));loot(id);
     }
+    /** Createなしでもクラフト可能な通常版と、Createありの統合版の独自アイコン。 */
+    private static void goggles()throws IOException{
+        String[] ids={"network_goggles","combined_network_goggles"};
+        String[] names={"ネットワークゴーグル","統合エンジニアゴーグル"};
+        String[] english={"Network Goggles","Combined Engineer's Goggles"};
+        String[] jaHelp={
+            "頭に装備。ネットワーク機器の接続・IP・速度・VLAN・状態を表示。",
+            "頭に装備。ネットワーク情報とCreateのエンジニアゴーグル表示を統合。"
+        };
+        String[] enHelp={
+            "Wear on head to see network ports, IP addresses, speeds, VLANs and device status.",
+            "Combines the network overlay with Create's Engineer's Goggles HUD."
+        };
+        for(int i=0;i<ids.length;i++){
+            String id=ids[i];
+            language("item",id,names[i]);
+            EN.put("item.venusmod."+id,english[i]);
+            JA.put("tooltip.venusmod.network."+id,jaHelp[i]);
+            EN.put("tooltip.venusmod.network."+id,enHelp[i]);
+            BufferedImage img=new BufferedImage(16,16,BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g=img.createGraphics();
+            int frame=i==0?0x51c7bf:0xe4b453;
+            int lens=i==0?0x24829a:0x8b5fd0;
+            g.setColor(new Color(0x37495a));
+            g.fillRect(0,5,16,2);
+            g.setColor(new Color(frame));
+            g.fillRect(1,4,6,1);g.fillRect(9,4,6,1);
+            g.fillRect(1,5,1,6);g.fillRect(6,5,1,6);
+            g.fillRect(9,5,1,6);g.fillRect(14,5,1,6);
+            g.fillRect(1,11,6,1);g.fillRect(9,11,6,1);
+            g.fillRect(7,6,2,2);
+            g.setColor(new Color(lens));
+            g.fillRect(2,6,4,5);g.fillRect(10,6,4,5);
+            g.setColor(new Color(0xb6f4f0));
+            g.fillRect(2,6,2,2);g.fillRect(10,6,2,2);
+            if(i==1){
+                g.setColor(new Color(0xeed784));g.fillRect(7,9,2,1);
+                g.setColor(new Color(0xe87cce));g.fillRect(5,7,1,3);g.fillRect(13,7,1,3);
+            }
+            g.dispose();
+            png("item/network/"+id,img);
+            json("assets/venusmod/models/item/"+id+".json",
+                    Map.of("parent","minecraft:item/generated",
+                            "textures",Map.of("layer0","venusmod:item/network/"+id)));
+        }
+        String root="hud.venusmod.network_goggles.";
+        String[][] messages={
+            {"cable","ケーブル: %s","Cable: %s"},
+            {"max_bandwidth","最大伝送帯域: %s","Maximum bandwidth: %s"},
+            {"device","%s  |  %s","%s  |  %s"},
+            {"working","稼働中","Operational"},
+            {"faulted","故障中","Faulted"},
+            {"selected","照準側: %s (%s)","Looking at: %s (%s)"},
+            {"loading","状態を取得しています…","Loading device status…"},
+            {"denied","設定の閲覧権限がありません","You do not have permission to inspect this device"},
+            {"linked","接続","Linked"},
+            {"down","リンクダウン","Link down"},
+            {"unused","未接続","Unconnected"},
+            {"no_ip","IP未設定","No IP"},
+            {"port","%s  [%s]  %s","%s  [%s]  %s"},
+            {"details","    上限 %s  |  %s  %s","    Max %s  |  %s  %s"},
+            {"enabled","有効","Enabled"},
+            {"disabled","停止","Disabled"},
+            {"vlan","VLAN %s / %s","VLAN %s / %s"},
+            {"direction.0","北","North"},
+            {"direction.1","東","East"},
+            {"direction.2","南","South"},
+            {"direction.3","西","West"},
+            {"direction.4","上","Up"},
+            {"direction.5","下","Down"}
+        };
+        for(String[] entry:messages){JA.put(root+entry[0],entry[1]);EN.put(root+entry[0],entry[2]);}
+    }
     private static void module(int i)throws IOException{
         String id=MODULES[i];language("item",id,MODULE_NAMES[i]);
         JA.put("tooltip.venusmod.network."+id,MODULE_JA[i]);
@@ -345,6 +419,14 @@ public final class NetworkAssetGenerator {
         }
         shaped("network_repair_kit",4,List.of("IGI","RCR"),Map.of("I","minecraft:iron_ingot","G","minecraft:gold_ingot","R","minecraft:redstone","C",own("network_gold_circuit")));
         shaped("network_configurator",1,List.of(" G ","ICI"," R "),Map.of("G","minecraft:gold_ingot","I","minecraft:iron_ingot","C",own("network_gold_circuit"),"R","minecraft:redstone"));
+        shaped("network_goggles",1,List.of("GCG","PRP"),Map.of(
+                "G","minecraft:gold_ingot","C",own("network_gold_circuit"),
+                "P","minecraft:glass_pane","R","minecraft:redstone"));
+        json("data/venusmod/recipe/combined_network_goggles.json",Map.of(
+                "type","minecraft:crafting_shapeless","category","misc",
+                "neoforge:conditions",List.of(Map.of("type","neoforge:mod_loaded","modid","create")),
+                "ingredients",List.of(Map.of("item","create:goggles"),Map.of("item",own("network_goggles"))),
+                "result",Map.of("id",own("combined_network_goggles"),"count",1)));
     }
     private static void png(String name,BufferedImage image)throws IOException{Path p=out.resolve("assets/venusmod/textures/"+name+".png");Files.createDirectories(p.getParent());ImageIO.write(image,"png",p.toFile());}
     private static void json(String name,Object value)throws IOException{Path p=out.resolve(name);Files.createDirectories(p.getParent());Files.writeString(p,encode(value)+"\n",StandardCharsets.UTF_8);}

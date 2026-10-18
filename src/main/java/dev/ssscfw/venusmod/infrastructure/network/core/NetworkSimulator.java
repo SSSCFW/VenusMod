@@ -148,6 +148,12 @@ public final class NetworkSimulator {
     }
     public Map<String,NetworkProfile> nodes(){return Collections.unmodifiableMap(nodes);}
     public Collection<Link> links(){return Collections.unmodifiableCollection(links.values());}
+    /** ゴーグル表示など読み取り専用で現在の物理ポート接続を取得する。 */
+    public Link linkAt(String deviceId,int port){
+        if(port<0||port>=NetworkProfile.PORT_COUNT)return null;
+        Link[] row=ports.get(deviceId);
+        return row==null?null:row[port];
+    }
     public List<Flow> flows(){return List.copyOf(flows);}
     public Map<String,Integer> macTable(String id){return Map.copyOf(mac.getOrDefault(id,Map.of()));}
     public Map<String,String> arpTable(String id){return Map.copyOf(arp.getOrDefault(id,Map.of()));}

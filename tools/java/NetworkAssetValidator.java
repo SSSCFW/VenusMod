@@ -31,7 +31,7 @@ public final class NetworkAssetValidator {
             }
         }
         // 無染色8種 + 8種類×16色 = 136種のケーブルアセットを検証。
-        require(images==74+8*16,"PNG数: "+images);require(json>=1500,"JSON数: "+json);
+        require(images==74+8*16+2,"PNG数: "+images);require(json>=1500,"JSON数: "+json);
         String[] colors={"white","orange","magenta","light_blue","yellow","lime","pink","gray","light_gray","cyan","purple","blue","brown","green","red","black"};
         String[] grades={"cat5e_cable","cat6_cable","cat6a_cable","cat8_cable","om3_fiber_cable","om4_fiber_cable","os2_fiber_cable","venus_fiber_cable"};
         for(String grade:grades){
@@ -67,6 +67,23 @@ public final class NetworkAssetValidator {
                         "機器の説明がない: "+locale+"/"+device);
             }
         }
+        for(String id:List.of("network_goggles","combined_network_goggles")){
+            require(Files.exists(root.resolve("assets/venusmod/models/item/"+id+".json")),
+                    "ゴーグルのアイテムモデル: "+id);
+            require(Files.exists(root.resolve("assets/venusmod/textures/item/network/"+id+".png")),
+                    "ゴーグルのテクスチャ: "+id);
+            require(Files.exists(root.resolve("data/venusmod/recipe/"+id+".json")),
+                    "ゴーグルのレシピ: "+id);
+            for(String locale:List.of("ja_jp","en_us")){
+                String text=Files.readString(root.resolve("assets/venusmod_network/lang/"+locale+".json"));
+                require(text.contains("\"tooltip.venusmod.network."+id+"\":"),
+                        "ゴーグルの説明不足: "+id+"/"+locale);
+            }
+        }
+        String combination=Files.readString(root.resolve("data/venusmod/recipe/combined_network_goggles.json"));
+        require(combination.contains("\"modid\":\"create\"")
+                && combination.contains("\"item\":\"create:goggles\""),
+                "Create導入時限定の統合ゴーグル合成");
         System.out.println("NetworkAssetValidator: "+json+" JSON / "+images+" PNG / all references resolved");
     }
     private static void require(boolean value,String message){if(!value)throw new AssertionError(message);}
