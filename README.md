@@ -114,3 +114,7 @@ VLAN別のルート選出、Root/Designated/Alternate、Listening/Learning/Forwa
 ## ネットワーク配線の局所更新
 
 配線の一部を変更しても、物理的に独立した別拠点の通信・NAT・OSPF/VRRP/STPを維持します。変更したケーブル区間だけを予算付きで再解析します。操作・無効化範囲・上限は [配線の局所更新](docs/NETWORK_TOPOLOGY.md)、実施した検査と未検証範囲は [検証記録](docs/NETWORK_TOPOLOGY_VERIFICATION.md) を参照してください。
+
+## BGPによる拠点間経路制御
+
+IPv4 eBGP/iBGPのピア、経路広告・撤回、AS_PATH・NEXT_HOP、ピアごとのLOCAL_PREF/MED/prependとフィルターを追加しました。接続例・制約は [BGPの使い方](docs/NETWORK_BGP.md)、検証状況は [BGP検証記録](docs/NETWORK_BGP_VERIFICATION.md) を参照してください。全プロトコルの実装完了を意味しません。

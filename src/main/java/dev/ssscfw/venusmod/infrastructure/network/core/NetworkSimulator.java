@@ -62,6 +62,8 @@ public final class NetworkSimulator {
     private String forestLimit="";
     private long nextFlow=1;
     private final OspfSimulation ospfRuntime=new OspfSimulation(this);
+    private final BgpSimulation bgpRuntime=new BgpSimulation(this);
+    public BgpEngine bgp(){return bgpRuntime.engine();}
     private final NatTable natTable=new NatTable();
     public NatTable nat(){return natTable;}
     public OspfEngine ospf(){return ospfRuntime.engine();}
@@ -121,7 +123,7 @@ public final class NetworkSimulator {
     public void invalidate(){invalidateComponents(Set.copyOf(nodes.keySet()),"全体設定の変更で再確立");}
     private void invalidateComponents(Set<String> affected,String reason){
         if(affected.isEmpty())return;
-        forestDirty=true;stpRuntime.changed(affected);ospfRuntime.changed(affected);vrrpRuntime.changed(affected);
+        forestDirty=true;stpRuntime.changed(affected);ospfRuntime.changed(affected);vrrpRuntime.changed(affected);bgpRuntime.changed(affected);
         invalidateData(affected,reason);
     }
     private void invalidateData(Set<String> affected,String reason){
@@ -249,16 +251,96 @@ public final class NetworkSimulator {
             String hop=Ipv4.sameSubnet(p.address,target,p.prefix)?target:p.gateway;if(hop.isBlank()||!Ipv4.sameSubnet(p.address,hop,p.prefix))return choices;
             for(int i=0;i<6;i++)if(ports.get(node)[i]!=null)choices.add(new Decision(i,hop,p.address));return choices;
         }
-        int best=-1;NetworkProfile.Route staticRoute=null;
+        int best=-1;boolean ospfChoice=false;NetworkProfile.Route staticRoute=null;
         for(var route:p.routes)if(route.matches(target)&&route.prefix()>best){best=route.prefix();staticRoute=route;}
         for(int i=0;i<6;i++){var port=p.ports[i];if(!port.address.isBlank()&&Ipv4.sameSubnet(port.address,target,port.prefix)&&port.prefix>=best){
             if(port.prefix>best)choices.clear();best=port.prefix;staticRoute=null;choices.add(new Decision(i,target,port.address));}}
         if(staticRoute!=null){var port=p.ports[staticRoute.port()];if(!port.address.isBlank()&&Ipv4.sameSubnet(port.address,staticRoute.gateway(),port.prefix))choices.add(new Decision(staticRoute.port(),staticRoute.gateway(),port.address));}
         for(var route:ospfRuntime.routes(node))if(route.prefix()>best&&Ipv4.sameSubnet(route.network(),target,route.prefix())
                 &&p.ports[route.port()].enabled&&portSpeed(node,route.port())>0){
-            best=route.prefix();choices.clear();choices.add(new Decision(route.port(),route.gateway(),p.ports[route.port()].address));
+            best=route.prefix();ospfChoice=true;choices.clear();choices.add(new Decision(route.port(),route.gateway(),p.ports[route.port()].address));
+        }
+        int distance=ospfChoice?110:staticRoute!=null?1:0;
+        for(var r:bgp().routes(node))if(p.bgp.enabled&&!r.local()&&r.prefix().contains(Ipv4.parse(target))){
+            int candidateDistance=r.external()?20:200;
+            var hop=bgpResolve(node,r.nextHop());if(hop==null)continue;
+            if(r.prefix().length()>best||r.prefix().length()==best&&candidateDistance<distance){
+                best=r.prefix().length();distance=candidateDistance;choices.clear();
+                choices.add(new Decision(hop.port(),hop.gateway(),p.ports[hop.port()].address));
+            }
         }
         return choices;
+    }
+    /** BGP以外のローカルRIBだけでNEXT_HOPを解決し、自己依存したBGP再帰を避ける。 */
+    BgpEngine.Hop bgpResolve(String node,String target){
+        var p=nodes.get(node);if(p==null||p.failed||!p.kind.routing())return null;
+        long ip;try{ip=Ipv4.parse(target);}catch(IllegalArgumentException invalid){return null;}
+        BgpEngine.Hop best=null;
+        for(int n=0;n<6;n++){
+            var port=p.ports[n];if(!port.enabled||port.address.isBlank()||portSpeed(node,n)==0)continue;
+            // 自身の実IPをNEXT_HOPにした受信経路は使用しない。
+            if(port.address.equals(target))return null;
+            if(Ipv4.sameSubnet(port.address,target,port.prefix))best=prefer(best,new BgpEngine.Hop(n,target,0,port.prefix,0));
+        }
+        for(var r:p.routes){var port=p.ports[r.port()];
+            if(port.enabled&&!port.address.isBlank()&&portSpeed(node,r.port())>0&&r.matches(target)&&Ipv4.sameSubnet(port.address,r.gateway(),port.prefix))
+                best=prefer(best,new BgpEngine.Hop(r.port(),r.gateway(),1,r.prefix(),1));
+        }
+        for(var r:ospfRuntime.routes(node))if(Ipv4.sameSubnet(r.network(),target,r.prefix())&&p.ports[r.port()].enabled&&portSpeed(node,r.port())>0)
+            best=prefer(best,new BgpEngine.Hop(r.port(),r.gateway(),r.cost(),r.prefix(),110));
+        return best;
+    }
+    private static BgpEngine.Hop prefer(BgpEngine.Hop a,BgpEngine.Hop b){
+        return a==null||b.prefix()>a.prefix()||b.prefix()==a.prefix()&&b.distance()<a.distance()?b:a;
+    }
+    boolean bgpOriginates(String id,NetworkPolicy.Prefix prefix){
+        var p=nodes.get(id);if(p==null||p.failed)return false;
+        for(int i=0;i<6;i++){var port=p.ports[i];if(port.enabled&&!port.address.isBlank()&&portSpeed(id,i)>0
+                &&new NetworkPolicy.Prefix(Ipv4.parse(port.address),port.prefix).equals(prefix))return true;}
+        for(var r:p.routes)if(new NetworkPolicy.Prefix(Ipv4.parse(r.network()),r.prefix()).equals(prefix)){
+            var port=p.ports[r.port()];if(port.enabled&&!port.address.isBlank()&&portSpeed(id,r.port())>0&&Ipv4.sameSubnet(port.address,r.gateway(),port.prefix))return true;
+        }
+        return ospfRuntime.routes(id).stream().anyMatch(r->new NetworkPolicy.Prefix(Ipv4.parse(r.network()),r.prefix()).equals(prefix)&&portSpeed(id,r.port())>0);
+    }
+    boolean bgpUsable(String id,BgpEngine.Route route){
+        if(route.local())return bgpOriginates(id,route.prefix());
+        if(bgpResolve(id,route.nextHop())==null)return false;
+        var base=bgpResolve(id,Ipv4.format(route.prefix().network()));
+        return base==null||route.prefix().length()>base.prefix()||route.prefix().length()==base.prefix()&&(route.external()?20:200)<base.distance();
+    }
+    /** TCP179のメタデータの往復経路を検証。NATを通したBGPピアはこの版では許可しない。 */
+    BgpEngine.Channel bgpChannel(String id,BgpSettings.Peer peer){
+        var local=nodes.get(id);if(local==null||local.failed||!local.bgp.enabled)return null;
+        try{
+            var hop=bgpResolve(id,peer.address());if(hop==null)return null;
+            int sourcePort=peer.sourcePort()<0?hop.port():peer.sourcePort();var port=local.ports[sourcePort];
+            if(!port.enabled||port.address.isBlank()||portSpeed(id,sourcePort)==0)return null;
+            boolean external=peer.remoteAs()!=local.bgp.asn;
+            if(external&&(sourcePort!=hop.port()||!Ipv4.sameSubnet(port.address,peer.address(),port.prefix)))return null;
+            var budget=new SearchBudget();var packet=NetworkPolicy.Packet.of("tcp",port.address,peer.address(),49179,179);
+            String remote=bgpWalk(id,packet,budget,external);if(remote==null||remote.equals(id))return null;
+            String back=bgpWalk(remote,packet.reverse(),budget,external);if(!id.equals(back))return null;
+            return new BgpEngine.Channel(remote,port.address,peer.address());
+        }catch(SearchLimit|IllegalArgumentException failure){return null;}
+    }
+    private String bgpWalk(String source,NetworkPolicy.Packet packet,SearchBudget budget,boolean direct){
+        requireForest();String current=source,target=Ipv4.format(packet.destination());var visited=new HashSet<String>();int ingress=-1;
+        for(int ttl=0;ttl<32;ttl++){
+            var profile=nodes.get(current);if(profile==null||profile.failed||!profile.kind.routing())return null;
+            if(!visited.add(current))return null;
+            for(var port:profile.ports)if(port.enabled&&port.address.equals(target))return current;
+            if(direct&&ttl>0)return null;
+            var choice=bgpResolve(current,target);if(choice==null)return null;
+            // BGPは実インターフェース宛てのunderlay通信。仮想NATセッションを作らない。
+            if(profile.nat.enabled&&ingress>=0&&profile.nat.role(ingress)!=profile.nat.role(choice.port())
+                    &&profile.nat.role(ingress)!=NatSettings.Role.NONE&&profile.nat.role(choice.port())!=NatSettings.Role.NONE)return null;
+            var hits=segment(current,choice.port(),(id,in)->answersArp(id,in,choice.gateway()),budget);
+            var unique=new LinkedHashMap<String,Step>();for(Step hit:hits)unique.putIfAbsent(hit.id,hit);
+            if(unique.size()!=1)return null;Step path=unique.values().iterator().next();
+            if(filterPath(path.path,path.wires,packet,budget)!=null)return null;
+            current=path.id;ingress=path.ingress;
+        }
+        return null;
     }
     public Result route(String source,String address){
         try(var transaction=natTable.begin()){
@@ -489,7 +571,7 @@ public final class NetworkSimulator {
         if(!stpChanged.isEmpty()){
             var affected=component(stpChanged);invalidateData(affected,"STP状態変更で中断。再送できます");
             // STP自身のListening/Forward Delayを再起動せず、当該網の広告経路だけ再探索。
-            ospfRuntime.changed(affected);vrrpRuntime.changed(affected);
+            ospfRuntime.changed(affected);vrrpRuntime.changed(affected);bgpRuntime.changed(affected);
         }
         vrrpRuntime.advance(ticks);
         Set<String> owners=vrrpRuntime.drainOwners();
@@ -500,6 +582,10 @@ public final class NetworkSimulator {
             boolean affected=flow.nodes.stream().anyMatch(changedRoutes::contains);
             if(affected)log(flow.source,"転送 #"+flow.id+": OSPF経路変更で中断。再送できます");return affected;
         });
+        if(!changedRoutes.isEmpty())bgpRuntime.changed(component(changedRoutes));
+        bgpRuntime.advance(ticks);
+        Set<String> bgpChanges=bgp().drainChanges();
+        if(!bgpChanges.isEmpty())invalidateData(bgpChanges,"BGP経路変更で中断。再送できます");
         Set<Long> activeNat=new HashSet<>();for(var flow:flows)activeNat.addAll(flow.natBindings);
         natTable.advance(ticks,activeNat);
         Map<String,Integer> use=new HashMap<>();for(var f:flows){for(String link:new HashSet<>(f.links))use.merge("l"+link,1,Integer::sum);for(String node:new HashSet<>(f.nodes))use.merge("n"+node,1,Integer::sum);}

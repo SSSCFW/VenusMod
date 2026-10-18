@@ -51,7 +51,8 @@ public final class OspfCommands {
         List<String> lines=new ArrayList<>();
         if(all){for(int i=0;i<6;i++)if(!p.ports[i].address.isBlank())lines.add("C "+NetworkPolicy.Prefix.parse(p.ports[i].address+"/"+p.ports[i].prefix)+" P"+i);for(var r:p.routes)lines.add("S "+r.network()+"/"+r.prefix()+" via "+r.gateway()+" P"+r.port());}
         for(var r:sim.ospf().routes(id))lines.add("O "+r.network()+"/"+r.prefix()+" cost="+r.cost()+" via "+r.gateway()+" P"+r.port());
-        if(lines.isEmpty())lines.add("OSPF学習経路なし。ネイバーとLSDBを確認してください。");
+        if(all)for(var r:sim.bgp().routes(id))if(!r.local()&&sim.bgpUsable(id,r))lines.add("B "+r.prefix()+" via "+r.nextHop()+" AS_PATH="+r.path()+" "+(r.external()?"eBGP":"iBGP"));
+        if(lines.isEmpty())lines.add("学習経路なし。ネイバーとLSDB/BGPを確認してください。");
         return new NetworkServiceCommands.Reply(true,false,lines);
     }
     private static int port(String s){int n=Integer.parseInt(s);if(n<0||n>=6)throw new IllegalArgumentException("ポート番号は0〜5です");return n;}

@@ -65,7 +65,7 @@ public final class NetworkCoreTest {
         for(int tick=0;tick<100;tick++)cycle.advance(1);
         check(cycle.ping("x",p2.vip).destination().equals("r2"),"virtual gateway failover after timeout");
         var invalid=NetworkCli.run(cycle,"x","ip invalid");check(!invalid.changed()&&cycle.nodes().get("x").address.equals("10.1.0.10"),"invalid command preserves configuration");
-        check(NetworkCli.run(cycle,"x","bgp").lines().getFirst().contains("未実装"),"unsupported protocol explicitly rejected");
+        check(NetworkCli.run(cycle,"x","ipv6").lines().getFirst().contains("未実装"),"unsupported protocol explicitly rejected");
         System.out.println("NetworkCoreTest: "+assertions+" assertions passed");
     }
 }

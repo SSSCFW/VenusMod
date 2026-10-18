@@ -10,6 +10,7 @@ public final class NetworkCli {
         if(input==null||input.length()>512||input.codePoints().anyMatch(Character::isISOControl))return reply(false,"コマンドは改行なし512文字以内です");
         var original=sim.nodes().get(id);if(original==null)return reply(false,"機器が読み込まれていません");
         String[] t=input.trim().split("\\s+");
+        if(BgpCommands.handles(t)){var reply=BgpCommands.run(sim,id,t);return new Reply(reply.changed(),reply.lines());}
         if(StpCommands.handles(t)){var reply=StpCommands.run(sim,id,t);return new Reply(reply.changed(),reply.lines());}
         if(VrrpCommands.handles(t)){var reply=VrrpCommands.run(sim,id,t);return new Reply(reply.changed(),reply.lines());}
         boolean editing=Set.of("name","ip","gateway","dns","port","dhcp-server","web","public","dns-record","route","fault").contains(t[0].toLowerCase(Locale.ROOT));
@@ -62,7 +63,7 @@ public final class NetworkCli {
                 case "dns-record" -> {need(t,3);if(p.kind!=DeviceKind.SERVER&&!p.kind.routing())throw new IllegalArgumentException("DNSはサーバー/ルーターのみです");p.dnsRecords.put(t[1].toLowerCase(Locale.ROOT),Ipv4.normalize(t[2]));}
                 case "route" -> {if(!p.kind.routing())throw new IllegalArgumentException("経路追加はL3機器で行います");if(t.length==2&&t[1].equals("clear"))p.routes.clear();else{need(t,7);if(!t[1].equals("add")||!t[3].equals("via")||!t[5].equals("port"))throw new IllegalArgumentException("route add 10.0.0.0/24 via 192.168.1.1 port 0");var c=cidr(t[2]);p.routes.add(new NetworkProfile.Route(c[0],Integer.parseInt(c[1]),t[4],Integer.parseInt(t[6])));}}
                 case "fault" -> {need(t,1);p.failed=true;}
-                case "ospf","bgp","ipv6","nat","ipsec","lacp" -> {return reply(false,"この版では未実装です。成功した通信として扱いません。");}
+                case "ospf","ipv6","nat","ipsec","lacp" -> {return reply(false,"この版では未実装です。成功した通信として扱いません。");}
                 default -> {return reply(false,"不明なコマンドです。help で一覧を表示します");}
             }
             p.validate();p.encode();sim.put(id,p);return reply(true,"設定を保存しました: "+input);

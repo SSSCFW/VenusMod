@@ -41,7 +41,10 @@ public final class NetworkHelp {
         "trust プレイヤー名 / untrust プレイヤー名 / public on|off",
         "完全安定化で内部ランダム故障だけ0%。故障は修理キットで復旧。",
         "通常採掘で設定・アップグレード・故障・権限を保持します。",
-        "未対応: BGP/IPv6/IPsec/LACP、OSPFのABR/DR/BDR/ECMP。",
+        "bgp as 65001 / bgp neighbor 192.0.2.2 remote-as 65002 / bgp on",
+        "bgp network add 10.1.0.0/24 / bgp help / show bgp",
+        "eBGPはimport/exportの明示許可が必要。iBGP NEXT_HOPの下位到達性も確認。",
+        "未対応: IPv6/IPsec/LACP、OSPFのABR/DR/BDR/ECMP、BGPのRR/GR/AS_SET。",
         "RSTP/TCNとSTP方式の混在、VRRPのIPv6/複数VIP/NAT同期、8/24ポート、PON分岐、惑星間通信は後続段階。",
         "実OSシェル・ソケット・外部Web・JavaScriptは使用しません。");}
 }
