@@ -67,35 +67,235 @@ public final class NetworkAssetGenerator {
         var item=model(textures,List.of(core,box(starts[0],ends[0],"#cable"),box(starts[2],ends[2],"#cable")));
         item.put("parent","minecraft:block/block");item.put("display",Map.of("gui",Map.of("rotation",List.of(30,45,0),"scale",List.of(1.0,1.0,1.0))));json("assets/venusmod/models/item/"+id+".json",item);loot(id);
     }
+
+    // 8機種でシルエット・前面パネルを個別に設計。既存の6方向ポートと故障表示は維持する。
+    private static final int[] DEVICE_HUES={
+        0x5593c9,0x46b193,0x8c9fdf,0xdbab4d,0xd6e5ed,0xb2a4ed,0x6b99af,0xe66a6d
+    };
+    private static final String[] DEVICE_JA={
+        "仮想ネットワークでpingやデータ転送を行う端末。",
+        "同じLAN内の通信をMACアドレスに基づいて中継する。",
+        "LAN内の転送と、異なるIPネットワーク間の経路選択を行う。",
+        "ネットワーク間を接続するルーター。DHCPやNATも設定できる。",
+        "光ファイバーでOLTとつなぎ、LAN側へ接続する終端装置。",
+        "ONUとの光接続を収容し、仮想WANを構成する局側装置。",
+        "ゲーム内Webなどのネットワークサービスを提供する。",
+        "ネットワーク経由でレッドストーン信号を遠隔出力する。"
+    };
+    private static final String[] DEVICE_EN={
+        "Terminal for ping, transfers and other simulated network commands.",
+        "Forwards traffic between devices on the same LAN using MAC addresses.",
+        "Switches LAN traffic and routes between IP networks.",
+        "Connects networks; supports configurable DHCP and NAT.",
+        "Optical network unit linking an OLT to the local LAN.",
+        "Optical line terminal connecting ONUs over a simulated WAN.",
+        "Provides in-game network services such as a simulated web service.",
+        "Remotely outputs a redstone signal over the simulated network."
+    };
+    private static final String[] MODULE_JA={
+        "機器や強化モジュールの製作に使う基板。",
+        "高速ポートやWAN強化に使う高密度の金配線。",
+        "ポート専用枠に装着。最大10Gbpsに対応。",
+        "ポート専用枠に装着。最大40Gbpsに対応。",
+        "ポート専用枠に装着。最大100Gbpsに対応。",
+        "ポート専用枠に装着。最大400Gbpsに対応。",
+        "本体拡張枠で内部ランダム故障率を50%軽減。",
+        "本体拡張枠で内部ランダム故障率を90%軽減。",
+        "本体拡張枠で内部ランダム故障率を0%にする。断線は防がない。",
+        "本体拡張枠で転送処理容量を4倍にする（最大768Gbps）。",
+        "本体拡張枠で同時転送枠を4つ追加。",
+        "WAN枠に装着しONU–OLT間の帯域を100Mbpsに拡張。",
+        "WAN枠に装着しONU–OLT間の帯域を1Gbpsに拡張。",
+        "WAN枠に装着しONU–OLT間の帯域を10Gbpsに拡張。",
+        "WAN枠に装着しONU–OLT間の帯域を100Gbpsに拡張。",
+        "WAN枠に装着しONU–OLT間の帯域を400Gbpsに拡張。",
+        "故障した自分の機器を右クリックして修理する。",
+        "機器の設定画面を開き、ケーブルの規格を調べる。"
+    };
+    private static final String[] MODULE_EN={
+        "Circuit board used to craft devices and upgrades.",
+        "Dense gold wiring for advanced port and WAN upgrades.",
+        "Port-slot upgrade: up to 10 Gbps.",
+        "Port-slot upgrade: up to 40 Gbps.",
+        "Port-slot upgrade: up to 100 Gbps.",
+        "Port-slot upgrade: up to 400 Gbps.",
+        "Chassis upgrade: 50% fewer random internal failures.",
+        "Chassis upgrade: 90% fewer random internal failures.",
+        "Chassis upgrade: no random internal failures; cables can still break.",
+        "Chassis upgrade: 4x processing capacity, capped at 768 Gbps.",
+        "Chassis upgrade: four more simultaneous transfers.",
+        "WAN slot: up to 100 Mbps on ONU–OLT links.",
+        "WAN slot: up to 1 Gbps on ONU–OLT links.",
+        "WAN slot: up to 10 Gbps on ONU–OLT links.",
+        "WAN slot: up to 100 Gbps on ONU–OLT links.",
+        "WAN slot: up to 400 Gbps on ONU–OLT links.",
+        "Right-click a failed network device you own to repair it.",
+        "Right-click network devices to configure or inspect cables."
+    };
     private static int shade(int rgb,double factor){int r=Math.min(255,(int)(((rgb>>16)&255)*factor)),g=Math.min(255,(int)(((rgb>>8)&255)*factor)),b=Math.min(255,(int)((rgb&255)*factor));return r<<16|g<<8|b;}
+    private static void faceTexture(int i,String face,String id)throws IOException{
+        BufferedImage img=new BufferedImage(16,16,BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g=img.createGraphics();
+        int hue=DEVICE_HUES[i];
+        g.setColor(new Color(i==4?0xb7ccd3:i==6?0x243541:0x35414e));
+        g.fillRect(0,0,16,16);
+        g.setColor(new Color(hue));g.drawRect(0,0,15,15);g.fillRect(1,1,14,2);
+        if(face.startsWith("front")){
+            g.setColor(new Color(0x0e1a25));
+            switch(i){
+                case 0 -> { // 液晶モニター
+                    g.fillRect(2,4,12,9);g.setColor(new Color(0x54afd6));g.fillRect(3,5,10,7);
+                    g.setColor(new Color(0xdaf6ff));g.drawLine(4,6,10,6);g.drawLine(4,8,8,8);
+                }
+                case 1 -> { // 一列のLANポート
+                    for(int x=2;x<14;x+=3){g.fillRect(x,5,2,3);g.fillRect(x,10,2,2);}
+                    g.setColor(new Color(0x67e99b));for(int x=2;x<14;x+=3)g.fillRect(x,4,2,1);
+                }
+                case 2 -> { // 二段のスイッチポート
+                    for(int y=4;y<=9;y+=5)for(int x=2;x<14;x+=3)g.fillRect(x,y,2,3);
+                    g.setColor(new Color(0xf4d06d));g.drawLine(2,8,13,8);
+                }
+                case 3 -> { // ルーターの状態灯
+                    g.fillRect(2,6,12,5);g.setColor(new Color(0xe4af49));
+                    for(int x=3;x<13;x+=3)g.fillRect(x,7,2,2);
+                    g.setColor(new Color(0x72ddaa));g.drawLine(3,12,12,12);
+                }
+                case 4 -> { // ONUの光ポート
+                    g.fillRect(3,4,10,9);g.setColor(new Color(0x50d9e5));g.fillOval(5,5,6,6);
+                    g.setColor(new Color(0xe8fcfc));g.fillOval(7,7,2,2);
+                }
+                case 5 -> { // OLTの光モジュールスロット
+                    for(int y=4;y<=10;y+=3)for(int x=2;x<14;x+=3)g.fillRect(x,y,2,2);
+                    g.setColor(new Color(0xc1afff));g.fillRect(2,13,12,1);
+                }
+                case 6 -> { // サーバーのドライブトレイ
+                    for(int y=4;y<=10;y+=3){g.fillRect(2,y,12,2);g.setColor(new Color(0x74ec9d));
+                        g.fillRect(11,y,1,1);g.setColor(new Color(0x0e1a25));}
+                }
+                case 7 -> { // 赤い信号表示
+                    g.fillRect(2,4,12,9);g.setColor(new Color(0xf26062));
+                    for(int x=3;x<13;x+=3)for(int y=5;y<12;y+=3)g.fillRect(x,y,2,2);
+                }
+                default -> throw new IllegalArgumentException("device "+i);
+            }
+            g.setColor(new Color(face.equals("front_fault")?0xff453c:0x7df087));g.fillRect(12,2,2,2);
+        }else if(face.equals("port")){
+            g.setColor(new Color(0x161c26));g.fillRect(3,3,10,10);
+            g.setColor(new Color(hue));g.drawRect(2,2,11,11);
+            g.setColor(new Color(0xeac577));for(int x=4;x<12;x+=2)g.fillRect(x,9,1,3);
+        }else if(face.equals("top")){
+            g.setColor(new Color(0x1b2731));g.fillRect(3,4,10,8);
+            g.setColor(new Color(hue));for(int x=4;x<13;x+=3)g.fillRect(x,5,2,6);
+        }else if(face.equals("side")){
+            g.setColor(new Color(hue));g.fillRect(2,3,3,10);
+            g.setColor(new Color(0x17212d));for(int y=4;y<13;y+=2)g.fillRect(7,y,6,1);
+        }else{
+            g.setColor(new Color(0x1d2630));g.fillRect(3,3,10,10);
+            g.setColor(new Color(hue));g.drawRect(4,4,7,7);
+        }
+        g.dispose();png("block/network/"+id+"_"+face,img);
+    }
+    private static void addPart(List<Object> parts,double x0,double y0,double z0,
+                                double x1,double y1,double z1,String texture){
+        parts.add(box(new double[]{x0,y0,z0},new double[]{x1,y1,z1},texture));
+    }
+    private static void addShell(List<Object> parts,int x0,int y0,int z0,int x1,int y1,int z1){
+        Map<String,Object> faces=new LinkedHashMap<>();
+        for(String d:DIRS)faces.put(d,Map.of("texture",switch(d){
+            case "north"->"#front";
+            case "up"->"#top";
+            case "down"->"#bottom";
+            default->"#side";
+        }));
+        parts.add(Map.of("from",List.of(x0,y0,z0),"to",List.of(x1,y1,z1),"faces",faces));
+    }
+    private static List<Object> deviceParts(int i){
+        List<Object> parts=new ArrayList<>();
+        switch(i){
+            case 0 -> { // PC: モニターとキーボードとタワー
+                addShell(parts,2,1,3,14,4,14);addShell(parts,3,5,8,12,13,13);
+                addPart(parts,3,6,7,12,12,8,"#front");
+                addShell(parts,11,1,10,15,14,15);addPart(parts,3,1,1,12,2,6,"#top");
+            }
+            case 1 -> { // L2: 薄い単段スイッチ
+                addShell(parts,1,3,2,15,8,14);
+                for(int x=2;x<=11;x+=3)addPart(parts,x,4,1,x+2,6,2,"#port");
+                addPart(parts,3,8,5,13,9,12,"#top");
+            }
+            case 2 -> { // L3: 二段ラック
+                addShell(parts,1,1,2,15,11,14);
+                addPart(parts,2,3,1,14,5,2,"#front");
+                addPart(parts,2,8,1,14,10,2,"#front");
+                addPart(parts,4,11,5,12,12,12,"#top");
+            }
+            case 3 -> { // ルーター: 二本のアンテナ
+                addShell(parts,2,2,2,14,9,14);
+                addPart(parts,3,9,11,4,16,13,"#side");
+                addPart(parts,12,9,11,13,16,13,"#side");
+                addPart(parts,4,5,1,12,8,2,"#front");
+            }
+            case 4 -> { // ONU: 小型筐体・光コネクタ
+                addShell(parts,3,2,3,13,10,13);
+                addPart(parts,5,4,2,11,8,3,"#front");
+                addPart(parts,7,10,7,9,13,10,"#port");
+            }
+            case 5 -> { // OLT: 光ポートの三段ラック
+                addShell(parts,1,1,2,15,15,14);
+                for(int y=3;y<=11;y+=4)addPart(parts,2,y,1,14,y+2,2,"#port");
+                addPart(parts,2,1,2,3,15,14,"#side");
+                addPart(parts,13,1,2,14,15,14,"#side");
+            }
+            case 6 -> { // サーバー: 高い筐体とドライブベイ
+                addShell(parts,2,0,3,14,16,14);
+                for(int y=3;y<=11;y+=3)addPart(parts,3,y,2,13,y+2,3,"#front");
+                addPart(parts,12,0,3,14,16,14,"#side");
+            }
+            case 7 -> { // レッドストーン端末: 信号塔
+                addShell(parts,2,1,2,14,7,14);
+                addPart(parts,4,3,1,12,6,2,"#front");
+                addPart(parts,6,7,6,10,14,10,"#port");
+                addPart(parts,5,13,5,11,15,11,"#front");
+            }
+            default -> throw new IllegalArgumentException("device "+i);
+        }
+        // 論理ポートは既存どおり東西南北上下の6面。
+        addPart(parts,6,6,0,10,10,1,"#port");
+        addPart(parts,6,6,15,10,10,16,"#port");
+        addPart(parts,0,6,6,1,10,10,"#port");
+        addPart(parts,15,6,6,16,10,10,"#port");
+        addPart(parts,6,13,6,10,16,10,"#port");
+        addPart(parts,6,0,6,10,1,10,"#port");
+        return parts;
+    }
     private static void device(int i)throws IOException{
         String id=DEVICES[i];language("block",id,DEVICE_NAMES[i]);
-        for(String face:List.of("front","front_fault","side","top","bottom","port")){
-            var img=new BufferedImage(16,16,BufferedImage.TYPE_INT_ARGB);var g=img.createGraphics();
-            g.setColor(new Color(face.equals("bottom")?0x212730:0x404b59));g.fillRect(0,0,16,16);
-            g.setColor(new Color(0x222833));g.drawRect(0,0,15,15);g.setColor(new Color(0x83909f));g.drawLine(1,1,14,1);g.drawLine(1,1,1,14);
-            if(face.startsWith("front")){
-                g.setColor(new Color(0xb69750));g.fillRect(1,2,14,1);g.fillRect(1,12,14,1);
-                if(i==0||i==6){g.setColor(new Color(0x111d2e));g.fillRect(3,4,10,7);g.setColor(new Color(0x64c5b0));g.drawLine(4,5,9,5);g.drawLine(4,7,11,7);g.drawLine(4,9,8,9);}
-                else {g.setColor(new Color(0x141a21));for(int x=2;x<14;x+=3){g.fillRect(x,5,2,3);g.fillRect(x,9,2,2);}}
-                g.setColor(new Color(face.equals("front_fault")?0xf25545:0x8ad975));g.fillRect(12,3,2,1);g.setColor(new Color(COLORS[i]));g.fillRect(2,13,2+i,1);
-            }else if(face.equals("port")){g.setColor(new Color(0xc8a052));g.fillRect(2,2,12,12);g.setColor(new Color(0x131a24));g.fillRect(4,4,8,8);g.setColor(new Color(0xebd389));for(int x=5;x<12;x+=2)g.fillRect(x,9,1,3);
-            }else {g.setColor(new Color(0x242d38));for(int y=4;y<12;y+=2)g.fillRect(4,y,8,1);g.setColor(new Color(0xb59b62));g.fillRect(2,2,1,1);g.fillRect(13,13,1,1);}
-            g.dispose();png("block/network/"+id+"_"+face,img);
-        }
+        JA.put("tooltip.venusmod.network."+id,DEVICE_JA[i]);
+        EN.put("tooltip.venusmod.network."+id,DEVICE_EN[i]);
+        for(String face:List.of("front","front_fault","side","top","bottom","port"))
+            faceTexture(i,face,id);
         for(boolean fault:new boolean[]{false,true}){
-            Map<String,String> textures=new LinkedHashMap<>();textures.put("front",blockTex(id+(fault?"_front_fault":"_front")));textures.put("side",blockTex(id+"_side"));textures.put("top",blockTex(id+"_top"));textures.put("bottom",blockTex(id+"_bottom"));textures.put("port",blockTex(id+"_port"));textures.put("particle",blockTex(id+"_side"));
-            Map<String,Object> faces=new LinkedHashMap<>();for(String d:DIRS)faces.put(d,Map.of("texture",switch(d){case "north"->"#front";case "up"->"#top";case "down"->"#bottom";default->"#side";},"uv",List.of(0,0,16,16)));
-            List<Object> elements=new ArrayList<>();elements.add(Map.of("from",List.of(1,1,1),"to",List.of(15,13,15),"faces",faces));
-            elements.add(box(new double[]{1,0,1},new double[]{4,1,4},"#bottom"));elements.add(box(new double[]{12,0,12},new double[]{15,1,15},"#bottom"));
-            elements.add(box(new double[]{6,6,0},new double[]{10,10,1},"#port"));elements.add(box(new double[]{6,6,15},new double[]{10,10,16},"#port"));elements.add(box(new double[]{0,6,6},new double[]{1,10,10},"#port"));elements.add(box(new double[]{15,6,6},new double[]{16,10,10},"#port"));elements.add(box(new double[]{6,13,6},new double[]{10,16,10},"#port"));elements.add(box(new double[]{6,0,6},new double[]{10,1,10},"#port"));
-            json("assets/venusmod/models/block/network/"+id+(fault?"_fault":"")+".json",model(textures,elements));
+            Map<String,String> textures=new LinkedHashMap<>();
+            textures.put("front",blockTex(id+(fault?"_front_fault":"_front")));
+            textures.put("side",blockTex(id+"_side"));
+            textures.put("top",blockTex(id+"_top"));
+            textures.put("bottom",blockTex(id+"_bottom"));
+            textures.put("port",blockTex(id+"_port"));
+            textures.put("particle",blockTex(id+"_side"));
+            json("assets/venusmod/models/block/network/"+id+(fault?"_fault":"")+".json",
+                    model(textures,deviceParts(i)));
         }
-        Map<String,Object> variants=new LinkedHashMap<>();for(int d=0;d<4;d++)for(boolean fault:new boolean[]{false,true})variants.put("facing="+DIRS[d]+",faulted="+fault,Map.of("model",modelId(id+(fault?"_fault":"")),"y",d*90));
-        json("assets/venusmod/blockstates/"+id+".json",Map.of("variants",variants));json("assets/venusmod/models/item/"+id+".json",Map.of("parent",modelId(id)));loot(id);
+        Map<String,Object> variants=new LinkedHashMap<>();
+        for(int d=0;d<4;d++)for(boolean fault:new boolean[]{false,true})
+            variants.put("facing="+DIRS[d]+",faulted="+fault,
+                    Map.of("model",modelId(id+(fault?"_fault":"")),"y",d*90));
+        json("assets/venusmod/blockstates/"+id+".json",Map.of("variants",variants));
+        json("assets/venusmod/models/item/"+id+".json",Map.of("parent",modelId(id)));loot(id);
     }
     private static void module(int i)throws IOException{
-        String id=MODULES[i];language("item",id,MODULE_NAMES[i]);var img=new BufferedImage(16,16,BufferedImage.TYPE_INT_ARGB);var g=img.createGraphics();
+        String id=MODULES[i];language("item",id,MODULE_NAMES[i]);
+        JA.put("tooltip.venusmod.network."+id,MODULE_JA[i]);
+        EN.put("tooltip.venusmod.network."+id,MODULE_EN[i]);
+        var img=new BufferedImage(16,16,BufferedImage.TYPE_INT_ARGB);var g=img.createGraphics();
         int base=i>=6&&i<=8?0x4a8560:i>=11&&i<=15?0x725797:0x46657f;
         g.setColor(new Color(0x16212c));g.fillRect(2,2,12,11);g.setColor(new Color(base));g.fillRect(3,3,10,9);g.setColor(new Color(0xe5bd58));g.drawRect(3,3,9,8);for(int x=4;x<13;x+=2)g.fillRect(x,12,1,3);
         g.setColor(new Color(0x222c38));g.fillRect(6,5,5,4);g.setColor(new Color(0xf1d780));for(int y=0;y<3;y++)if(((i+1)>>y&1)!=0)g.fillRect(4,5+y*2,1,1);

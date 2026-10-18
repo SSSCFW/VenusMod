@@ -32,6 +32,11 @@ public final class MachineTooltipEvents {
             "pressure_leggings",
             "pressure_boots");
 
+    private static final Set<String> NETWORK_DEVICE_IDS = Set.of(
+            "network_pc", "network_l2_switch", "network_l3_switch",
+            "network_router", "network_onu", "network_olt",
+            "network_server", "network_redstone_terminal");
+
     private MachineTooltipEvents() {
     }
 
@@ -43,7 +48,15 @@ public final class MachineTooltipEvents {
         }
 
         boolean machine = MACHINE_IDS.contains(id.getPath());
-        if (!machine && !EQUIPMENT_IDS.contains(id.getPath())) {
+        boolean networkDevice = NETWORK_DEVICE_IDS.contains(id.getPath());
+        if (!machine && !networkDevice && !EQUIPMENT_IDS.contains(id.getPath())) {
+            return;
+        }
+
+        if (networkDevice) {
+            insertIfMissing(event.getToolTip(), 1,
+                    Component.translatable("tooltip.venusmod.network." + id.getPath())
+                            .withStyle(ChatFormatting.GRAY));
             return;
         }
 

@@ -47,6 +47,26 @@ public final class NetworkAssetValidator {
                 require(recipe.contains("minecraft:"+color+"_dye")&&recipe.contains("venusmod:network_cables/"+grade),"染色レシピ: "+id);
             }
         }
+        // 機種別モデルと説明を静的検査。染色ケーブルの検査とは独立。
+        String[] deviceKinds={"network_pc","network_l2_switch","network_l3_switch",
+                "network_router","network_onu","network_olt","network_server","network_redstone_terminal"};
+        Set<String> deviceGeometries=new HashSet<>();
+        Pattern geometryCoord=Pattern.compile("\"(?:from|to)\":\\[([^]]+)\\]");
+        for(String device:deviceKinds){
+            Path normal=root.resolve("assets/venusmod/models/block/network/"+device+".json");
+            Path fault=root.resolve("assets/venusmod/models/block/network/"+device+"_fault.json");
+            require(Files.exists(normal)&&Files.exists(fault),"機種別モデル: "+device);
+            List<String> coords=new ArrayList<>();
+            Matcher found=geometryCoord.matcher(Files.readString(normal));
+            while(found.find())coords.add(found.group(1));
+            Collections.sort(coords);
+            require(deviceGeometries.add(String.join(";",coords)),"重複する機器形状: "+device);
+            for(String locale:List.of("ja_jp","en_us")){
+                String text=Files.readString(root.resolve("assets/venusmod_network/lang/"+locale+".json"));
+                require(text.contains("\"tooltip.venusmod.network."+device+"\":"),
+                        "機器の説明がない: "+locale+"/"+device);
+            }
+        }
         System.out.println("NetworkAssetValidator: "+json+" JSON / "+images+" PNG / all references resolved");
     }
     private static void require(boolean value,String message){if(!value)throw new AssertionError(message);}
