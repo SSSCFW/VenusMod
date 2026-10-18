@@ -2,6 +2,13 @@ package dev.ssscfw.venusmod.infrastructure.network;
 
 import dev.ssscfw.venusmod.infrastructure.network.core.CableGrade;
 import java.util.*;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.ItemInteractionResult;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.DyeItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.core.*;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.*;
@@ -21,11 +28,23 @@ public final class NetworkCableBlock extends Block {
         for(int mask=0;mask<64;mask++){VoxelShape shape=center;for(int i=0;i<6;i++)if((mask&(1<<i))!=0)shape=Shapes.or(shape,arms[i]);SHAPES[mask]=shape.optimize();}
     }
     public final CableGrade grade;
-    public NetworkCableBlock(CableGrade grade,Properties properties){super(properties);this.grade=grade;BlockState state=stateDefinition.any();for(var prop:CONNECTIONS)state=state.setValue(prop,false);registerDefaultState(state);}
+    /** null は既存の無染色ケーブル。同一規格・同一色だけが接続可能。 */
+    public final DyeColor color;
+    public NetworkCableBlock(CableGrade grade,Properties properties){this(grade,null,properties);}
+    public NetworkCableBlock(CableGrade grade,DyeColor color,Properties properties){super(properties);this.grade=grade;this.color=color;BlockState state=stateDefinition.any();for(var prop:CONNECTIONS)state=state.setValue(prop,false);registerDefaultState(state);}
     public static int port(Direction direction){for(int i=0;i<6;i++)if(DIRECTIONS[i]==direction)return i;throw new IllegalArgumentException("direction");}
-    private boolean connects(BlockState adjacent){return adjacent.getBlock() instanceof NetworkDeviceBlock || adjacent.getBlock() instanceof NetworkCableBlock cable&&cable.grade==grade;}
+    private boolean connects(BlockState adjacent){return adjacent.getBlock() instanceof NetworkDeviceBlock || adjacent.getBlock() instanceof NetworkCableBlock cable&&cable.grade==grade&&cable.color==color;}
     @Override public BlockState getStateForPlacement(BlockPlaceContext context){BlockState state=defaultBlockState();for(int i=0;i<6;i++){BlockPos p=context.getClickedPos().relative(DIRECTIONS[i]);if(context.getLevel().hasChunkAt(p))state=state.setValue(CONNECTIONS[i],connects(context.getLevel().getBlockState(p)));}return state;}
     @Override protected BlockState updateShape(BlockState state,Direction direction,BlockState adjacent,LevelAccessor level,BlockPos pos,BlockPos neighbor){return state.setValue(CONNECTIONS[port(direction)],connects(adjacent));}
+    @Override protected ItemInteractionResult useItemOn(ItemStack held,BlockState state,Level level,BlockPos pos,Player player,InteractionHand hand,BlockHitResult hit){
+        if(!(held.getItem() instanceof DyeItem dye))return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+        NetworkCableBlock replacement=NetworkContent.DYED_CABLES.get(grade).get(dye.getDyeColor()).get();
+        if(replacement==this)return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+        if(level.isClientSide)return ItemInteractionResult.SUCCESS;
+        if(!level.setBlock(pos,Block.updateFromNeighbourShapes(replacement.defaultBlockState(),level,pos),3))return ItemInteractionResult.FAIL;
+        if(!player.getAbilities().instabuild)held.shrink(1);
+        return ItemInteractionResult.SUCCESS;
+    }
     @Override protected void createBlockStateDefinition(StateDefinition.Builder<Block,BlockState> builder){builder.add(CONNECTIONS);}
     private static int mask(BlockState state){int m=0;for(int i=0;i<6;i++)if(state.getValue(CONNECTIONS[i]))m|=1<<i;return m;}
     @Override protected VoxelShape getShape(BlockState state,BlockGetter level,BlockPos pos,CollisionContext context){return SHAPES[mask(state)];}

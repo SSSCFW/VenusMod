@@ -29,6 +29,7 @@ public final class NetworkWorld {
             public long chunk(BlockPos pos){return new ChunkPos(pos).toLong();}
             public boolean loaded(BlockPos pos){return level.hasChunkAt(pos);}
             public CableGrade cable(BlockPos pos){return level.getBlockState(pos).getBlock() instanceof NetworkCableBlock block?block.grade:null;}
+            public int color(BlockPos pos){return level.getBlockState(pos).getBlock() instanceof NetworkCableBlock block&&block.color!=null?block.color.getId():-1;}
             public CableTopology.Node device(BlockPos pos){var entity=devices.get(pos);
                 return entity!=null&&!entity.isRemoved()&&entity.id().equals(registeredIds.get(pos))
                     ?new CableTopology.Node(entity.id(),entity.profile().kind):level.getBlockState(pos).getBlock() instanceof NetworkDeviceBlock block?new CableTopology.Node("",block.kind):null;}

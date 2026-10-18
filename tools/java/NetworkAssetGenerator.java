@@ -14,6 +14,12 @@ public final class NetworkAssetGenerator {
     private static final String[] DIRS={"north","east","south","west","up","down"};
     private static final String[] CABLES={"cat5e_cable","cat6_cable","cat6a_cable","cat8_cable","om3_fiber_cable","om4_fiber_cable","os2_fiber_cable","venus_fiber_cable"};
     private static final String[] CABLE_NAMES={"Cat5e LANケーブル","Cat6 LANケーブル","Cat6A LANケーブル","Cat8 LANケーブル","OM3 光ファイバー","OM4 光ファイバー","OS2 光ファイバー","金星特殊光ファイバー"};
+    private static final String[] CABLE_EN_NAMES={"Cat5e LAN Cable","Cat6 LAN Cable","Cat6A LAN Cable","Cat8 LAN Cable","OM3 Optical Fiber","OM4 Optical Fiber","OS2 Optical Fiber","Venus Optical Fiber"};
+    /** DyeColor.values() と同じ16色。各色の元テクスチャ/モデル/レシピを生成する。 */
+    private static final String[] DYE_IDS={"white","orange","magenta","light_blue","yellow","lime","pink","gray","light_gray","cyan","purple","blue","brown","green","red","black"};
+    private static final String[] JA_DYE_NAMES={"白色","橙色","赤紫色","空色","黄色","黄緑色","桃色","灰色","薄灰色","青緑色","紫色","青色","茶色","緑色","赤色","黒色"};
+    private static final String[] EN_DYE_NAMES={"White","Orange","Magenta","Light Blue","Yellow","Lime","Pink","Gray","Light Gray","Cyan","Purple","Blue","Brown","Green","Red","Black"};
+    private static final int[] DYE_RGB={0xF9FFFE,0xF9801D,0xC74EBD,0x3AB3DA,0xFED83D,0x80C71F,0xF38BAA,0x474F52,0x9D9D97,0x169C9C,0x8932B8,0x3C44AA,0x835432,0x5E7C16,0xB02E26,0x1D1D21};
     private static final String[] DEVICES={"network_pc","network_l2_switch","network_l3_switch","network_router","network_onu","network_olt","network_server","network_redstone_terminal"};
     private static final String[] DEVICE_NAMES={"ネットワークPC","L2スイッチ","L3スイッチ","ネットワークルーター","光回線終端装置 (ONU)","光回線局側装置 (OLT)","ネットワークサーバー","レッドストーン通信端末"};
     private static final String[] MODULES={"network_gold_circuit","network_gold_bundle","network_port_10g","network_port_40g","network_port_100g","network_port_400g","network_stability_50","network_stability_90","network_stability_perfect","network_processor","network_buffer","network_wan_1","network_wan_2","network_wan_3","network_wan_4","network_wan_5","network_repair_kit","network_configurator"};
@@ -25,9 +31,15 @@ public final class NetworkAssetGenerator {
         for(int i=0;i<DEVICES.length;i++)device(i);
         for(int i=0;i<MODULES.length;i++)module(i);
         recipes();
+        JA.put("tooltip.venusmod.network.max_bandwidth","最大伝送帯域: %s");
+        EN.put("tooltip.venusmod.network.max_bandwidth","Maximum bandwidth: %s");
+        JA.put("tooltip.venusmod.network.max_length","最大配線長: %sブロック");
+        EN.put("tooltip.venusmod.network.max_length","Maximum cable length: %s blocks");
+        JA.put("tooltip.venusmod.network.cable_color_rule","同一規格・同一色のケーブルだけ接続（無染色は無染色同士）");
+        EN.put("tooltip.venusmod.network.cable_color_rule","Connects only to the same grade and color (undyed to undyed).");
         // 追加の言語名前空間を使い、既存VenusModの翻訳ファイルを上書きしない。
         json("assets/venusmod_network/lang/ja_jp.json",JA);json("assets/venusmod_network/lang/en_us.json",EN);
-        System.out.println("Generated network assets: 8 cables, 8 devices, 18 items");
+        System.out.println("Generated network assets: "+(CABLES.length*(DYE_IDS.length+1))+" cables, 8 devices, 18 items");
     }
     private static void language(String kind,String id,String ja){JA.put(kind+".venusmod."+id,ja);EN.put(kind+".venusmod."+id,id.replace('_',' '));}
     private static Object box(double[] from,double[] to,String texture){Map<String,Object> faces=new LinkedHashMap<>();for(String d:DIRS)faces.put(d,Map.of("texture",texture,"uv",List.of(0,0,16,16)));return Map.of("from",from,"to",to,"faces",faces);}
@@ -35,9 +47,15 @@ public final class NetworkAssetGenerator {
     private static String blockTex(String name){return "venusmod:block/network/"+name;}
     private static String modelId(String name){return "venusmod:block/network/"+name;}
     private static void cable(int i)throws IOException{
-        String id=CABLES[i];language("block",id,CABLE_NAMES[i]);
-        BufferedImage image=new BufferedImage(16,16,BufferedImage.TYPE_INT_ARGB);Graphics2D g=image.createGraphics();g.setColor(new Color(COLORS[i]));g.fillRect(0,0,16,16);
-        g.setColor(new Color(shade(COLORS[i],0.55)));g.fillRect(0,0,2,16);g.fillRect(14,0,2,16);g.setColor(new Color(shade(COLORS[i],1.3)));g.fillRect(3,0,2,16);
+        cableVariant(CABLES[i],CABLE_NAMES[i],CABLE_EN_NAMES[i],COLORS[i]);
+        for(int dye=0;dye<DYE_IDS.length;dye++)
+            cableVariant(CABLES[i]+"_"+DYE_IDS[dye],JA_DYE_NAMES[dye]+"の"+CABLE_NAMES[i],EN_DYE_NAMES[dye]+" "+CABLE_EN_NAMES[i],DYE_RGB[dye]);
+    }
+    private static void cableVariant(String id,String jaName,String enName,int rgb)throws IOException{
+        language("block",id,jaName);
+        EN.put("block.venusmod."+id,enName);
+        BufferedImage image=new BufferedImage(16,16,BufferedImage.TYPE_INT_ARGB);Graphics2D g=image.createGraphics();g.setColor(new Color(rgb));g.fillRect(0,0,16,16);
+        g.setColor(new Color(shade(rgb,0.55)));g.fillRect(0,0,2,16);g.fillRect(14,0,2,16);g.setColor(new Color(shade(rgb,1.3)));g.fillRect(3,0,2,16);
         g.setColor(new Color(0xdbb050));g.fillRect(0,3,16,1);g.fillRect(0,12,16,1);g.dispose();png("block/network/"+id,image);
         var textures=Map.of("cable",blockTex(id),"particle",blockTex(id));List<Object> parts=new ArrayList<>();
         Object core=box(new double[]{6,6,6},new double[]{10,10,10},"#cable");
@@ -101,6 +119,17 @@ public final class NetworkAssetGenerator {
             String material=switch(i){case 0->"minecraft:copper_ingot";case 1,2->"minecraft:gold_ingot";case 3,5->"minecraft:gold_block";case 6->"minecraft:diamond";case 7->own("venesite");default->"minecraft:glass";};
             String upgrade=i==0?"minecraft:string":i==4?own("network_gold_circuit"):own(CABLES[i-1]);
             shaped(CABLES[i],i==0?16:i<3?8:i<5?4:2,List.of("MMM","UUU","MMM"),Map.of("M",material,"U",upgrade));
+            List<String> palette=new ArrayList<>();
+            palette.add(own(CABLES[i]));
+            for(String dye:DYE_IDS){
+                String variant=CABLES[i]+"_"+dye;
+                palette.add(own(variant));
+                json("data/venusmod/recipe/"+variant+".json",Map.of(
+                    "type","minecraft:crafting_shapeless","category","misc",
+                    "ingredients",List.of(Map.of("tag",own("network_cables/"+CABLES[i])),Map.of("item","minecraft:"+dye+"_dye")),
+                    "result",Map.of("id",own(variant),"count",1)));
+            }
+            json("data/venusmod/tags/item/network_cables/"+CABLES[i]+".json",Map.of("replace",false,"values",palette));
         }
         for(int i=0;i<DEVICES.length;i++)shaped(DEVICES[i],1,List.of("IGI","CBC","IGI"),Map.of("I","minecraft:iron_ingot","G","minecraft:gold_ingot","C",own("network_gold_circuit"),"B",switch(i){case 0,6->"minecraft:glass";case 4,5->"minecraft:amethyst_shard";case 7->"minecraft:repeater";default->"minecraft:quartz";}));
         String[] port={"network_port_10g","network_port_40g","network_port_100g","network_port_400g"};

@@ -30,7 +30,23 @@ public final class NetworkAssetValidator {
                 }
             }
         }
-        require(images==74,"PNG数: "+images);require(json>=170,"JSON数: "+json);
+        // 無染色8種 + 8種類×16色 = 136種のケーブルアセットを検証。
+        require(images==74+8*16,"PNG数: "+images);require(json>=1500,"JSON数: "+json);
+        String[] colors={"white","orange","magenta","light_blue","yellow","lime","pink","gray","light_gray","cyan","purple","blue","brown","green","red","black"};
+        String[] grades={"cat5e_cable","cat6_cable","cat6a_cable","cat8_cable","om3_fiber_cable","om4_fiber_cable","os2_fiber_cable","venus_fiber_cable"};
+        for(String grade:grades){
+            String tag=Files.readString(root.resolve("data/venusmod/tags/item/network_cables/"+grade+".json"));
+            require(tag.contains("venusmod:"+grade),"無染色ケーブルの染色対象: "+grade);
+            for(String color:colors){
+                String id=grade+"_"+color;
+                require(tag.contains("venusmod:"+id),"色替え対象一覧: "+id);
+                require(Files.exists(root.resolve("assets/venusmod/textures/block/network/"+id+".png")),"染色テクスチャ: "+id);
+                require(Files.exists(root.resolve("assets/venusmod/blockstates/"+id+".json")),"染色ブロックステート: "+id);
+                require(Files.exists(root.resolve("assets/venusmod/models/item/"+id+".json")),"染色アイテム: "+id);
+                String recipe=Files.readString(root.resolve("data/venusmod/recipe/"+id+".json"));
+                require(recipe.contains("minecraft:"+color+"_dye")&&recipe.contains("venusmod:network_cables/"+grade),"染色レシピ: "+id);
+            }
+        }
         System.out.println("NetworkAssetValidator: "+json+" JSON / "+images+" PNG / all references resolved");
     }
     private static void require(boolean value,String message){if(!value)throw new AssertionError(message);}

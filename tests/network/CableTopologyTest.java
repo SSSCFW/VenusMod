@@ -7,7 +7,7 @@ public final class CableTopologyTest {
     private static void ok(boolean v,String why){checks++;if(!v)throw new AssertionError(why);}
     record Pos(int x,int y,int z){}
     static final class World implements CableTopology.View<Pos>,CableTopology.Listener {
-        final Map<Pos,CableGrade> cables=new HashMap<>();final Map<Pos,CableTopology.Node> devices=new HashMap<>();
+        final Map<Pos,CableGrade> cables=new HashMap<>();final Map<Pos,Integer> colors=new HashMap<>();final Map<Pos,CableTopology.Node> devices=new HashMap<>();
         final Map<String,NetworkSimulator.Link> links=new LinkedHashMap<>();final Set<Long> unloaded=new HashSet<>();final Set<Pos> reads=new HashSet<>();
         final CableTopology<Pos> topology=new CableTopology<>(this,this);int mutations;
         public Pos adjacent(Pos p,int n){return switch(n){case 0->new Pos(p.x,p.y,p.z-1);case 1->new Pos(p.x+1,p.y,p.z);case 2->new Pos(p.x,p.y,p.z+1);case 3->new Pos(p.x-1,p.y,p.z);case 4->new Pos(p.x,p.y+1,p.z);case 5->new Pos(p.x,p.y-1,p.z);default->throw new IllegalArgumentException();};}
@@ -15,11 +15,13 @@ public final class CableTopologyTest {
         public boolean loaded(Pos p){return !unloaded.contains(chunk(p));}
         private void read(Pos p){if(!loaded(p))throw new AssertionError("未ロードを参照: "+p);reads.add(p);}
         public CableGrade cable(Pos p){read(p);return cables.get(p);}
+        public int color(Pos p){read(p);return colors.getOrDefault(p,-1);}
         public CableTopology.Node device(Pos p){read(p);return devices.get(p);}
         public void connect(NetworkSimulator.Link link){if(links.putIfAbsent(link.id(),link)!=null)throw new AssertionError("二重リンク");mutations++;}
         public void disconnect(String id){links.remove(id);mutations++;}
         void node(int x,int z,String id){var p=new Pos(x,0,z);devices.put(p,new CableTopology.Node(id,DeviceKind.PC));topology.changed(p);}
-        void cable(int x,int z,CableGrade grade){var p=new Pos(x,0,z);if(grade==null)cables.remove(p);else cables.put(p,grade);topology.changed(p);}
+        void cable(int x,int z,CableGrade grade){cable(x,z,grade,-1);}
+        void cable(int x,int z,CableGrade grade,int color){var p=new Pos(x,0,z);if(grade==null){cables.remove(p);colors.remove(p);}else{cables.put(p,grade);if(color==-1)colors.remove(p);else colors.put(p,color);}topology.changed(p);}
         void settle(){for(int t=0;t<20000&&!topology.idle();t++){topology.step(8);ok(topology.lastSteps()<=8,"tick当たりの作業上限");}ok(topology.idle(),"局所走査が終了");ok(topology.error().isEmpty(),"解析エラーなし: "+topology.error());}
         void line(int start,int end,int z,String id){node(start,z,id+"a");node(end,z,id+"b");for(int x=start+1;x<end;x++)cable(x,z,CableGrade.CAT6A);}
     }
@@ -43,6 +45,15 @@ public final class CableTopologyTest {
         // 端点がなく、閉じた輪でも有限に終わる。
         var loop=new World();for(int x=0;x<4;x++){loop.cable(x,0,CableGrade.CAT5E);loop.cable(x,3,CableGrade.CAT5E);}for(int z=1;z<3;z++){loop.cable(0,z,CableGrade.CAT5E);loop.cable(3,z,CableGrade.CAT5E);}loop.settle();ok(loop.links.isEmpty(),"端点なしループは有限に拒否");
         var longLine=new World();longLine.line(0,132,0,"L");longLine.settle();ok(longLine.links.isEmpty(),"距離超過は拒否");
+        // 同じ規格でも染色が異なるブロック同士は論理Linkを作らず、色替えで復旧する。
+        var colored=new World();colored.node(0,0,"dye-a");colored.node(4,0,"dye-b");
+        colored.cable(1,0,CableGrade.CAT5E,11);colored.cable(2,0,CableGrade.CAT5E,14);colored.cable(3,0,CableGrade.CAT5E,11);
+        colored.settle();ok(colored.links.isEmpty(),"青-赤-青は不通");
+        colored.cable(2,0,CableGrade.CAT5E,11);colored.settle();ok(colored.links.size()==1,"同じ青色に染め直すと復旧");
+        colored.cable(2,0,CableGrade.CAT5E,-1);ok(colored.links.isEmpty(),"色替え時は即時切断");colored.settle();ok(colored.links.isEmpty(),"無染色と青は接続しない");
+        colored.cable(1,0,CableGrade.CAT5E,-1);colored.cable(3,0,CableGrade.CAT5E,-1);colored.settle();ok(colored.links.size()==1,"無染色同士は接続");
+        for(int color=0;color<16;color++){colored.cable(1,0,CableGrade.CAT5E,color);colored.cable(2,0,CableGrade.CAT5E,color);colored.cable(3,0,CableGrade.CAT5E,color);colored.settle();ok(colored.links.size()==1,"16色それぞれ同色で接続: "+color);}
+        colored.cable(2,0,CableGrade.CAT6,15);colored.settle();ok(colored.links.isEmpty(),"同じ色でもケーブル規格が違えば接続しない");
         System.out.println("CableTopologyTest: "+checks+" checks passed (budget checks include per-tick repetitions)");
     }
 }

@@ -25,6 +25,7 @@ public final class NetworkContent {
     private static final DeferredRegister<BlockEntityType<?>> ENTITIES=DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE,VenusMod.MOD_ID);
     private static final DeferredRegister<MenuType<?>> MENUS=DeferredRegister.create(Registries.MENU,VenusMod.MOD_ID);
     public static final Map<CableGrade,DeferredBlock<NetworkCableBlock>> CABLES=new EnumMap<>(CableGrade.class);
+    public static final Map<CableGrade,Map<DyeColor,DeferredBlock<NetworkCableBlock>>> DYED_CABLES=new EnumMap<>(CableGrade.class);
     public static final Map<DeviceKind,DeferredBlock<NetworkDeviceBlock>> DEVICES=new EnumMap<>(DeviceKind.class);
     public static final Map<String,DeferredItem<? extends Item>> NETWORK_ITEMS=new LinkedHashMap<>();
     public static final String[] MODULE_IDS={"network_gold_circuit","network_gold_bundle","network_port_10g","network_port_40g","network_port_100g","network_port_400g","network_stability_50","network_stability_90","network_stability_perfect","network_processor","network_buffer","network_wan_1","network_wan_2","network_wan_3","network_wan_4","network_wan_5","network_repair_kit","network_configurator"};
@@ -36,7 +37,16 @@ public final class NetworkContent {
     static {
         for(CableGrade grade:CableGrade.values()){
             var block=BLOCKS.register(grade.id(),()->new NetworkCableBlock(grade,BlockBehaviour.Properties.of().strength(0.5F).noOcclusion().sound(SoundType.METAL)));
-            CABLES.put(grade,block);NETWORK_ITEMS.put(grade.id(),ITEMS.registerSimpleBlockItem(block));
+            CABLES.put(grade,block);
+            NETWORK_ITEMS.put(grade.id(),ITEMS.register(grade.id(),()->new NetworkCableItem(block.get(),new Item.Properties())));
+            Map<DyeColor,DeferredBlock<NetworkCableBlock>> variants=new EnumMap<>(DyeColor.class);
+            for(DyeColor color:DyeColor.values()){
+                String id=grade.id()+"_"+color.getName();
+                var dyed=BLOCKS.register(id,()->new NetworkCableBlock(grade,color,BlockBehaviour.Properties.of().strength(0.5F).noOcclusion().sound(SoundType.METAL)));
+                variants.put(color,dyed);
+                NETWORK_ITEMS.put(id,ITEMS.register(id,()->new NetworkCableItem(dyed.get(),new Item.Properties())));
+            }
+            DYED_CABLES.put(grade,variants);
         }
         for(DeviceKind kind:DeviceKind.values()){
             var block=BLOCKS.register(kind.id(),()->new NetworkDeviceBlock(kind,BlockBehaviour.Properties.of().strength(2.5F,6.0F).noOcclusion().sound(SoundType.METAL)));

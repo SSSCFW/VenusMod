@@ -18,6 +18,8 @@ public final class CableTopology<P> {
         long chunk(P pos);
         boolean loaded(P pos);
         CableGrade cable(P pos);
+        /** -1 は無染色。DyeColorの16個のIDをそのまま使用する。 */
+        default int color(P pos){return -1;}
         Node device(P pos);
     }
     public interface Listener {
@@ -40,13 +42,14 @@ public final class CableTopology<P> {
     private String error="";
     private final class Segment {
         final CableGrade grade;
+        final int color;
         final Set<P> cells=new LinkedHashSet<>(),queued=new HashSet<>();
         final ArrayDeque<P> frontier=new ArrayDeque<>();
         final Set<End> ends=new LinkedHashSet<>();
         final Set<Long> chunks=new HashSet<>();
         boolean live=true,branched,incomplete,finished;
         String link;
-        Segment(CableGrade grade,P start){this.grade=grade;enqueue(start);}
+        Segment(CableGrade grade,int color,P start){this.grade=grade;this.color=color;enqueue(start);}
         void enqueue(P pos){if(queued.add(pos))frontier.addLast(pos);}
     }
     public CableTopology(View<P> world,Listener listener){this.world=Objects.requireNonNull(world);this.listener=Objects.requireNonNull(listener);}
@@ -113,7 +116,7 @@ public final class CableTopology<P> {
                 if(known!=null)owners.remove(pos);
                 if(!loaded(pos)){waitForChunk(pos);continue;}
                 CableGrade grade=world.cable(pos);if(grade==null)continue;
-                current=new Segment(grade,pos);segments.add(current);
+                current=new Segment(grade,world.color(pos),pos);segments.add(current);
             }
             Segment scan=current;
             if(scan.frontier.isEmpty()){finish(scan);current=null;continue;}
@@ -122,13 +125,13 @@ public final class CableTopology<P> {
             if(!error.isEmpty())return;
             watch(scan,pos);
             if(!loaded(pos)){scan.incomplete=true;waitForChunk(pos);continue;}
-            if(world.cable(pos)!=scan.grade){scan.incomplete=true;continue;}
+            if(world.cable(pos)!=scan.grade||world.color(pos)!=scan.color){scan.incomplete=true;continue;}
             if(!owners.containsKey(pos)&&owners.size()>=MAX_BLOCKS){stop("配線索引の上限 (131072ブロック)。配線を減らし管理者が topology rebuild を実行してください");return;}
             owners.put(pos,scan);scan.cells.add(pos);int degree=0;
             for(int n=0;n<6;n++){
                 P adjacent=world.adjacent(pos,n);watch(scan,adjacent);
                 if(!loaded(adjacent)){scan.incomplete=true;continue;}
-                if(world.cable(adjacent)==scan.grade){degree++;scan.enqueue(adjacent);}
+                if(world.cable(adjacent)==scan.grade&&world.color(adjacent)==scan.color){degree++;scan.enqueue(adjacent);}
                 else{Node node=world.device(adjacent);if(node!=null){degree++;if(node.id.isBlank())scan.incomplete=true;else scan.ends.add(new End(node.id,node.kind,OPPOSITE[n]));}}
             }
             if(degree>2)scan.branched=true;

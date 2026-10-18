@@ -6,6 +6,7 @@ import dev.ssscfw.venusmod.infrastructure.network.core.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -22,9 +23,10 @@ public final class NetworkWiringGameTests {
         h.getLevel().setBlock(pos,NetworkContent.DEVICES.get(kind).get().defaultBlockState(),3);
         return (NetworkDeviceEntity)h.getLevel().getBlockEntity(pos);
     }
-    private static void cable(GameTestHelper h,CableGrade grade,BlockPos local) {
+    private static void cable(GameTestHelper h,CableGrade grade,BlockPos local) {cable(h,grade,null,local);}
+    private static void cable(GameTestHelper h,CableGrade grade,DyeColor color,BlockPos local) {
         BlockPos pos=h.absolutePos(local);
-        var block=NetworkContent.CABLES.get(grade).get();
+        var block=color==null?NetworkContent.CABLES.get(grade).get():NetworkContent.DYED_CABLES.get(grade).get(color).get();
         h.getLevel().setBlock(pos,Block.updateFromNeighbourShapes(block.defaultBlockState(),h.getLevel(),pos),3);
     }
     private static void ready(GameTestHelper h,NetworkWorld world) {
@@ -68,6 +70,38 @@ public final class NetworkWiringGameTests {
                 .thenExecute(()->{
                     ready(h,world);
                     h.assertTrue(!world.simulator().ping(a.id(),b.profile().address).success(),"ケーブル本体の切断を反映");
+                })
+                .thenSucceed();
+    }
+
+    @GameTest(template="test/wide_empty",timeoutTicks=200)
+    public static void coloredCableIsolationAndReconnection(GameTestHelper h) {
+        var a=device(h,DeviceKind.PC,new BlockPos(1,2,1));
+        var b=device(h,DeviceKind.PC,new BlockPos(5,2,1));
+        a.profile().address="10.63.1.10";b.profile().address="10.63.1.20";
+        cable(h,CableGrade.CAT5E,DyeColor.BLUE,new BlockPos(2,2,1));
+        cable(h,CableGrade.CAT5E,DyeColor.RED,new BlockPos(3,2,1));
+        cable(h,CableGrade.CAT5E,DyeColor.BLUE,new BlockPos(4,2,1));
+        var world=NetworkWorld.get(h.getLevel());
+        h.startSequence()
+                .thenIdle(10)
+                .thenExecute(()->{
+                    ready(h,world);
+                    h.assertTrue(!world.simulator().ping(a.id(),b.profile().address).success(),"同規格でも色違いは通信しない");
+                    h.assertTrue(!h.getLevel().getBlockState(h.absolutePos(new BlockPos(2,2,1))).getValue(NetworkCableBlock.CONNECTIONS[1]),"異色ケーブルへ接続腕を伸ばさない");
+                    cable(h,CableGrade.CAT5E,DyeColor.BLUE,new BlockPos(3,2,1));
+                })
+                .thenIdle(10)
+                .thenExecute(()->{
+                    ready(h,world);
+                    h.assertTrue(world.simulator().ping(a.id(),b.profile().address).success(),"青一色にすれば通信が復旧");
+                    h.assertTrue(h.getLevel().getBlockState(h.absolutePos(new BlockPos(2,2,1))).getValue(NetworkCableBlock.CONNECTIONS[1]),"同色ケーブルは見た目も接続");
+                    cable(h,CableGrade.CAT5E,new BlockPos(3,2,1));
+                })
+                .thenIdle(10)
+                .thenExecute(()->{
+                    ready(h,world);
+                    h.assertTrue(!world.simulator().ping(a.id(),b.profile().address).success(),"無染色と染色済みも不通");
                 })
                 .thenSucceed();
     }
