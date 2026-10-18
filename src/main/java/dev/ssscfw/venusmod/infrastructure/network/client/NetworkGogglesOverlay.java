@@ -7,10 +7,11 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.DeltaTracker;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.neoforged.api.distmarker.Dist;
@@ -29,7 +30,7 @@ public final class NetworkGogglesOverlay {
                 VenusMod.MOD_ID, "network_goggles"), NetworkGogglesOverlay::render);
     }
 
-    private static Component tr(String key, Object... args) {
+    private static MutableComponent tr(String key, Object... args) {
         return Component.translatable("hud.venusmod.network_goggles." + key, args);
     }
 
