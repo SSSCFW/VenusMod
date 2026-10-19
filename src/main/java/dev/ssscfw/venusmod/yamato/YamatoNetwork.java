@@ -22,6 +22,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Mob;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
@@ -33,6 +34,7 @@ import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 public final class YamatoNetwork {
     private static Consumer<StatePayload> clientState = ignored -> {};
     private static Consumer<CutPayload> clientCut = ignored -> {};
+    private static Consumer<FreezePayload> clientFreeze = ignored -> {};
     // キー入力はプレイヤー単位にサーバーでも順序と猶予を検証し、技はサーバーだけで実行する。
     private static final Map<UUID, YamatoVoidSlashCommand> voidSlashCommands = new HashMap<>();
     private YamatoNetwork() {}
@@ -44,12 +46,15 @@ public final class YamatoNetwork {
         NeoForge.EVENT_BUS.addListener(YamatoNetwork::changedDimension);
         NeoForge.EVENT_BUS.addListener(YamatoNetwork::logout);
         NeoForge.EVENT_BUS.addListener(YamatoNetwork::serverStopped);
+        YamatoVoidSlashEffects.register();
     }
 
     /** クライアント側の初期化からのみ呼ぶ。共通クラスはclientクラスをリンクしない。 */
-    public static void clientHandlers(Consumer<StatePayload> state, Consumer<CutPayload> cut) {
+    public static void clientHandlers(Consumer<StatePayload> state, Consumer<CutPayload> cut,
+                                      Consumer<FreezePayload> freeze) {
         clientState = state;
         clientCut = cut;
+        clientFreeze = freeze;
     }
 
     private static void registerPayloads(RegisterPayloadHandlersEvent event) {
@@ -62,6 +67,19 @@ public final class YamatoNetwork {
                 context.enqueueWork(() -> clientState.accept(payload)));
         registrar.playToClient(CutPayload.TYPE, CutPayload.CODEC, (payload, context) ->
                 context.enqueueWork(() -> clientCut.accept(payload)));
+        registrar.playToClient(FreezePayload.TYPE, FreezePayload.CODEC, (payload, context) ->
+                context.enqueueWork(() -> clientFreeze.accept(payload)));
+    }
+
+    /** 近くのクライアントにもAI・爆発ゲージ・モーションの一時停止を通知する。 */
+    public static void sendFrozen(Mob target, boolean frozen) {
+        PacketDistributor.sendToPlayersTrackingEntityAndSelf(target,
+                new FreezePayload(target.getId(), frozen));
+    }
+
+    /** 停止中に後から対象を追跡し始めたプレイヤーへ現在状態を送る。 */
+    public static void sendFrozen(ServerPlayer observer, int entityId, boolean frozen) {
+        PacketDistributor.sendToPlayer(observer, new FreezePayload(entityId, frozen));
     }
 
     public static void sendAction(String action, CompoundTag request) {
@@ -278,4 +296,19 @@ public final class YamatoNetwork {
         };
         @Override public Type<CutPayload> type() { return TYPE; }
     }
+    /** Entity IDは同じディメンションでのみ解釈する。プレイヤーIDやNBTは送らない。 */
+    public record FreezePayload(int entityId, boolean frozen) implements CustomPacketPayload {
+        public static final Type<FreezePayload> TYPE = YamatoNetwork.type("yamato_void_freeze");
+        public static final StreamCodec<RegistryFriendlyByteBuf, FreezePayload> CODEC = new StreamCodec<>() {
+            @Override public FreezePayload decode(RegistryFriendlyByteBuf buf) {
+                return new FreezePayload(buf.readVarInt(), buf.readBoolean());
+            }
+            @Override public void encode(RegistryFriendlyByteBuf buf, FreezePayload value) {
+                buf.writeVarInt(value.entityId());
+                buf.writeBoolean(value.frozen());
+            }
+        };
+        @Override public Type<FreezePayload> type() { return TYPE; }
+    }
+
 }
