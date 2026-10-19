@@ -254,5 +254,20 @@
   "message.venusmod.yamato.too_many_rifts": "Too many open rift pairs (maximum 64). Close a pair from the list.",
   "message.venusmod.yamato.missing_dimension": "The destination dimension is unavailable.",
   "message.venusmod.yamato.obstructed": "The rift or destination is obstructed or outside the world bounds.",
-  "message.venusmod.yamato.destination_buried": "The rift opened, but its destination is buried in blocks. Clear space around the exit."
+  "message.venusmod.yamato.destination_buried": "The rift opened, but its destination is buried in blocks. Clear space around the exit.",
+  "gui.venusmod.yamato.random_button": "Random rift",
+  "gui.venusmod.yamato.random_button_hint": "Open a rift to a random safe location in the current dimension.",
+  "gui.venusmod.yamato.random_title": "Random destination",
+  "gui.venusmod.yamato.random_range": "Maximum distance (blocks)",
+  "gui.venusmod.yamato.random_range_label": "Maximum horizontal radius: 1–1,000,000 blocks",
+  "gui.venusmod.yamato.random_range_hint": "Horizontal distance from the current position; server searches terrain.",
+  "gui.venusmod.yamato.random_mode_label": "Destination type",
+  "gui.venusmod.yamato.random_mode_hint": "Choose surface only or include underground caves.",
+  "gui.venusmod.yamato.random_mode.0": "Surface only",
+  "gui.venusmod.yamato.random_mode.1": "Surface and underground",
+  "gui.venusmod.yamato.random_start": "Open random rift",
+  "gui.venusmod.yamato.random_info": "Only dry places with solid supporting blocks and standing room qualify. No safe place means no rift.",
+  "message.venusmod.yamato.random_searching": "Searching for a safe random destination…",
+  "message.venusmod.yamato.random_failed": "No safe spot found in range, or it became blocked. Increase the range and try again.",
+  "message.venusmod.yamato.random_busy": "Already searching for a random destination or opening a rift."
 }

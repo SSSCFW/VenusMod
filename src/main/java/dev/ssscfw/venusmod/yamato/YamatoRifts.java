@@ -26,6 +26,7 @@ import net.minecraft.server.level.TicketType;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ExperienceOrb;
@@ -50,6 +51,9 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
 public final class YamatoRifts extends SavedData {
     private static final TicketType<UUID> RIFT_TICKET = TicketType.<UUID>create("venusmod_yamato_rift", Comparator.naturalOrder(), 60);
     private static final int MAX_ACTIVE_PER_PLAYER = 64;
+    // 新チャンクの生成を一度に走らせない。全プレイヤー合計で1tickにつき候補列1件。
+    private static final int MAX_RANDOM_SEARCHES = 16;
+    private static final int MAX_RANDOM_ATTEMPTS = 48;
     private static final int BURIED_SEARCH_MAX_CHECKS = 240;
     private static final List<BlockPos> BURIED_SEARCH_OFFSETS = buriedSearchOffsets();
     // 通常の落下でも1tickで面の厚みを飛び越え得る。高速移動の前tick軌跡を限定距離で探索する。
@@ -58,6 +62,7 @@ public final class YamatoRifts extends SavedData {
     private final Map<UUID, Pair> pairs = new LinkedHashMap<>();
     private final YamatoRiftRules.ArrivalLocks arrivalLocks = new YamatoRiftRules.ArrivalLocks();
     private final Map<UUID, Pending> pending = new HashMap<>();
+    private final Map<UUID, RandomSearch> randomSearches = new LinkedHashMap<>();
     private final Map<UUID, Long> viewers = new HashMap<>();
     private final Map<UUID, Budget> requests = new HashMap<>();
     private boolean syncNeeded = true;
@@ -98,7 +103,8 @@ public final class YamatoRifts extends SavedData {
     }
 
     private void requestTravel(ServerPlayer player, UUID firstId, UUID destinationId) {
-        if (destinationId == null || pending.containsKey(player.getUUID())) return;
+        if (destinationId == null || pending.containsKey(player.getUUID())
+                || randomSearches.containsKey(player.getUUID())) return;
         YamatoTravelData book=YamatoTravelData.get(player.server);
         CompoundTag destination = book.destination(player.getUUID(), destinationId);
         CompoundTag first=firstId==null?null:book.destination(player.getUUID(),firstId);
@@ -132,6 +138,81 @@ public final class YamatoRifts extends SavedData {
         YamatoNetwork.sendCut(player, hand, 0);
     }
 
+    /** ランダム地点はクライアントの座標入力を受け取らず、元の次元のサーバー地形から探す。 */
+    public void requestRandomTravel(ServerPlayer player) {
+        UUID owner = player.getUUID();
+        if (pending.containsKey(owner) || randomSearches.containsKey(owner)) {
+            YamatoNetwork.message(player, "random_busy");
+            return;
+        }
+        if (randomSearches.size() >= MAX_RANDOM_SEARCHES) {
+            YamatoNetwork.message(player, "random_busy");
+            return;
+        }
+        if (ownedCount(owner) >= MAX_ACTIVE_PER_PLAYER) {
+            YamatoNetwork.message(player, "too_many_rifts");
+            return;
+        }
+        ItemStack stack = YamatoCompat.heldYamato(player);
+        if (stack.isEmpty()) return;
+        var book = YamatoTravelData.get(player.server);
+        CompoundTag random = book.randomSettings(owner);
+        int range = random.getInt("range"), mode = random.getInt("mode");
+        if (!YamatoTravelRules.validRandomSettings(range, mode)) {
+            YamatoNetwork.message(player, "invalid_request");
+            return;
+        }
+        InteractionHand hand = player.getMainHandItem() == stack ? InteractionHand.MAIN_HAND : InteractionHand.OFF_HAND;
+        randomSearches.put(owner, new RandomSearch(owner, player.level().dimension(), player.position(),
+                range, mode, Mth.wrapDegrees(player.getYRot()), Mth.clamp(player.getXRot(), -90, 90),
+                book.settings(owner), hand, stack, RandomSource.create()));
+        YamatoNetwork.message(player, "random_searching");
+    }
+
+    /** 探索を1tickに1地点列だけ処理し、大きな範囲でも地形生成の集中を避ける。 */
+    private void advanceRandomSearch(MinecraftServer server, long now) {
+        if (randomSearches.isEmpty()) return;
+        Iterator<Map.Entry<UUID, RandomSearch>> entries = randomSearches.entrySet().iterator();
+        while (entries.hasNext()) {
+            RandomSearch search = entries.next().getValue();
+            ServerPlayer player = server.getPlayerList().getPlayer(search.owner);
+            if (player == null || !player.isAlive() || player.isSpectator() || player.isRemoved()
+                    || !player.level().dimension().equals(search.dimension)
+                    || player.getItemInHand(search.hand) != search.stack
+                    || !YamatoCompat.isYamato(search.stack)) entries.remove();
+        }
+        if (randomSearches.isEmpty()) return;
+        // LinkedHashMap末尾へ戻すと複数プレイヤーの探索が公平に回る。
+        Map.Entry<UUID, RandomSearch> next = randomSearches.entrySet().iterator().next();
+        UUID owner = next.getKey();
+        RandomSearch search = next.getValue();
+        randomSearches.remove(owner);
+        ServerPlayer player = server.getPlayerList().getPlayer(owner);
+        ServerLevel level = server.getLevel(search.dimension);
+        if (level == null || player == null) return;
+        BlockPos feet = YamatoRandomDestinations.sample(level, search.origin,
+                search.range, search.mode, search.random);
+        search.attempts++;
+        if (feet != null && YamatoRandomDestinations.safeLanding(level, feet)) {
+            Vec3 position = new Vec3(feet.getX() + .5, feet.getY(), feet.getZ() + .5);
+            Endpoint target = Endpoint.at(level, position, search.yaw, search.pitch,
+                    search.settings.getDouble("size"));
+            Endpoint source = inFront(player, search.yaw, search.pitch, search.settings.getDouble("size"));
+            if (source != null && validOpeningSite(server, target)
+                    && source.feet.distanceToSqr(target.feet) >= 1) {
+                Pending opening = new Pending(owner, search.hand, search.stack, search.dimension,
+                        null, target, "ランダム地点", search.settings, now, true);
+                pending.put(owner, opening);
+                player.stopUsingItem();
+                YamatoCompat.playCut(player, 0);
+                YamatoNetwork.sendCut(player, search.hand, 0);
+                return;
+            }
+        }
+        if (search.attempts >= MAX_RANDOM_ATTEMPTS) YamatoNetwork.message(player, "random_failed");
+        else randomSearches.put(owner, search);
+    }
+
     /** 二振りが終わった時点で再検証し、同じtickに両端を追加する。 */
     private void advanceOpening(MinecraftServer server, long now) {
         Iterator<Pending> iterator = pending.values().iterator();
@@ -154,12 +235,17 @@ public final class YamatoRifts extends SavedData {
             if (elapsed < YamatoCompat.OPEN_TICK) continue;
             Endpoint source = opening.fixedSource==null
                     ?inFront(player,opening.target.yaw,opening.target.pitch,opening.target.size):opening.fixedSource;
-            if (source != null && opening.fixedSource == null) source = resolveBuriedEndpoint(server, source);
-            Pair pair = source == null ? null : openPair(opening.owner, opening.name, source, opening.target,
+            if (source != null && opening.fixedSource == null && !opening.random)
+                source = resolveBuriedEndpoint(server, source);
+            // 最初の探索後に建築や液体の流入が起きても、危険なランダム出口は生成しない。
+            ServerLevel targetLevel = level(server, opening.target);
+            boolean stillSafe = !opening.random || targetLevel != null
+                    && YamatoRandomDestinations.safeLanding(targetLevel, BlockPos.containing(opening.target.feet));
+            Pair pair = source == null || !stillSafe ? null : openPair(opening.owner, opening.name, source, opening.target,
                     opening.settings.getInt("access"), opening.settings.getInt("lifetime"),
-                    opening.settings.getInt("seconds"), server);
-            if (pair == null) YamatoNetwork.message(player, "obstructed");
-            else if (!hasFreeLanding(server, pair.target)) {
+                    opening.settings.getInt("seconds"), server, opening.random);
+            if (pair == null) YamatoNetwork.message(player, opening.random ? "random_failed" : "obstructed");
+            else if (!opening.random && !hasFreeLanding(server, pair.target)) {
                 // 近くに空間がなくても開通を中止しない。埋まって見えない可能性を知らせる。
                 YamatoNetwork.message(player, "destination_buried");
             }
@@ -174,13 +260,18 @@ public final class YamatoRifts extends SavedData {
 
     public Pair openPair(UUID owner, String name, Endpoint source, Endpoint target,
                          int access, int lifetime, int seconds, MinecraftServer server) {
+        return openPair(owner, name, source, target, access, lifetime, seconds, server, false);
+    }
+
+    private Pair openPair(UUID owner, String name, Endpoint source, Endpoint target,
+                          int access, int lifetime, int seconds, MinecraftServer server, boolean random) {
         if (owner == null || source == null || target == null || access < 0 || access > 6
                 || lifetime < 0 || lifetime > 2 || seconds < 1 || seconds > 180
                 || ownedCount(owner) >= MAX_ACTIVE_PER_PLAYER
                 || !validOpeningSite(server, source) || !validOpeningSite(server, target)
                 || source.dimension.equals(target.dimension) && source.feet.distanceToSqr(target.feet) < 1) return null;
         long now = server.overworld().getGameTime();
-        Pair pair = new Pair(UUID.randomUUID(), owner, name, source, target, access, lifetime, seconds, now);
+        Pair pair = new Pair(UUID.randomUUID(), owner, name, source, target, access, lifetime, seconds, now, random);
         pairs.put(pair.id, pair);
         // 成功した出発端だけを記録する。失敗や二振り途中のキャンセルでは履歴を増やさない。
         YamatoTravelData.get(server).recordOpening(owner,"開いた地点",source.dimension,
@@ -204,6 +295,7 @@ public final class YamatoRifts extends SavedData {
     }
 
     public void closeAll(UUID owner, MinecraftServer server) {
+        randomSearches.remove(owner);
         for (Pair pair : pairs.values()) if (pair.owner.equals(owner)) close(owner, pair.id, server);
         Pending opening = pending.remove(owner);
         ServerPlayer player = server.getPlayerList().getPlayer(owner);
@@ -211,6 +303,7 @@ public final class YamatoRifts extends SavedData {
     }
 
     public void tick(MinecraftServer server, long now) {
+        advanceRandomSearch(server, now);
         advanceOpening(server, now);
         Set<UUID> transferred = new HashSet<>();
         Iterator<Pair> iterator = pairs.values().iterator();
@@ -268,6 +361,9 @@ public final class YamatoRifts extends SavedData {
             if (group.stream().anyMatch(member -> !allowed(pair, member) || !member.canUsePortal(true)
                     || !member.canChangeDimensions(source, target) || transferred.contains(member.getUUID())
                     || arrivalLocks.blocked(member.getUUID(), from.id))) continue;
+            // 地形変化後もランダム出口が水中・溶岩中・空中に変わっていたら転送しない。
+            if (pair.random && to == pair.target
+                    && !YamatoRandomDestinations.safeLanding(target, BlockPos.containing(to.feet))) continue;
             if (!safeGroup(target, entity, to.feet, 0, 0)) {
                 if (entity instanceof ServerPlayer player && pair.warned.add(entity.getUUID())) YamatoNetwork.message(player, "obstructed");
                 continue;
@@ -589,6 +685,7 @@ public final class YamatoRifts extends SavedData {
             entry.putUUID("id",pair.id);entry.putUUID("owner",pair.owner);entry.putString("name",pair.name);
             entry.put("source",pair.source.save());entry.put("target",pair.target.save());
             entry.putInt("access",pair.access);entry.putInt("lifetime",pair.lifetime);entry.putInt("seconds",pair.seconds);
+            entry.putBoolean("random", pair.random);
             entry.putLong("openedAt",pair.openedAt);entry.putLong("firstTransfer",pair.firstTransfer);entry.putLong("manualClose",pair.manualClose);
             entry.put("sourceLocks",saveLocks(pair.source));entry.put("targetLocks",saveLocks(pair.target));list.add(entry);
         }
@@ -614,7 +711,7 @@ public final class YamatoRifts extends SavedData {
             if(source==null||target==null||source.id.equals(target.id)||access<0||access>6||mode<0||mode>2||seconds<1||seconds>180
                     ||result.pairs.containsKey(entry.getUUID("id"))||endpoints.contains(source.id)||endpoints.contains(target.id))continue;
             Pair pair=new Pair(entry.getUUID("id"),entry.getUUID("owner"),entry.getString("name"),source,target,
-                    access,mode,seconds,Math.max(0,entry.getLong("openedAt")));
+                    access,mode,seconds,Math.max(0,entry.getLong("openedAt")),entry.getBoolean("random"));
             pair.firstTransfer=entry.contains("firstTransfer")?entry.getLong("firstTransfer"):-1;
             pair.manualClose=entry.contains("manualClose")?entry.getLong("manualClose"):-1;
             result.pairs.put(pair.id,pair);endpoints.add(source.id);endpoints.add(target.id);
@@ -668,11 +765,14 @@ public final class YamatoRifts extends SavedData {
         private final Endpoint source,target;
         private final int access,lifetime,seconds;
         private final long openedAt;
+        private final boolean random;
         private long firstTransfer=-1,manualClose=-1;
         private final Set<UUID> warned=new HashSet<>();
-        private Pair(UUID id,UUID owner,String name,Endpoint source,Endpoint target,int access,int lifetime,int seconds,long openedAt) {
+        private Pair(UUID id,UUID owner,String name,Endpoint source,Endpoint target,int access,int lifetime,int seconds,long openedAt,
+                     boolean random) {
             this.id=id;this.owner=owner;this.name=name;this.source=source;this.target=target;
             this.access=access;this.lifetime=lifetime;this.seconds=seconds;this.openedAt=openedAt;
+            this.random=random;
         }
         public UUID id(){return id;}
         public long closesAt(){return manualClose>=0?manualClose:YamatoRiftRules.closingTime(lifetime,seconds,openedAt,firstTransfer);}
@@ -686,11 +786,36 @@ public final class YamatoRifts extends SavedData {
     private static final class Pending {
         private final UUID owner;private final InteractionHand hand;private final ItemStack stack;
         private final ResourceKey<Level> dimension;private final Endpoint fixedSource,target;private final String name;
-        private final CompoundTag settings;private final long started;private boolean secondCut;
+        private final CompoundTag settings;private final long started;private final boolean random;
+        private boolean secondCut;
         private Pending(UUID owner,InteractionHand hand,ItemStack stack,ResourceKey<Level> dimension,Endpoint fixedSource,Endpoint target,
                         String name,CompoundTag settings,long started) {
+            this(owner,hand,stack,dimension,fixedSource,target,name,settings,started,false);
+        }
+        private Pending(UUID owner,InteractionHand hand,ItemStack stack,ResourceKey<Level> dimension,Endpoint fixedSource,Endpoint target,
+                        String name,CompoundTag settings,long started,boolean random) {
             this.owner=owner;this.hand=hand;this.stack=stack;this.dimension=dimension;this.fixedSource=fixedSource;this.target=target;
-            this.name=name;this.settings=settings;this.started=started;
+            this.name=name;this.settings=settings;this.started=started;this.random=random;
+        }
+    }
+
+    private static final class RandomSearch {
+        private final UUID owner;
+        private final ResourceKey<Level> dimension;
+        private final Vec3 origin;
+        private final int range,mode;
+        private final float yaw,pitch;
+        private final CompoundTag settings;
+        private final InteractionHand hand;
+        private final ItemStack stack;
+        private final RandomSource random;
+        private int attempts;
+
+        private RandomSearch(UUID owner,ResourceKey<Level> dimension,Vec3 origin,int range,int mode,
+                             float yaw,float pitch,CompoundTag settings,InteractionHand hand,ItemStack stack,
+                             RandomSource random) {
+            this.owner=owner;this.dimension=dimension;this.origin=origin;this.range=range;this.mode=mode;
+            this.yaw=yaw;this.pitch=pitch;this.settings=settings;this.hand=hand;this.stack=stack;this.random=random;
         }
     }
 }

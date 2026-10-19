@@ -254,5 +254,20 @@
   "message.venusmod.yamato.too_many_rifts": "開いている隙間が多すぎます（最大64組）。一覧から閉じてください。",
   "message.venusmod.yamato.missing_dimension": "移動先のディメンションが読み込まれていません。",
   "message.venusmod.yamato.obstructed": "隙間を開く空間、または移動先の安全な空間がありません。",
-  "message.venusmod.yamato.destination_buried": "裂け目は開きましたが、出口が地中に埋まっています。周囲のブロックを取り除いてください。"
+  "message.venusmod.yamato.destination_buried": "裂け目は開きましたが、出口が地中に埋まっています。周囲のブロックを取り除いてください。",
+  "gui.venusmod.yamato.random_button": "ランダム接続",
+  "gui.venusmod.yamato.random_button_hint": "同じディメンション内で、条件に合うランダムな安全地点へ裂け目を開きます。",
+  "gui.venusmod.yamato.random_title": "ランダム次元接続",
+  "gui.venusmod.yamato.random_range": "最大距離（ブロック）",
+  "gui.venusmod.yamato.random_range_label": "最大移動距離：1～1,000,000 ブロック",
+  "gui.venusmod.yamato.random_range_hint": "現在地を中心とした水平方向の半径。地形はサーバーで探索します。",
+  "gui.venusmod.yamato.random_mode_label": "ランダム地点の種類",
+  "gui.venusmod.yamato.random_mode_hint": "地表のみ、または地表と地下の洞窟を探索します。",
+  "gui.venusmod.yamato.random_mode.0": "地上のみ",
+  "gui.venusmod.yamato.random_mode.1": "地上と地下もあり",
+  "gui.venusmod.yamato.random_start": "ランダム接続を開く",
+  "gui.venusmod.yamato.random_info": "固体ブロックの上に立て、周囲に空間があり、液体がない地点だけを選びます。見つからなければ開通しません。",
+  "message.venusmod.yamato.random_searching": "安全なランダム地点を探索しています…",
+  "message.venusmod.yamato.random_failed": "指定範囲で安全な地点が見つからなかったか、開通前に塞がれました。範囲を広げて再試行してください。",
+  "message.venusmod.yamato.random_busy": "ランダム地点を探索中、または裂け目を開いています。"
 }

@@ -25,7 +25,8 @@ public final class YamatoSettingsAutoSaveChecks {
         check(screen.contains("settingsChanged(0);"), "Dropdown changes do not save immediately");
         check(screen.contains("settingsChanged(5);"), "Seconds edit does not schedule save");
         check(screen.contains("settingsChanged(3);"), "Slider does not schedule save");
-        check(count(screen, "tickSettingsAutoSave();") == 2, "Main and compact settings screens must both autosave");
+        check(count(screen, "tickSettingsAutoSave();") == 3,
+                "Main, compact settings, and random settings screens must all autosave");
         check(count(screen, "data.put(\"settings\", settingsPayload());") == 2,
                 "Both destination modes must send the latest settings atomically with travel");
         check(screen.contains("if (settingsEdited && pendingSettings != null"),

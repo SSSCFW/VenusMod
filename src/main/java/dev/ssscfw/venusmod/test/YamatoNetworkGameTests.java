@@ -123,6 +123,36 @@ public final class YamatoNetworkGameTests {
     }
 
     @GameTest(template = "test/empty")
+    public static void randomTravelPacketPreservesBothKindsOfSettings(GameTestHelper h) {
+        CompoundTag opening = new CompoundTag();
+        opening.putInt("access", 6);
+        opening.putInt("lifetime", 2);
+        opening.putInt("seconds", 180);
+        opening.putDouble("size", 3.2D);
+        CompoundTag random = new CompoundTag();
+        random.putInt("range", 1_000_000);
+        random.putInt("mode", 1);
+        CompoundTag request = new CompoundTag();
+        request.put("settings", opening);
+        request.put("randomSettings", random);
+        RegistryFriendlyByteBuf buffer = buffer(h);
+        try {
+            YamatoNetwork.ActionPayload.CODEC.encode(buffer,
+                    new YamatoNetwork.ActionPayload("random_travel", request));
+            h.assertTrue(buffer.readableBytes() < 32767, "Random settings packet is too large");
+            var decoded = YamatoNetwork.ActionPayload.CODEC.decode(buffer);
+            h.assertTrue(decoded.action().equals("random_travel")
+                    && decoded.request().getCompound("settings").equals(opening)
+                    && decoded.request().getCompound("randomSettings").equals(random),
+                    "Range, cave mode, lifetime, and size were lost in transport");
+            h.assertTrue(!buffer.isReadable(), "Random action payload has unexpected trailing bytes");
+        } finally {
+            buffer.release();
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "test/empty")
     public static void actionDecoderRejectsNonCompoundOversizedAndDeepNbt(GameTestHelper h) {
         RegistryFriendlyByteBuf wrongRoot = buffer(h);
         try {

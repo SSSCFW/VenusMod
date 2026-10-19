@@ -41,6 +41,7 @@ public final class YamatoTravelData extends SavedData {
         result.put("entries", entries);
         result.put("history", history);
         result.put("settings", settings(owner));
+        result.put("randomSettings", randomSettings(owner));
         result.putInt("sort", book == null ? 0 : book.sort);
         return result;
     }
@@ -61,6 +62,15 @@ public final class YamatoTravelData extends SavedData {
         result.putInt("seconds", book == null ? YamatoTravelRules.DEFAULT_SECONDS : book.seconds);
         result.putDouble("size", book == null ? YamatoTravelRules.DEFAULT_SIZE : book.size);
         return result;
+    }
+
+    /** 以前のワールドは半径1000ブロック、地上のみで開始する。保存地点と独立した設定。 */
+    public CompoundTag randomSettings(UUID owner) {
+        PlayerDestinations book = players.get(owner);
+        CompoundTag settings = new CompoundTag();
+        settings.putInt("range", book == null ? YamatoTravelRules.DEFAULT_RANDOM_RANGE : book.randomRange);
+        settings.putInt("mode", book == null ? YamatoTravelRules.RANDOM_SURFACE : book.randomMode);
+        return settings;
     }
 
     /** 成功した開通の出発端だけを、サーバースレッドから追記する。失敗した開通では呼び出さない。 */
@@ -107,6 +117,7 @@ public final class YamatoTravelData extends SavedData {
             case "reorder" -> reorder(book, request);
             case "delete" -> delete(book, request);
             case "settings" -> updateSettings(book, request);
+            case "random_settings" -> updateRandomSettings(book, request);
             case "sort" -> updateSort(book, request);
             default -> false;
         };
@@ -203,6 +214,15 @@ public final class YamatoTravelData extends SavedData {
         return true;
     }
 
+    private static boolean updateRandomSettings(PlayerDestinations book, CompoundTag request) {
+        if (!request.contains("range", Tag.TAG_INT) || !request.contains("mode", Tag.TAG_INT)) return false;
+        int range = request.getInt("range"), mode = request.getInt("mode");
+        if (!YamatoTravelRules.validRandomSettings(range, mode)) return false;
+        book.randomRange = range;
+        book.randomMode = mode;
+        return true;
+    }
+
     private static boolean updateSort(PlayerDestinations book, CompoundTag request) {
         if (!request.contains("sort", Tag.TAG_INT) || !YamatoTravelRules.validSort(request.getInt("sort"))) return false;
         book.sort = request.getInt("sort");
@@ -288,6 +308,14 @@ public final class YamatoTravelData extends SavedData {
                         && settings.getInt("seconds") <= YamatoTravelRules.MAX_SECONDS) book.seconds = settings.getInt("seconds");
                 if (settings.contains("size", Tag.TAG_DOUBLE) && YamatoTravelRules.validSize(settings.getDouble("size"))) {
                     book.size = settings.getDouble("size");
+                }
+                CompoundTag randomSettings = playerTag.getCompound("randomSettings");
+                if (randomSettings.contains("range", Tag.TAG_INT)
+                        && randomSettings.contains("mode", Tag.TAG_INT)
+                        && YamatoTravelRules.validRandomSettings(randomSettings.getInt("range"),
+                        randomSettings.getInt("mode"))) {
+                    book.randomRange = randomSettings.getInt("range");
+                    book.randomMode = randomSettings.getInt("mode");
                 }
                 if (playerTag.contains("sort", Tag.TAG_INT) && YamatoTravelRules.validSort(playerTag.getInt("sort"))) {
                     book.sort = playerTag.getInt("sort");
@@ -411,6 +439,8 @@ public final class YamatoTravelData extends SavedData {
         private int lifetime = YamatoTravelRules.DEFAULT_LIFETIME;
         private int seconds = YamatoTravelRules.DEFAULT_SECONDS;
         private double size = YamatoTravelRules.DEFAULT_SIZE;
+        private int randomRange = YamatoTravelRules.DEFAULT_RANDOM_RANGE;
+        private int randomMode = YamatoTravelRules.RANDOM_SURFACE;
         private int sort;
     }
 }

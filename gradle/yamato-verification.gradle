@@ -11,7 +11,8 @@ def compileYamatoChecks = tasks.register('compileYamatoChecks', JavaCompile) {
         'tools/tests/YamatoTravelRulesChecks.java',
         'tools/tests/YamatoScreenLayoutChecks.java',
         'tools/tests/YamatoSettingsAutoSaveChecks.java',
-        'tools/tests/YamatoVoidSlashCommandChecks.java')
+        'tools/tests/YamatoVoidSlashCommandChecks.java',
+        'tools/tests/YamatoRandomSettingsChecks.java')
     classpath = files()
     destinationDirectory = layout.buildDirectory.dir('classes/yamatoChecks')
     javaCompiler = javaToolchains.compilerFor { languageVersion = JavaLanguageVersion.of(21) }
@@ -19,7 +20,7 @@ def compileYamatoChecks = tasks.register('compileYamatoChecks', JavaCompile) {
     options.release = 21
 }
 ['YamatoRiftRulesChecks', 'YamatoArrivalLockCleanupChecks', 'YamatoTravelRulesChecks', 'YamatoScreenLayoutChecks',
- 'YamatoSettingsAutoSaveChecks', 'YamatoVoidSlashCommandChecks'].each { checkClass ->
+ 'YamatoSettingsAutoSaveChecks', 'YamatoVoidSlashCommandChecks', 'YamatoRandomSettingsChecks'].each { checkClass ->
     def verification = tasks.register('verify' + checkClass, JavaExec) {
         group = 'verification'
         dependsOn compileYamatoChecks

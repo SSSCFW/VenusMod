@@ -110,6 +110,23 @@ public final class YamatoNetwork {
                 rifts.watch(player);
                 sendBook(player, action.equals("open"));
             }
+            case "random_travel" -> {
+                // 範囲・モードは所有者ごとのSavedDataで検証し、既存の裂け目設定も同じ操作で反映する。
+                CompoundTag random = request.getCompound("randomSettings");
+                if (!request.contains("randomSettings", Tag.TAG_COMPOUND)
+                        || !random.contains("range", Tag.TAG_INT) || !random.contains("mode", Tag.TAG_INT)
+                        || !YamatoTravelRules.validRandomSettings(random.getInt("range"), random.getInt("mode"))
+                        || !validInlineTravelSettings(request)) {
+                    message(player, "invalid_request");
+                    return;
+                }
+                if (!applyTravelSettings(player, request)
+                        || !YamatoTravelData.get(player.server).apply(player, "random_settings", random)) {
+                    message(player, "invalid_request");
+                    return;
+                }
+                rifts.requestRandomTravel(player);
+            }
             case "travel", "travel_pair" -> {
                 // GUIの自動保存ACKを待たずに選択された閉鎖条件をそのまま開通へ反映する。
                 // 不正なネスト設定は転送を行わず、既存の保存設定も変更しない。
@@ -120,13 +137,25 @@ public final class YamatoNetwork {
                 if (action.equals("travel")) rifts.requestTravel(player, readId(request));
                 else rifts.requestTravelPair(player, readId(request), readId(request, "second"));
             }
-            case "save", "folder", "rename", "move", "reorder", "delete", "settings", "sort" -> {
+            case "save", "folder", "rename", "move", "reorder", "delete", "settings", "random_settings", "sort" -> {
                 if (!YamatoTravelData.get(player.server).apply(player, action, request))
                     message(player, "invalid_request");
                 sendBook(player, false);
             }
             default -> { }
         }
+    }
+
+    private static boolean validInlineTravelSettings(CompoundTag request) {
+        if (!request.contains("settings")) return true;
+        if (!request.contains("settings", Tag.TAG_COMPOUND)) return false;
+        CompoundTag settings = request.getCompound("settings");
+        if (!settings.contains("access", Tag.TAG_INT) || !settings.contains("lifetime", Tag.TAG_INT)
+                || !settings.contains("seconds", Tag.TAG_INT)
+                || settings.contains("size") && !settings.contains("size", Tag.TAG_DOUBLE)) return false;
+        return YamatoTravelRules.validSettings(settings.getInt("access"), settings.getInt("lifetime"),
+                settings.getInt("seconds"), settings.contains("size")
+                        ? settings.getDouble("size") : YamatoTravelRules.DEFAULT_SIZE);
     }
 
     /** サーバーの最新の閉鎖条件を、地点への移動要求と同じネットワーク操作で確定する。 */

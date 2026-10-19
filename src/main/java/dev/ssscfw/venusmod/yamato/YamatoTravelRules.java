@@ -23,6 +23,16 @@ public final class YamatoTravelRules {
     public static final double DEFAULT_SIZE = 1.0D;
     public static final double MIN_SIZE = 0.5D;
     public static final double MAX_SIZE = 5.0D;
+    public static final int MIN_RANDOM_RANGE = 1;
+    public static final int MAX_RANDOM_RANGE = 1_000_000;
+    public static final int DEFAULT_RANDOM_RANGE = 1_000;
+    public static final int RANDOM_SURFACE = 0;
+    public static final int RANDOM_SURFACE_AND_CAVES = 1;
+
+    public static boolean validRandomSettings(int range, int mode) {
+        return range >= MIN_RANDOM_RANGE && range <= MAX_RANDOM_RANGE
+                && (mode == RANDOM_SURFACE || mode == RANDOM_SURFACE_AND_CAVES);
+    }
 
     private YamatoTravelRules() {}
 

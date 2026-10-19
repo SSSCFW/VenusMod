@@ -50,6 +50,13 @@ public final class YamatoTravelScreen extends Screen {
     private String draftSeconds = "1";
     private int lastValidSeconds = 1;
     private double draftSize = 1.0;
+    private String draftRandomRange = "1000";
+    private int lastValidRandomRange = 1000;
+    private int draftRandomMode;
+    private boolean randomSettingsEdited;
+    private int randomSaveDelay;
+    private RandomSettingsDraft pendingRandomSettings;
+    private boolean applyingRandomSnapshot;
     private boolean settingsEdited;
     private int settingsSaveDelay;
     private SettingsDraft pendingSettings;
@@ -151,11 +158,35 @@ public final class YamatoTravelScreen extends Screen {
             lastValidSeconds = seconds;
             draftSize = size;
         }
+        CompoundTag randomSettings = data.getCompound("randomSettings");
+        int serverRange = randomSettings.getInt("range");
+        int serverMode = randomSettings.getInt("mode");
+        if (serverRange < 1 || serverRange > 1_000_000 || serverMode < 0 || serverMode > 1) {
+            serverRange = 1000;
+            serverMode = 0;
+        }
+        Integer localRange = validRandomRange();
+        if (randomSettingsEdited && pendingRandomSettings != null
+                && pendingRandomSettings.equals(new RandomSettingsDraft(serverRange, serverMode))
+                && localRange != null && localRange == serverRange && draftRandomMode == serverMode) {
+            randomSettingsEdited = false;
+            randomSaveDelay = 0;
+            pendingRandomSettings = null;
+        }
+        if (!randomSettingsEdited) {
+            draftRandomRange = Integer.toString(serverRange);
+            lastValidRandomRange = serverRange;
+            draftRandomMode = serverMode;
+        }
         if (sortDropdown != null) sortDropdown.setValue(sort);
         if (sidebarControls != null) sidebarControls.sync();
         Minecraft client = Minecraft.getInstance();
         if (client.screen instanceof SettingsScreen settingsScreen && settingsScreen.parent() == this && settingsScreen.controls != null) {
             settingsScreen.controls.sync();
+        }
+        if (client.screen instanceof RandomTravelScreen randomScreen && randomScreen.parent() == this
+                && randomScreen.rangeEditor != null) {
+            randomScreen.sync();
         }
         if (layout != null) {
             updateTabTooltips();
@@ -197,6 +228,11 @@ public final class YamatoTravelScreen extends Screen {
                     .tooltip(Tooltip.create(tr("new_folder"))).build());
         }
         int x = layout.listX(), listWidth = layout.listWidth();
+        int randomButtonWidth = Math.max(52, Math.min(116,
+                layout.sidebar() ? listWidth - 4 : layout.width() - 134));
+        addRenderableWidget(Button.builder(tr("random_button"), b -> show(new RandomTravelScreen(this)))
+                .bounds(x, layout.top() + 5, randomButtonWidth, 18)
+                .tooltip(Tooltip.create(tr("random_button_hint"))).build());
         destinationsTab = addRenderableWidget(Button.builder(tr("destinations_short"), b -> selectTab(0))
                 .bounds(layout.tabX(0), layout.top() + 28, layout.tabWidth(0), 20)
                 .tooltip(Tooltip.create(tr("destinations"))).build());
@@ -426,6 +462,48 @@ public final class YamatoTravelScreen extends Screen {
         request("travel_pair", data);
     }
 
+    private Integer validRandomRange() {
+        try {
+            int number = Integer.parseInt(draftRandomRange);
+            if (number >= 1 && number <= 1_000_000) return number;
+        } catch (NumberFormatException invalid) {
+            // 数値を編集中なら送信せず、最後に確定された値を残す。
+        }
+        return null;
+    }
+
+    private CompoundTag randomSettingsPayload() {
+        Integer range = validRandomRange();
+        if (range == null || draftRandomMode < 0 || draftRandomMode > 1) return null;
+        CompoundTag data = new CompoundTag();
+        data.putInt("range", range);
+        data.putInt("mode", draftRandomMode);
+        return data;
+    }
+
+    private void randomSettingsChanged(int delayTicks) {
+        randomSettingsEdited = true;
+        randomSaveDelay = delayTicks;
+        if (delayTicks == 0) applyRandomSettings();
+    }
+
+    private void tickRandomAutoSave() {
+        if (randomSettingsEdited && randomSaveDelay > 0 && --randomSaveDelay == 0) applyRandomSettings();
+    }
+
+    private boolean applyRandomSettings() {
+        CompoundTag data = randomSettingsPayload();
+        if (data == null) return false;
+        if (!randomSettingsEdited) return true;
+        randomSaveDelay = 0;
+        RandomSettingsDraft selected = new RandomSettingsDraft(data.getInt("range"), data.getInt("mode"));
+        if (!selected.equals(pendingRandomSettings)) {
+            pendingRandomSettings = selected;
+            request("random_settings", data);
+        }
+        return true;
+    }
+
     private void settingsChanged(int delayTicks) {
         settingsEdited = true;
         settingsSaveDelay = delayTicks;
@@ -517,12 +595,14 @@ public final class YamatoTravelScreen extends Screen {
             return;
         }
         tickSettingsAutoSave();
+        tickRandomAutoSave();
         if (sidebarControls != null) sidebarControls.updateButtons();
     }
 
     @Override
     public void onClose() {
         applySettings();
+        applyRandomSettings();
         super.onClose();
     }
 
@@ -601,6 +681,8 @@ public final class YamatoTravelScreen extends Screen {
                          double x, double y, double z, long created) {}
 
     private record SettingsDraft(int access, int lifetime, int seconds, double size) {}
+
+    private record RandomSettingsDraft(int range, int mode) {}
 
     private record Rift(UUID id, String name, String sourceDimension, double sourceX, double sourceY, double sourceZ,
                         String targetDimension, double targetX, double targetY, double targetZ,
@@ -883,6 +965,115 @@ public final class YamatoTravelScreen extends Screen {
             parent.drawWrapped(graphics, tr("settings_auto_label"), panelX + 12,
                     panelY + panelHeight - 54, panelWidth - 24, MUTED);
             for (YamatoDropdown dropdown : controls.dropdowns()) dropdown.renderMenu(graphics, mouseX, mouseY, width, height);
+        }
+    }
+
+    /** 現在地と同じディメンション内で、半径と探索する高度帯を指定する。 */
+    private static final class RandomTravelScreen extends Child {
+        private EditBox rangeEditor;
+        private YamatoDropdown modeDropdown;
+        private Button start;
+
+        private RandomTravelScreen(YamatoTravelScreen parent) {
+            super(parent, parent, tr("random_title"));
+        }
+
+        @Override
+        protected void init() {
+            sizePanel(386, 220);
+            int x = panelX + 12, w = panelWidth - 24;
+            rangeEditor = addRenderableWidget(new EditBox(font, x, panelY + 50, w, 20, tr("random_range")));
+            rangeEditor.setMaxLength(7);
+            rangeEditor.setFilter(value -> value.matches("[0-9]{0,7}"));
+            rangeEditor.setValue(parent.draftRandomRange);
+            rangeEditor.setTooltip(Tooltip.create(tr("random_range_hint")));
+            rangeEditor.setResponder(text -> {
+                if (parent.applyingRandomSnapshot) return;
+                parent.draftRandomRange = text;
+                Integer valid = parent.validRandomRange();
+                if (valid != null) parent.lastValidRandomRange = valid;
+                parent.randomSettingsChanged(6);
+                updateButtons();
+            });
+            modeDropdown = addRenderableWidget(new YamatoDropdown(x, panelY + 105, w, options("random_mode", 2),
+                    parent.draftRandomMode, tr("random_mode_hint"), chosen -> {
+                parent.draftRandomMode = chosen;
+                parent.randomSettingsChanged(0);
+            }));
+            start = addRenderableWidget(Button.builder(tr("random_start"), b -> generate())
+                    .bounds(x, panelY + panelHeight - 30, (w - 4) / 2, 20).build());
+            addRenderableWidget(Button.builder(tr("cancel"), b -> onClose())
+                    .bounds(x + (w - 4) / 2 + 4, panelY + panelHeight - 30, (w - 4) / 2, 20).build());
+            setInitialFocus(rangeEditor);
+            updateButtons();
+        }
+
+        private void sync() {
+            parent.applyingRandomSnapshot = true;
+            if (!rangeEditor.getValue().equals(parent.draftRandomRange)) rangeEditor.setValue(parent.draftRandomRange);
+            modeDropdown.setValue(parent.draftRandomMode);
+            parent.applyingRandomSnapshot = false;
+            updateButtons();
+        }
+
+        private void updateButtons() {
+            start.active = parent.validRandomRange() != null;
+            rangeEditor.setTextColor(start.active ? TEXT : 0xFFFF7777);
+        }
+
+        private void generate() {
+            CompoundTag random = parent.randomSettingsPayload();
+            if (random == null || !parent.applySettings()) return;
+            parent.applyRandomSettings();
+            CompoundTag command = new CompoundTag();
+            command.put("settings", parent.settingsPayload());
+            command.put("randomSettings", random);
+            if (minecraft != null) minecraft.setScreen(null);
+            request("random_travel", command);
+        }
+
+        @Override
+        public void onClose() {
+            // 空欄などをサーバーへ送らず、最後の有効な半径に戻す。
+            if (parent.validRandomRange() == null) {
+                parent.draftRandomRange = Integer.toString(parent.lastValidRandomRange);
+            }
+            parent.applyRandomSettings();
+            super.onClose();
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (modeDropdown.expanded()) return modeDropdown.clickMenu(mouseX, mouseY, button, width, height);
+            return super.mouseClicked(mouseX, mouseY, button);
+        }
+
+        @Override
+        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+            if (modeDropdown.menuKey(keyCode)) return true;
+            if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+                if (start.active) generate();
+                return true;
+            }
+            return super.keyPressed(keyCode, scanCode, modifiers);
+        }
+
+        @Override
+        public void tick() {
+            super.tick();
+            parent.tickSettingsAutoSave();
+            parent.tickRandomAutoSave();
+            updateButtons();
+        }
+
+        @Override
+        public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+            super.render(graphics, mouseX, mouseY, partialTick);
+            graphics.drawString(font, tr("random_range_label"), panelX + 12, panelY + 36, MUTED, false);
+            graphics.drawString(font, tr("random_mode_label"), panelX + 12, panelY + 90, MUTED, false);
+            parent.drawWrapped(graphics, tr("random_info"), panelX + 12, panelY + 136,
+                    panelWidth - 24, MUTED);
+            modeDropdown.renderMenu(graphics, mouseX, mouseY, width, height);
         }
     }
 
