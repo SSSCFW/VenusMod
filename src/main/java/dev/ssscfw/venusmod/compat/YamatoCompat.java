@@ -37,6 +37,9 @@ public final class YamatoCompat {
     private static final ResourceLocation BLADE_MOTION = slashBlade("combostate/motion.vmd");
     private static final ResourceLocation SLASH_EFFECT = slashBlade("slash_effect");
     private static final ResourceLocation CONCENTRATION = slashBlade("concentration");
+    // 時空裂閃はSlashBlade Resharpedの既存ComboStateを使用する（斬撃・ダメージを再実装しない）。
+    private static final ResourceLocation VOID_SLASH = slashBlade("void_slash");
+    private static final ResourceLocation VOID_SLASH_SHEATH = slashBlade("void_slash_sheath");
 
     public static final ResourceLocation HORIZONTAL_COMBO = venus("yamato_rift_horizontal");
     public static final ResourceLocation VERTICAL_COMBO = venus("yamato_rift_vertical");
@@ -59,6 +62,7 @@ public final class YamatoCompat {
     private static Method isBroken;
     private static Method isSealed;
     private static Method updateComboSeq;
+    private static Method resolveCurrentComboState;
     private static Method getComboSeq;
     private static Method setComboSeq;
     private static Method setLastActionTime;
@@ -214,6 +218,27 @@ public final class YamatoCompat {
         }
     }
 
+    /**
+     * 専用コマンドをサーバーが検証した後だけ実行する。
+     * 他のSlashBladeの技設定は変更せず、元Modの時空裂閃ComboStateへ遷移させる。
+     * 斬撃中の再発動は拒否し、タイムアウトの進行判定は元Modに委ねる。
+     */
+    public static boolean performVoidSlash(ServerPlayer player) {
+        if (player == null || !player.isAlive() || player.isSpectator()
+                || !isYamato(player.getMainHandItem()) || !resolveMotion()) return false;
+        try {
+            Object state = bladeState(player.getMainHandItem());
+            if (state == null) return false;
+            Object current = resolveCurrentComboState.invoke(state, player);
+            if (VOID_SLASH.equals(current) || VOID_SLASH_SHEATH.equals(current)) return false;
+            updateComboSeq.invoke(state, player, VOID_SLASH);
+            return VOID_SLASH.equals(getComboSeq.invoke(state));
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException exception) {
+            logFailureOnce("閻魔刀の時空裂閃を発動できませんでした", exception);
+            return false;
+        }
+    }
+
     public static ResourceLocation combo(int stage) {
         return stage == 1 ? VERTICAL_COMBO : HORIZONTAL_COMBO;
     }
@@ -291,6 +316,7 @@ public final class YamatoCompat {
             setComboSeq = state.getMethod("setComboSeq", ResourceLocation.class);
             setLastActionTime = state.getMethod("setLastActionTime", long.class);
             updateComboSeq = state.getMethod("updateComboSeq", LivingEntity.class, ResourceLocation.class);
+            resolveCurrentComboState = state.getMethod("resolvCurrentComboState", LivingEntity.class);
             return true;
         } catch (ReflectiveOperationException | LinkageError | RuntimeException exception) {
             updateComboSeq = null;
