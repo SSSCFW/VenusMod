@@ -248,6 +248,7 @@
   "gui.venusmod.yamato.target": "Destination endpoint",
   "key.venusmod.yamato_travel": "Yamato: Dimension Travel",
   "tooltip.venusmod.yamato_travel": "%s → Dimension Travel",
+  "tooltip.venusmod.yamato_void_slash": "S → W → Right-click: Void Slash (Yamato only)",
   "message.venusmod.yamato.invalid_request": "The action was rejected. Check the name, folder, settings, or the 2048-entry limit.",
   "message.venusmod.yamato.missing_destination": "The saved destination could not be found.",
   "message.venusmod.yamato.too_many_rifts": "Too many open rift pairs (maximum 64). Close a pair from the list.",
