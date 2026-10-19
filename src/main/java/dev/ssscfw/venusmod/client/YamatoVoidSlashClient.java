@@ -3,6 +3,7 @@ package dev.ssscfw.venusmod.client;
 import dev.ssscfw.venusmod.VenusMod;
 import java.util.HashSet;
 import java.util.Set;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.Vec3;
@@ -11,6 +12,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
+import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 
 /** サーバーが捕捉したMobのクライアント側のアニメーションとtickも停止させる。 */
@@ -39,6 +41,12 @@ public final class YamatoVoidSlashClient {
     @SubscribeEvent
     public static void onEntityLeave(EntityLeaveLevelEvent event) {
         if (event.getLevel().isClientSide()) FROZEN_ENTITY_IDS.remove(event.getEntity().getId());
+    }
+
+    /** 次元変更でEntity IDが再利用されても、別のMobを停止させない。 */
+    @SubscribeEvent
+    public static void onLevelUnload(LevelEvent.Unload event) {
+        if (event.getLevel() instanceof ClientLevel) FROZEN_ENTITY_IDS.clear();
     }
 
     @SubscribeEvent
