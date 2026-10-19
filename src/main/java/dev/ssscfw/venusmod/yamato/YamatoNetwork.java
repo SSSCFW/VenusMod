@@ -7,6 +7,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.function.Consumer;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.Tag;
@@ -22,6 +25,7 @@ import net.minecraft.world.InteractionHand;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 
@@ -29,6 +33,8 @@ import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 public final class YamatoNetwork {
     private static Consumer<StatePayload> clientState = ignored -> {};
     private static Consumer<CutPayload> clientCut = ignored -> {};
+    // キー入力はプレイヤー単位にサーバーでも順序と猶予を検証し、技はサーバーだけで実行する。
+    private static final Map<UUID, YamatoVoidSlashCommand> voidSlashCommands = new HashMap<>();
     private YamatoNetwork() {}
 
     public static void register(IEventBus modBus) {
@@ -36,6 +42,8 @@ public final class YamatoNetwork {
         NeoForge.EVENT_BUS.addListener(YamatoRifts::onTick);
         NeoForge.EVENT_BUS.addListener(YamatoNetwork::login);
         NeoForge.EVENT_BUS.addListener(YamatoNetwork::changedDimension);
+        NeoForge.EVENT_BUS.addListener(YamatoNetwork::logout);
+        NeoForge.EVENT_BUS.addListener(YamatoNetwork::serverStopped);
     }
 
     /** クライアント側の初期化からのみ呼ぶ。共通クラスはclientクラスをリンクしない。 */
@@ -75,6 +83,29 @@ public final class YamatoNetwork {
         }
         if (!player.isAlive() || player.isSpectator() || YamatoCompat.heldYamato(player).isEmpty()) return;
         switch (action) {
+            case "void_slash_back", "void_slash_forward", "void_slash" -> {
+                // 閻魔刀（メインハンド）以外からのコマンドと余計なNBTは拒否する。
+                UUID id = player.getUUID();
+                if (!request.isEmpty() || !YamatoCompat.isYamato(player.getMainHandItem())) {
+                    voidSlashCommands.remove(id);
+                    return;
+                }
+                long now = player.server.overworld().getGameTime();
+                YamatoVoidSlashCommand command = voidSlashCommands.computeIfAbsent(id,
+                        ignored -> new YamatoVoidSlashCommand());
+                switch (action) {
+                    case "void_slash_back" -> command.pressBack(now);
+                    case "void_slash_forward" -> {
+                        if (!command.pressForward(now)) voidSlashCommands.remove(id);
+                    }
+                    case "void_slash" -> {
+                        boolean ready = command.use(now);
+                        voidSlashCommands.remove(id);
+                        if (ready) YamatoCompat.performVoidSlash(player);
+                    }
+                    default -> { }
+                }
+            }
             case "open", "refresh" -> {
                 rifts.watch(player);
                 sendBook(player, action.equals("open"));
@@ -135,11 +166,25 @@ public final class YamatoNetwork {
     }
 
     private static void login(PlayerEvent.PlayerLoggedInEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player) sendWorld(player);
+        if (event.getEntity() instanceof ServerPlayer player) {
+            voidSlashCommands.remove(player.getUUID());
+            sendWorld(player);
+        }
     }
 
     private static void changedDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player) sendWorld(player);
+        if (event.getEntity() instanceof ServerPlayer player) {
+            voidSlashCommands.remove(player.getUUID());
+            sendWorld(player);
+        }
+    }
+
+    private static void logout(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) voidSlashCommands.remove(player.getUUID());
+    }
+
+    private static void serverStopped(ServerStoppedEvent event) {
+        voidSlashCommands.clear();
     }
 
     private static <T extends CustomPacketPayload> CustomPacketPayload.Type<T> type(String path) {
