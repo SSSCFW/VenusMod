@@ -131,6 +131,8 @@ public final class YamatoTravelClient {
             if (YamatoCompat.isYamato(event.getItemStack())) {
                 event.getToolTip().add(Component.translatable("tooltip.venusmod.yamato_travel", openKeyLabel())
                         .withStyle(ChatFormatting.AQUA));
+                event.getToolTip().add(Component.translatable("tooltip.venusmod.yamato_void_slash")
+                        .withStyle(ChatFormatting.AQUA));
             }
         }
 
