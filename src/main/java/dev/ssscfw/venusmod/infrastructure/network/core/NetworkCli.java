@@ -24,15 +24,15 @@ public final class NetworkCli {
             switch(t[0].toLowerCase(Locale.ROOT)){
                 case "help" -> {return new Reply(false,guide());}
                 case "show","status" -> {
-                    List<String> text=new ArrayList<>();text.add(p.name+" / "+p.kind+" / "+(p.failed?"故障":"正常"));
+                    List<String> text=new ArrayList<>();text.add(p.name+" / "+p.kind+" / "+PortFaults.status(p));
                     text.add("IP "+(p.address.isBlank()?"未設定":p.address+"/"+p.prefix)+" / GW "+p.gateway);
                     text.add("本体容量 "+CableGrade.speed(p.capacity())+" / WAN "+CableGrade.speed(NetworkProfile.WAN_SPEEDS[Math.clamp(p.wanTier,0,5)]));
                     text.add("安定化Lv"+p.stability+" / "+(p.stability==3?"内部故障率 0%":"修理・冗長化で保護"));
-                    for(int i=0;i<6;i++)text.add("P"+i+" "+portName(i)+": "+sim.portStatus(id,i));
+                    for(int i=0;i<6;i++)text.add("P"+i+" "+portName(i)+": "+PortFaults.portStatus(sim,id,i));
                     text.add("経路 "+p.routes.size()+"件 / 仮想転送 "+sim.flows().size()+"件");
                     text.add("STP: "+(p.spanning.classic?"classic (BPDU/タイマー)":"simple (即時の簡略木方式)")+" / stp status で確認");return new Reply(false,text);
                 }
-                case "ports" -> {List<String> text=new ArrayList<>();for(int i=0;i<6;i++){var port=p.ports[i];text.add("P"+i+" "+portName(i)+" "+(port.enabled?"ON":"OFF")+" "+(port.trunk?"Trunk":"Access")+" VLAN "+port.vlan+" / 許可 "+port.allowedVlans+(port.trunk?"":" (Trunk時のみ)"));text.add("  "+CableGrade.speed(port.capacity())+" "+(port.optical?"光":"銅線")+" "+port.address+"/"+port.prefix);}return new Reply(false,text);}
+                case "ports" -> {List<String> text=new ArrayList<>();for(int i=0;i<6;i++){var port=p.ports[i];text.add("P"+i+" "+portName(i)+" "+(port.enabled?"ON":"OFF")+" "+(port.trunk?"Trunk":"Access")+" VLAN "+port.vlan+" / "+(port.failed?"ポート故障":"正常")+" / 許可 "+port.allowedVlans+(port.trunk?"":" (Trunk時のみ)"));text.add("  "+CableGrade.speed(port.capacity())+" "+(port.optical?"光":"銅線")+" "+port.address+"/"+port.prefix);}return new Reply(false,text);}
                 case "mac" -> {return new Reply(false,sim.macTable(id).entrySet().stream().map(e->e.getKey()+" → P"+e.getValue()).toList());}
                 case "arp" -> {return new Reply(false,sim.arpTable(id).entrySet().stream().map(e->e.getKey()+" → "+e.getValue()).toList());}
                 case "log" -> {return new Reply(false,sim.logs(id));}
@@ -49,6 +49,7 @@ public final class NetworkCli {
                     if(t.length<3||t.length>4)throw new IllegalArgumentException("port 番号 vlan|allowed|ip|speed|media|mode 値 / enable|disable");
                     int n=Integer.parseInt(t[1]);if(n<0||n>=6)throw new IllegalArgumentException("ポート番号は0〜5です");var port=p.ports[n];
                     switch(t[2]){
+                        case "fault" -> {need(t,3);if(!PortFaults.failPort(p,n))return reply(false,"P"+n+"は既に故障しています");}
                         case "enable" -> {need(t,3);port.enabled=true;}
                         case "disable" -> {need(t,3);port.enabled=false;}
                         case "vlan" -> {need(t,4);port.vlan=Integer.parseInt(t[3]);}
@@ -68,7 +69,7 @@ public final class NetworkCli {
                 case "ospf","ipv6","nat","ipsec","lacp" -> {return reply(false,"この版では未実装です。成功した通信として扱いません。");}
                 default -> {return reply(false,"不明なコマンドです。help で一覧を表示します");}
             }
-            p.validate();String encoded=p.encode();if(editing&&t[0].equalsIgnoreCase("port")&&t.length==4&&t[2].equals("allowed")&&encoded.equals(original.encode()))return reply(false,"変更はありません");sim.put(id,p);return reply(true,"設定を保存しました: "+input);
+            p.validate();String encoded=p.encode();if(editing&&t[0].equalsIgnoreCase("port")&&t.length==4&&t[2].equals("allowed")&&encoded.equals(original.encode()))return reply(false,"変更はありません");sim.put(id,p);if(t[0].equalsIgnoreCase("port")&&t.length==3&&t[2].equals("fault"))sim.log(id,3,"PORT FAULT P"+t[1]+": 手動故障試験 / 修理キットで復旧");return reply(true,"設定を保存しました: "+input);
         }catch(IllegalArgumentException|ArithmeticException e){
             return reply(false,"設定を変更しませんでした: "+e.getMessage());
         }

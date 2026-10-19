@@ -1,5 +1,7 @@
 package dev.ssscfw.venusmod.infrastructure.network;
 
+import dev.ssscfw.venusmod.infrastructure.network.core.PortFaults;
+
 import dev.ssscfw.venusmod.infrastructure.network.core.NetworkGogglesReadout;
 import java.util.List;
 import net.minecraft.server.level.ServerPlayer;
@@ -33,7 +35,7 @@ public final class NetworkGogglesTracker {
                 : NetworkGogglesReadout.empty();
         NetworkPackets.GoggleView packet = new NetworkPackets.GoggleView(
                 level.dimension().location().toString(), pos, device.profile().kind.ordinal(),
-                allowed ? device.profile().name : "", device.profile().failed, allowed, ports);
+                allowed ? device.profile().name : "", PortFaults.hasFault(device.profile()), allowed, ports);
         PacketDistributor.sendToPlayer(player, packet);
     }
 }

@@ -39,11 +39,13 @@ public final class NetworkProfile {
     }
     public static final class Port {
         public boolean enabled=true,trunk=false,optical=false;
+        public boolean failed=false; // 物理故障。enableやモジュール交換では修理しない。
         public int vlan=1,prefix=24,moduleTier=0;
         public long speedLimitBps=0;
         public String address="";
         public VlanAllowance allowedVlans=VlanAllowance.ALL;
-        public boolean carriesVlan(int id){return enabled&&(trunk?allowedVlans.contains(id):vlan==id);}
+        public boolean operational(){return enabled&&!failed;}
+        public boolean carriesVlan(int id){return operational()&&(trunk?allowedVlans.contains(id):vlan==id);}
         public long capacity(){long physical=SPEEDS[Math.clamp(moduleTier,0,4)];return speedLimitBps==0?physical:Math.min(physical,speedLimitBps);}
     }
     public record Route(String network,int prefix,String gateway,int port){
@@ -54,7 +56,7 @@ public final class NetworkProfile {
     public boolean accepts(int port,CableGrade grade){
         Port p=ports[port];
         boolean opticalHardware=p.moduleTier>0 || kind.optical()&&port==0;
-        return p.enabled && p.optical==grade.optical() && (!grade.optical()||opticalHardware);
+        return p.operational() && p.optical==grade.optical() && (!grade.optical()||opticalHardware);
     }
     public static double failureProbability(double daily,long ticks,int stability){
         if(stability>=3||ticks<=0||daily<=0)return 0;
@@ -64,7 +66,7 @@ public final class NetworkProfile {
     public String encode(){
         try{
             var bytes=new ByteArrayOutputStream();var out=new DataOutputStream(bytes);
-            out.writeInt(14);out.writeUTF(name);out.writeUTF(address);out.writeInt(prefix);out.writeUTF(gateway);out.writeUTF(dns);
+            out.writeInt(15);out.writeUTF(name);out.writeUTF(address);out.writeInt(prefix);out.writeUTF(gateway);out.writeUTF(dns);
             out.writeBoolean(failed);out.writeBoolean(dhcp);out.writeBoolean(web);out.writeBoolean(stp);out.writeBoolean(publicService);
             out.writeUTF(vip);out.writeInt(vrrpPriority);
             for(Port p:ports){out.writeBoolean(p.enabled);out.writeBoolean(p.trunk);out.writeBoolean(p.optical);out.writeInt(p.vlan);out.writeUTF(p.address);out.writeInt(p.prefix);out.writeLong(p.speedLimitBps);}
@@ -72,6 +74,7 @@ public final class NetworkProfile {
             out.writeInt(dnsRecords.size());for(var entry:dnsRecords.entrySet()){out.writeUTF(entry.getKey());out.writeUTF(entry.getValue());}
             services.write(out);ospf.write(out);nat.write(out);vrrp.write(out);spanning.write(out);bgp.write(out);dnsSettings.write(out);syslog.write(out);monitor.write(out);monitor.writeServices(out);controlSafety.write(out);ntp.write(out);
             for(Port port:ports)out.writeUTF(port.allowedVlans.toString());
+            int faults=0;for(int i=0;i<ports.length;i++)if(ports[i].failed)faults|=1<<i;out.writeByte(faults);
             String result=Base64.getEncoder().encodeToString(bytes.toByteArray());
             if(result.length()>MAX_TEXT)throw new IllegalArgumentException("設定容量の上限です");return result;
         }catch(IOException e){throw new IllegalStateException(e);}
@@ -80,7 +83,7 @@ public final class NetworkProfile {
         if(text==null||text.length()>MAX_TEXT)throw new IllegalArgumentException("設定サイズが不正です");
         try{
             var in=new DataInputStream(new ByteArrayInputStream(Base64.getDecoder().decode(text)));
-            int version=in.readInt();if(version<1||version>14)throw new IllegalArgumentException("設定バージョンが未対応です");
+            int version=in.readInt();if(version<1||version>15)throw new IllegalArgumentException("設定バージョンが未対応です");
             var p=new NetworkProfile(kind);p.name=in.readUTF();p.address=in.readUTF();p.prefix=in.readInt();p.gateway=in.readUTF();p.dns=in.readUTF();
             p.failed=in.readBoolean();p.dhcp=in.readBoolean();p.web=in.readBoolean();p.stp=in.readBoolean();p.publicService=in.readBoolean();p.vip=in.readUTF();p.vrrpPriority=in.readInt();
             for(Port port:p.ports){port.enabled=in.readBoolean();port.trunk=in.readBoolean();port.optical=in.readBoolean();port.vlan=in.readInt();port.address=in.readUTF();port.prefix=in.readInt();port.speedLimitBps=in.readLong();}
@@ -101,6 +104,7 @@ public final class NetworkProfile {
             if(version>=12)p.controlSafety.read(in);
             if(version>=13)p.ntp.read(in);
             if(version>=14)for(Port port:p.ports)port.allowedVlans=VlanAllowance.parse(in.readUTF());
+            if(version>=15){int faults=in.readUnsignedByte();if((faults&~63)!=0)throw new IllegalArgumentException("故障ポート情報が不正です");for(int i=0;i<p.ports.length;i++)p.ports[i].failed=(faults&(1<<i))!=0;}
             if(in.available()!=0)throw new IllegalArgumentException("余分な設定データです");p.validate();return p;
         }catch(IOException|IllegalArgumentException e){throw new IllegalArgumentException("機器設定の形式が不正です",e);}
     }

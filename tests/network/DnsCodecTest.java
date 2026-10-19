@@ -17,7 +17,7 @@ public final class DnsCodecTest {
         r=NetworkCli.run(sim,"legacy","dns-record set NEW.local. 42 10.1.0.21 10.1.0.22");ok(r.changed(),"multiple A setup");
         r=NetworkCli.run(sim,"legacy","dns-negative-ttl 7");ok(r.changed(),"negative TTL setup");
         r=NetworkCli.run(sim,"legacy","dns-server off");ok(r.changed(),"disabled state setup");
-        String encoded=p.encode();ok(ByteBuffer.wrap(Base64.getDecoder().decode(encoded)).getInt()==14,"new format v14");
+        String encoded=p.encode();ok(ByteBuffer.wrap(Base64.getDecoder().decode(encoded)).getInt()==15,"new format v15");
         var restored=NetworkProfile.decode(DeviceKind.SERVER,encoded);var records=restored.dnsSettings.records(restored,"new.local");
         ok(records.ttl()==42&&records.addresses().equals(List.of("10.1.0.21","10.1.0.22")),"rrset and ttl round trip");
         ok(!restored.dnsSettings.enabled&&restored.dnsSettings.negativeTtl==7&&restored.dnsRecords.containsKey("Old.Local"),"service state plus legacy record retained");

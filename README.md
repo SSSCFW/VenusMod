@@ -154,3 +154,7 @@ ICMPとWeb/TCP80・DNS/UDP53・仮想転送・制御端末の応答を分けて�
 ## トランク許可VLAN
 
 ポートごとの許可VLANリストをGUI/CLIから設定できます。使い方とNative VLANの注意点は [トランク許可VLAN](docs/NETWORK_TRUNK_VLANS.md) を参照してください。サーバーとクライアントは同じ新版が必要です。
+
+## ポート単位の故障・修理
+
+機器全体の停止と各ポートの故障を区別します。既存キットの通常使用は全修理、Shift+機器の面を右クリックするとそのポートだけ修理します。操作・故障確率・保存範囲は[ポート故障](docs/NETWORK_PORT_FAULTS.md)、検査結果は[検証記録](docs/NETWORK_PORT_FAULTS_VERIFICATION.md)を参照してください。

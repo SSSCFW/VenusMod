@@ -28,7 +28,7 @@ public final class ControlSafetySettingsTest {
         NetworkServiceCommands.run(sim,"terminal","control-safety value 9 5");
         var saved=NetworkProfile.decode(DeviceKind.REDSTONE_TERMINAL,original.encode());
         ok(saved.controlSafety.config().equals(original.controlSafety.config()),"方針/期限/指定値を保存");
-        ok(ByteBuffer.wrap(Base64.getDecoder().decode(original.encode())).getInt()==14,"v14で保存");
+        ok(ByteBuffer.wrap(Base64.getDecoder().decode(original.encode())).getInt()==15,"v14で保存");
         ok(NetworkServiceCommands.run(sim,"terminal","control-safety value 9 5").changed()==false,"同じ設定の再適用は変更にしない");
         saved.controlSafety.set(new ControlSafetySettings.Config(ControlSafetySettings.Mode.STOP,3,0));ok(original.controlSafety.config().value()==9,"設定コピーを共有しない");
         for(String mode:List.of("INVALID","HOLD","STOP","VALUE")){

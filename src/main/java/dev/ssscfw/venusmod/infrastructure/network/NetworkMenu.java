@@ -87,7 +87,7 @@ public final class NetworkMenu extends AbstractContainerMenu {
         if(target==null||sender.containerMenu!=this||!stillValid(sender))return;
         var pages=NetworkForm.captureAll(target.profile());var statuses=new ArrayList<String>(6);
         var sim=NetworkWorld.get(sender.serverLevel()).simulator();
-        for(int i=0;i<6;i++){String status=sim.portStatus(target.id(),i);statuses.add(status.length()>160?status.substring(0,160):status);}
+        for(int i=0;i<6;i++){String status=PortFaults.portStatus(sim,target.id(),i);statuses.add(status.length()>160?status.substring(0,160):status);}
         if(requestId==0&&pages.equals(sentFormPages)&&statuses.equals(sentFormPorts))return;
         sentFormPages=pages;sentFormPorts=List.copyOf(statuses);
         NetworkPackets.formState(sender,containerId,requestId,accepted,message,pages,statuses);
@@ -144,7 +144,7 @@ public final class NetworkMenu extends AbstractContainerMenu {
     @Override public void removed(Player player){backups.clear();super.removed(player);}
     @Override public void broadcastChanges(){super.broadcastChanges();if(player instanceof ServerPlayer server&&target!=null&&stillValid(player)){long now=server.serverLevel().getGameTime();if(now-lastSnapshotTick>=20){lastSnapshotTick=now;sendSnapshot(server);}}}
     private void sendSnapshot(ServerPlayer server){
-        var world=NetworkWorld.get(server.serverLevel());String text=(target.profile().failed?"[故障] ":"[正常] ")+target.profile().name+" / "+world.diagnostic()+"\n"+output;
+        var world=NetworkWorld.get(server.serverLevel());String text=("["+PortFaults.status(target.profile())+"] ")+target.profile().name+" / "+world.diagnostic()+"\n"+output;
         if(text.length()>8000)text=text.substring(0,8000);snapshot=text;NetworkPackets.snapshot(server,containerId,target.profile().kind.ordinal(),text);syncForm(server,0,true,"");
     }
 }

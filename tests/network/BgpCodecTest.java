@@ -13,7 +13,7 @@ public final class BgpCodecTest {
         ok(!legacy.bgp.enabled&&legacy.bgp.peers.isEmpty(),"旧機器はBGP無効で移行");
         var s=BgpBoundaryTest.configured();BgpContractTest.ticks(s,160);
         var p=s.nodes().get("a");String encoded=p.encode();var decoded=NetworkProfile.decode(DeviceKind.ROUTER,encoded);
-        ok(ByteBuffer.wrap(Base64.getDecoder().decode(encoded)).getInt()==14,"DNS拡張を含む保存v14 (BGP設定を保持)");
+        ok(ByteBuffer.wrap(Base64.getDecoder().decode(encoded)).getInt()==15,"DNS拡張を含む保存v15 (BGP設定を保持)");
         ok(decoded.bgp.asn==65001&&decoded.bgp.enabled&&decoded.bgp.routerId.equals("1.1.1.1"),"AS・ID・有効状態保存");
         ok(decoded.bgp.peers.equals(p.bgp.peers)&&decoded.bgp.networks.equals(p.bgp.networks),"ピア/政策/生成経路保存");
         var fresh=new NetworkSimulator();fresh.put("a",decoded);ok(fresh.bgp().routes("a").isEmpty()&&fresh.bgp().neighbors("a").isEmpty(),"動的経路/タイマーを持ち運ばない");

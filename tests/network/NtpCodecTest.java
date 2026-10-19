@@ -10,13 +10,13 @@ public final class NtpCodecTest {
         ok(!old.ntp.enabled&&!old.ntp.server&&old.ntp.offsetMillis==0,"old v12 device keeps NTP off");
         ok(old.name.equals("v12 fixture")&&old.address.equals("192.0.2.9")&&old.syslog.target.equals("192.0.2.3"),"old settings preserved");
         old.ntp.enabled=true;old.ntp.target="192.0.2.123";old.ntp.port=8123;old.ntp.intervalSeconds=7;old.ntp.offsetMillis=-3456;old.ntp.driftPpm=25;
-        String encoded=old.encode();ok(ByteBuffer.wrap(Base64.getDecoder().decode(encoded)).getInt()==14,"new format v14");
+        String encoded=old.encode();ok(ByteBuffer.wrap(Base64.getDecoder().decode(encoded)).getInt()==15,"new format v15");
         var copy=NetworkProfile.decode(DeviceKind.SERVER,encoded);ok(copy.ntp.config().equals(old.ntp.config()),"NTP configuration round trip");ok(encoded.equals(copy.encode()),"full encoding stable");
         var s=new NetworkSimulator();s.put("old",old);s.put("copy",copy);ok(s.ntp().snapshot("copy").samples()==0&&s.ntp().snapshot("copy").state().equals("WAITING"),"restoring doesn't fabricate a successful sample");
         byte[] bytes=Base64.getDecoder().decode(encoded);
         for(int length:new int[]{bytes.length-1,bytes.length+1}){boolean refused=false;try{NetworkProfile.decode(DeviceKind.SERVER,Base64.getEncoder().encodeToString(Arrays.copyOf(bytes,length)));}catch(IllegalArgumentException e){refused=true;}ok(refused,"truncated or trailing data refused");}
         var suffix=new java.io.ByteArrayOutputStream();for(var port:old.ports)new java.io.DataOutputStream(suffix).writeUTF(port.allowedVlans.toString());
-        int driftOffset=bytes.length-suffix.size()-4;ok(ByteBuffer.wrap(bytes).getInt(driftOffset)==25,"破損対象はNTP driftフィールド");
+        int driftOffset=bytes.length-suffix.size()-1-4;ok(ByteBuffer.wrap(bytes).getInt(driftOffset)==25,"破損対象はNTP driftフィールド");
         byte[] bad=bytes.clone();ByteBuffer.wrap(bad).putInt(driftOffset,1001);boolean refused=false;try{NetworkProfile.decode(DeviceKind.SERVER,Base64.getEncoder().encodeToString(bad));}catch(IllegalArgumentException e){refused=true;}ok(refused,"out-of-range persisted drift rejected");
         String unchanged=s.nodes().get("old").encode();
         for(String command:List.of("ntp server on","ntp on extra","ntp target 0.0.0.0","ntp target 224.0.0.1","ntp target time.example","ntp target http://192.0.2.1","ntp target 192.0.2.1 65536","ntp target none extra","ntp interval 0","ntp interval 3601","ntp offset -86400001","ntp offset 9223372036854775808","ntp drift -1001","ntp drift nan","ntp sync extra")){

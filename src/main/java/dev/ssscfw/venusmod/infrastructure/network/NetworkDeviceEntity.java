@@ -98,17 +98,35 @@ public final class NetworkDeviceEntity extends BlockEntity implements MenuProvid
         }
         profile.wanTier=NetworkContent.wanTier(modules.getItem(WAN_SLOT));
     }
-    public void repair(){profile.failed=false;refreshState();}
+    public void repair(){
+        if(!PortFaults.repairAll(profile))return;
+        refreshState();if(level instanceof ServerLevel s)NetworkWorld.get(s).simulator().log(id(),5,"REPAIR: 本体と全ポートを修理");
+    }
+    public boolean repairPort(int port){
+        if(!PortFaults.repairPort(profile,port))return false;
+        refreshState();if(level instanceof ServerLevel s)NetworkWorld.get(s).simulator().log(id(),5,"PORT REPAIR P"+port+": 修理完了");
+        return true;
+    }
+    private void syncFaultLamp(){
+        if(level instanceof ServerLevel s){var state=getBlockState();boolean faulty=PortFaults.hasFault(profile);
+            if(state.getValue(NetworkDeviceBlock.FAULTED)!=faulty)s.setBlock(worldPosition,state.setValue(NetworkDeviceBlock.FAULTED,faulty),3);}
+    }
     public void refreshState(){
-        reconcileControl(false);setChanged();if(level instanceof ServerLevel s){BlockState state=getBlockState();if(state.getValue(NetworkDeviceBlock.FAULTED)!=profile.failed)s.setBlock(worldPosition,state.setValue(NetworkDeviceBlock.FAULTED,profile.failed),3);
+        reconcileControl(false);setChanged();if(level instanceof ServerLevel s){BlockState state=getBlockState();syncFaultLamp();
             NetworkWorld.get(s).configurationChanged(this);s.updateNeighborsAt(worldPosition,state.getBlock());}
     }
     void failureCheck(ServerLevel server){
-        applyModules();double probability=NetworkProfile.failureProbability(NetworkContent.FAILURE_PER_DAY.get(),1200,profile.stability);
-        if(!profile.failed&&probability>0&&server.random.nextDouble()<probability){profile.failed=true;refreshState();NetworkWorld.get(server).simulator().log(id(),"内部故障: 修理キットで復旧できます");}
+        applyModules();
+        var event=PortFaults.sample(profile,NetworkContent.FAILURE_PER_DAY.get(),1200,
+                NetworkContent.PORT_FAILURE_SHARE.get(),server.random::nextDouble,server.random::nextInt);
+        if(event.kind()!=PortFaults.Kind.NONE){
+            refreshState();String message=event.kind()==PortFaults.Kind.PORT?
+                "PORT FAULT P"+event.port()+": 内部故障 / 修理キットで復旧できます":"DEVICE FAULT: 本体の内部故障 / 修理キットで復旧できます";
+            NetworkWorld.get(server).simulator().log(id(),3,message);
+        }
         failureRemaining=1200;setChanged();
     }
-    @Override public void onLoad(){super.onLoad();applyModules();if(level instanceof ServerLevel s){NetworkWorld.get(s).add(this);reconcileControl(true);}}
+    @Override public void onLoad(){super.onLoad();applyModules();if(level instanceof ServerLevel s){NetworkWorld.get(s).add(this);reconcileControl(true);syncFaultLamp();}}
     @Override public void setRemoved(){if(level instanceof ServerLevel s)NetworkWorld.get(s).remove(this);super.setRemoved();}
     @Override public void onChunkUnloaded(){if(level instanceof ServerLevel s)NetworkWorld.get(s).remove(this);super.onChunkUnloaded();}
     @Override public Component getDisplayName(){return Component.translatable(getBlockState().getBlock().getDescriptionId());}

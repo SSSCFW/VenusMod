@@ -12,7 +12,7 @@ public final class MonitorCodecTest {
         p.monitor.targets.put("base","10.42.0.2");p.monitor.enabled=true;p.monitor.intervalSeconds=9;p.monitor.failures=4;p.monitor.recoveries=3;p.failed=true;
         var restored=NetworkProfile.decode(DeviceKind.SERVER,p.encode());
         ok(p.monitor.config().equals(restored.monitor.config())&&restored.failed&&restored.syslog.server,"v10往復で監視と既存設定保持");
-        ok(ByteBuffer.wrap(Base64.getDecoder().decode(p.encode())).getInt()==14,"保存v14");
+        ok(ByteBuffer.wrap(Base64.getDecoder().decode(p.encode())).getInt()==15,"保存v15");
         byte[] bytes=Base64.getDecoder().decode(p.encode());byte[] truncated=Arrays.copyOf(bytes,bytes.length-1);boolean rejected=false;
         try{NetworkProfile.decode(DeviceKind.SERVER,Base64.getEncoder().encodeToString(truncated));}catch(IllegalArgumentException e){rejected=true;}ok(rejected,"切れた保存データ拒否");
         var zero=new NetworkProfile(DeviceKind.PC);zero.validate();ok(!zero.monitor.enabled,"既存PCの初期値互換");
