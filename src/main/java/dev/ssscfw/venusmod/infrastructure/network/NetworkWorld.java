@@ -40,6 +40,8 @@ public final class NetworkWorld {
         });
     }
     public NetworkSimulator simulator(){return simulator;}
+    /** 明示的な設定保管時だけ、ロード済み機器の合計を1回走査する。 */
+    public long backupTextSize(){long total=0;for(var device:devices.values())total+=device.backupTextSize();return total;}
     public NetworkControl controls(){return controls;}
     public boolean ready(){return topology.idle();}
     public String diagnostic(){return topology.diagnostic();}

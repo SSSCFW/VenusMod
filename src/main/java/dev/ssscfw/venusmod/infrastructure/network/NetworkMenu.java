@@ -17,6 +17,7 @@ public final class NetworkMenu extends AbstractContainerMenu {
     private final SimpleContainer inventory;
     private final Player player;
     private final BlockPos pos;
+    private final NetworkBackupSession backups=new NetworkBackupSession();
     private long lastCommandTick=Long.MIN_VALUE,lastSnapshotTick;
     private int commandsThisTick;
     private String output="help で構成例と操作方法を表示します";
@@ -103,6 +104,9 @@ public final class NetworkMenu extends AbstractContainerMenu {
         if(!world.simulator().nodes().containsKey(target.id())){output="機器数上限または未登録の機器です";sendSnapshot(sender);return;}
         String[] t=text.trim().split("\\s+");var simulator=world.simulator();
         try{
+            if(t[0].equals("backup")){
+                output=backups.command(target,sender,t);sendSnapshot(sender);return;
+            }
             var service=NetworkServiceCommands.run(simulator,target.id(),text);
             if(service.handled()){
                 target.adoptProfile(simulator.nodes().get(target.id()));output=String.join("\n",service.lines());if(service.changed()){if(DnsCommands.handles(t)||SyslogCommands.handles(t)||MonitorCommands.handles(t)||ControlSafetyCommands.handles(t))target.setChanged();else target.refreshState();}
@@ -137,9 +141,10 @@ public final class NetworkMenu extends AbstractContainerMenu {
         for(String id:simulator.drainChangedProfiles()){var changed=world.device(id);if(changed!=null)changed.setChanged();}
         sendSnapshot(sender);
     }
+    @Override public void removed(Player player){backups.clear();super.removed(player);}
     @Override public void broadcastChanges(){super.broadcastChanges();if(player instanceof ServerPlayer server&&target!=null&&stillValid(player)){long now=server.serverLevel().getGameTime();if(now-lastSnapshotTick>=20){lastSnapshotTick=now;sendSnapshot(server);}}}
     private void sendSnapshot(ServerPlayer server){
         var world=NetworkWorld.get(server.serverLevel());String text=(target.profile().failed?"[故障] ":"[正常] ")+target.profile().name+" / "+world.diagnostic()+"\n"+output;
-        if(text.length()>8000)text=text.substring(0,8000);NetworkPackets.snapshot(server,containerId,target.profile().kind.ordinal(),text);syncForm(server,0,true,"");
+        if(text.length()>8000)text=text.substring(0,8000);snapshot=text;NetworkPackets.snapshot(server,containerId,target.profile().kind.ordinal(),text);syncForm(server,0,true,"");
     }
 }

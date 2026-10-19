@@ -142,3 +142,7 @@ ICMPとWeb/TCP80・DNS/UDP53・仮想転送・制御端末の応答を分けて�
 ### 通信断時の安全出力
 
 レッドストーン通信端末の保持/停止/指定値、認可付きの定期更新、期限切れ後の明示的な再開は [制御通信の安全動作](docs/NETWORK_CONTROL_SAFETY.md) を参照してください。既存端末はholdのままで、新しい保護は任意設定です。
+
+### 機器設定のバックアップ
+
+`backup save`で変更前の設定を控え、確認付きで復元できます。管理権限のあるサーバーへの保管・取得も可能です。故障・装着品・所有権は巻き戻しません。[操作と制限](docs/NETWORK_CONFIG_BACKUP.md)、[検証記録](docs/NETWORK_CONFIG_BACKUP_VERIFICATION.md)を参照してください。

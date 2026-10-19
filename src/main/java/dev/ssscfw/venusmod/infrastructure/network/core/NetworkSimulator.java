@@ -504,6 +504,15 @@ public final class NetworkSimulator {
         }catch(SearchLimit|IllegalArgumentException invalid){return Result.fail(invalid.getMessage());}
         finally{suppressProbeLogs--;}
     }
+    /** 設定保管庫はTCP5001。機種・認可・容量の検査をNAT取引の確定前に行う。 */
+    public Result backupRequest(String source,ServiceAddress endpoint,java.util.function.Function<String,String> authorize){
+        Objects.requireNonNull(endpoint);Objects.requireNonNull(authorize);suppressProbeLogs++;
+        try{
+            return exchange(source,replyAddress(source,endpoint.address()),endpoint.address(),"tcp",49152,endpoint.port(),new SearchBudget(),5001,
+                    (id,p)->p!=null&&p.kind==DeviceKind.SERVER?Objects.requireNonNull(authorize.apply(id)):"通信先はバックアップサーバーではありません");
+        }catch(SearchLimit|IllegalArgumentException invalid){return Result.fail(invalid.getMessage());}
+        finally{suppressProbeLogs--;}
+    }
     private Result exchange(String source,String local,String target,String protocol,int sourcePort,int destinationPort,SearchBudget budget){
         return exchange(source,local,target,protocol,sourcePort,destinationPort,budget,-1);
     }

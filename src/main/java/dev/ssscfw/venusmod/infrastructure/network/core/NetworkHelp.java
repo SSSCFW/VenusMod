@@ -49,6 +49,8 @@ public final class NetworkHelp {
         "trust プレイヤー名 / untrust プレイヤー名 / public on|off",
         "完全安定化で内部ランダム故障だけ0%。故障は修理キットで復旧。",
         "通常採掘で設定・アップグレード・故障・権限を保持します。",
+        "backup save NAME / backup list / backup restore NAME (確認後に復元)",
+        "backup server on / backup send IP NAME / backup fetch IP NAME LOCAL / backup help",
         "bgp as 65001 / bgp neighbor 192.0.2.2 remote-as 65002 / bgp on",
         "bgp network add 10.1.0.0/24 / bgp help / show bgp",
         "eBGPはimport/exportの明示許可が必要。iBGP NEXT_HOPの下位到達性も確認。",

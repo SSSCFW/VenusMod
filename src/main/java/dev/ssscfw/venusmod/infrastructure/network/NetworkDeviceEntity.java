@@ -24,6 +24,26 @@ public final class NetworkDeviceEntity extends BlockEntity implements MenuProvid
     private final Set<UUID> trusted=new HashSet<>();
     private NetworkProfile profile;
     private boolean loading;
+    private BackupArchive backups=new BackupArchive();
+    private Tag quarantinedBackups;
+    public BackupArchive backups(){
+        if(quarantinedBackups!=null)throw new IllegalArgumentException("保管庫の形式またはチェックサムが不正です。元データを隔離して保持しています");
+        return backups;
+    }
+    public int backupTextSize(){return quarantinedBackups==null?backups.textSize():BackupArchive.MAX_TOTAL_TEXT;}
+    public void discardCorruptBackups(){
+        if(quarantinedBackups==null)throw new IllegalArgumentException("破損保管庫はありません。有効な控えはbackup deleteで削除してください");
+        quarantinedBackups=null;backups=new BackupArchive();setChanged();
+    }
+    private void restoreBackups(CompoundTag tag){
+        backups=new BackupArchive();quarantinedBackups=null;Tag raw=tag.get("BackupArchive");if(raw==null)return;
+        try{
+            if(!(raw instanceof ByteArrayTag data)||data.getAsByteArray().length>BackupArchive.MAX_ENCODED)
+                throw new IllegalArgumentException("バックアップ保管データの型・長さが不正です");
+            backups=BackupArchive.decode(new String(data.getAsByteArray(),java.nio.charset.StandardCharsets.US_ASCII));
+        }catch(IllegalArgumentException invalid){quarantinedBackups=raw.copy();}
+    }
+
     private int redstone;
     private ControlSafetySettings.Config appliedSafety=new ControlSafetySettings().config();
     private boolean appliedFailure;
@@ -98,11 +118,15 @@ public final class NetworkDeviceEntity extends BlockEntity implements MenuProvid
         var access=new ListTag();for(UUID id:trusted)access.add(StringTag.valueOf(id.toString()));tag.put("Trusted",access);
         var slots=new ListTag();for(int i=0;i<SLOTS;i++){ItemStack stack=modules.getItem(i);if(!stack.isEmpty()){var entry=new CompoundTag();entry.putInt("Slot",i);entry.put("Stack",stack.save(registries));slots.add(entry);}}
         tag.put("Modules",slots);tag.putInt("Redstone",redstone);
+        if(quarantinedBackups!=null)tag.put("BackupArchive",quarantinedBackups.copy());
+        else if(backups.serving()||!backups.entries().isEmpty())
+            tag.putByteArray("BackupArchive",backups.encode().getBytes(java.nio.charset.StandardCharsets.US_ASCII));
         long remain=level instanceof ServerLevel s&&nextFailureTime>0?Math.max(1,nextFailureTime-s.getGameTime()):failureRemaining;tag.putLong("FailureRemaining",Math.clamp(remain,1,1200));return tag;
     }
     private void restore(CompoundTag tag,HolderLookup.Provider registries){
         loading=true;
         try{
+            restoreBackups(tag);
             if(tag.hasUUID("Device"))deviceId=tag.getUUID("Device");if(tag.hasUUID("Owner"))owner=tag.getUUID("Owner");
             if(tag.contains("Config",Tag.TAG_STRING)){try{profile=NetworkProfile.decode(profile.kind,tag.getString("Config"));}catch(IllegalArgumentException invalid){profile.failed=true;}}
             trusted.clear();ListTag ids=tag.getList("Trusted",Tag.TAG_STRING);for(int i=0;i<Math.min(16,ids.size());i++){try{trusted.add(UUID.fromString(ids.getString(i)));}catch(IllegalArgumentException ignored){}}

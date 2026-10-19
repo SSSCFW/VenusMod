@@ -35,6 +35,8 @@ public final class NetworkServices {
     public void removePool(String subnet){String normalized=NetworkPolicy.Prefix.parse(subnet).toString();if(!pools.removeIf(p->p.subnet.toString().equals(normalized)))throw new IllegalArgumentException("指定プールはありません");bindings.keySet().removeIf(k->k.subnet.equals(normalized));}
     public void clearPools(){pools.clear();bindings.clear();}
     public void clearBindings(){bindings.clear();}
+    /** 設定復元でも現在の配布予約を解放しない。プール整合性は復元側が先に検査する。 */
+    void retainBindingsFrom(NetworkServices current){bindings.clear();bindings.putAll(current.bindings);}
     public Pool poolFor(String giaddr){long ip=Ipv4.parse(giaddr);return pools.stream().filter(p->p.subnet.contains(ip)).findFirst().orElse(null);}
     public String reserved(String client,Pool pool){return bindings.get(new BindingKey(client,pool.subnet.toString()));}
     public Set<String> reservedByOthers(String client){Set<String> result=new HashSet<>();bindings.forEach((k,v)->{if(!k.client.equals(client))result.add(v);});return result;}
