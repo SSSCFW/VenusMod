@@ -2,6 +2,7 @@ package dev.ssscfw.venusmod.compat;
 
 import com.mojang.logging.LogUtils;
 import dev.ssscfw.venusmod.VenusMod;
+import dev.ssscfw.venusmod.yamato.YamatoVoidSlashEffects;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.Optional;
@@ -232,9 +233,23 @@ public final class YamatoCompat {
             Object current = resolveCurrentComboState.invoke(state, player);
             if (VOID_SLASH.equals(current) || VOID_SLASH_SHEATH.equals(current)) return false;
             updateComboSeq.invoke(state, player, VOID_SLASH);
-            return VOID_SLASH.equals(getComboSeq.invoke(state));
+            boolean started = VOID_SLASH.equals(getComboSeq.invoke(state));
+            if (started) YamatoVoidSlashEffects.begin(player);
+            return started;
         } catch (ReflectiveOperationException | LinkageError | RuntimeException exception) {
             logFailureOnce("閻魔刀の時空裂閃を発動できませんでした", exception);
+            return false;
+        }
+    }
+
+    /** 既存Void Slashの一段目が実際に再生中のときだけ斬撃Entityを認可する。 */
+    public static boolean isVoidSlashActive(ServerPlayer player) {
+        if (player == null || !isYamato(player.getMainHandItem()) || !resolveMotion()) return false;
+        try {
+            Object state = bladeState(player.getMainHandItem());
+            return state != null && VOID_SLASH.equals(getComboSeq.invoke(state));
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException exception) {
+            logFailureOnce("閻魔刀の時空裂閃状態を確認できませんでした", exception);
             return false;
         }
     }
