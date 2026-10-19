@@ -361,6 +361,25 @@ public final class YamatoNetworkGameTests {
     }
 
     @GameTest(template = "test/empty")
+    public static void voidSlashFreezePacketsRoundTrip(GameTestHelper h) {
+        for (int entityId : new int[]{1, 42, 32767, 2147483647}) {
+            for (boolean frozen : new boolean[]{false, true}) {
+                RegistryFriendlyByteBuf buffer = buffer(h);
+                try {
+                    YamatoNetwork.FreezePayload original = new YamatoNetwork.FreezePayload(entityId, frozen);
+                    YamatoNetwork.FreezePayload.CODEC.encode(buffer, original);
+                    h.assertTrue(YamatoNetwork.FreezePayload.CODEC.decode(buffer).equals(original),
+                            "Entity IDと拘束・解除の送受信");
+                    h.assertTrue(!buffer.isReadable(), "拘束通知の余りのない復号");
+                } finally {
+                    buffer.release();
+                }
+            }
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "test/empty")
     public static void packetIdsRejectShorthandAndMalformedTypes(GameTestHelper h) {
         UUID expected = UUID.fromString("12345678-1234-4567-890a-123456789abc");
         CompoundTag request = new CompoundTag();
