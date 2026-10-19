@@ -9,14 +9,20 @@ import java.util.*;
  */
 public final class NetworkForm {
     public static final int MAX_ENCODED=1024, BASIC=-1, PAGE_COUNT=NetworkProfile.PORT_COUNT+1;
-    private static final int VIEW_MAGIC=0x564e4631, EDIT_MAGIC=0x564e4531;
+    private static final int VIEW_MAGIC=0x564e4632, EDIT_MAGIC=0x564e4532;
     public static final List<Long> SPEEDS=List.of(0L,10_000_000L,100_000_000L,1_000_000_000L,
             10_000_000_000L,40_000_000_000L,100_000_000_000L,400_000_000_000L);
     private NetworkForm(){}
 
     /** 文字入力は検証前なので数値も文字列。scope=-1は基本設定、0〜5は世界方位のポート。 */
     public record Values(int scope,String name,String address,String prefix,String gateway,String dns,
-                         boolean enabled,boolean trunk,boolean optical,String vlan,String speed){}
+                         boolean enabled,boolean trunk,boolean optical,String vlan,String speed,String allowedVlans){
+        /** 既定allの旧Java呼出用。通信形式はv2を用い、旧クライアントの暗黙上書きは許可しない。 */
+        public Values(int scope,String name,String address,String prefix,String gateway,String dns,
+                      boolean enabled,boolean trunk,boolean optical,String vlan,String speed){
+            this(scope,name,address,prefix,gateway,dns,enabled,trunk,optical,vlan,speed,"all");
+        }
+    }
     public record View(DeviceKind kind,Values values,long maximumBps,boolean opticalAvailable){}
     public record Outcome(boolean accepted,boolean changed,String message){
         public static Outcome reject(String reason){return new Outcome(false,false,reason);}
@@ -27,7 +33,7 @@ public final class NetworkForm {
         if(scope==BASIC)return new View(p.kind,new Values(scope,p.name,p.address,Integer.toString(p.prefix),p.gateway,p.dns,true,false,false,"1","0"),0,false);
         var port=p.ports[scope];
         return new View(p.kind,new Values(scope,"",port.address,Integer.toString(port.prefix),"","",port.enabled,port.trunk,port.optical,
-                Integer.toString(port.vlan),Long.toString(port.speedLimitBps)),
+                Integer.toString(port.vlan),Long.toString(port.speedLimitBps),port.allowedVlans.toString()),
                 NetworkProfile.SPEEDS[Math.clamp(port.moduleTier,0,4)],port.moduleTier>0||p.kind.optical()&&scope==0);
     }
     public static List<String> captureAll(NetworkProfile p){
@@ -47,7 +53,8 @@ public final class NetworkForm {
             boolean connectivity;
             if(fields.scope()==BASIC){
                 if(fields.enabled()!=base.values().enabled()||fields.trunk()!=base.values().trunk()||fields.optical()!=base.values().optical()
-                        ||!fields.vlan().equals(base.values().vlan())||!fields.speed().equals(base.values().speed()))
+                        ||!fields.vlan().equals(base.values().vlan())||!fields.speed().equals(base.values().speed())
+                        ||!fields.allowedVlans().equals(base.values().allowedVlans()))
                     return Outcome.reject("基本設定からポートを変更できません");
                 text(fields.name(),48,"機器名");p.name=fields.name();
                 if(p.kind.routing()){
@@ -65,6 +72,7 @@ public final class NetworkForm {
                     if(!fields.address().equals(base.values().address())||!fields.prefix().equals(base.values().prefix()))return Outcome.reject("この機種のIPは基本設定で変更してください");
                 }else{port.address=ip(fields.address());port.prefix=number(fields.prefix(),0,32,"プレフィックス");}
                 port.vlan=number(fields.vlan(),1,4094,"VLAN");
+                port.allowedVlans=VlanAllowance.parse(fields.allowedVlans());
                 text(fields.speed(),16,"速度");if(!fields.speed().matches("[0-9]{1,12}"))return Outcome.reject("速度の形式が不正です");
                 long speed=Long.parseLong(fields.speed());
                 // 既存の高い固定速度は、モジュール抜去で勝手に書き換えない。他フィールドの編集は可能。
@@ -100,14 +108,15 @@ public final class NetworkForm {
     private static void text(String value,int max,String field){if(value==null||value.length()>max||value.codePoints().anyMatch(Character::isISOControl))throw new IllegalArgumentException(field+"の文字数または形式が不正です");}
     private static void writeValues(DataOutput out,Values v)throws IOException{
         out.writeByte(v.scope());out.writeUTF(v.name());out.writeUTF(v.address());out.writeUTF(v.prefix());out.writeUTF(v.gateway());out.writeUTF(v.dns());
-        out.writeBoolean(v.enabled());out.writeBoolean(v.trunk());out.writeBoolean(v.optical());out.writeUTF(v.vlan());out.writeUTF(v.speed());
+        out.writeBoolean(v.enabled());out.writeBoolean(v.trunk());out.writeBoolean(v.optical());out.writeUTF(v.vlan());out.writeUTF(v.speed());out.writeUTF(v.allowedVlans());
     }
     private static Values readValues(DataInputStream in)throws IOException{
         int scope=in.readByte();scope(scope);
         String name=readText(in),address=readText(in),prefix=readText(in),gateway=readText(in),dns=readText(in);
         boolean enabled=in.readBoolean(),trunk=in.readBoolean(),optical=in.readBoolean();
-        return new Values(scope,name,address,prefix,gateway,dns,enabled,trunk,optical,readText(in),readText(in));
+        return new Values(scope,name,address,prefix,gateway,dns,enabled,trunk,optical,readText(in),readText(in),readAllowance(in));
     }
+    private static String readAllowance(DataInputStream in)throws IOException{String s=in.readUTF();if(s.length()>VlanAllowance.MAX_TEXT)throw new IllegalArgumentException("許可VLANは256文字以下です");return s;}
     private static String readText(DataInputStream in)throws IOException{String s=in.readUTF();if(s.length()>64)throw new IllegalArgumentException("入力欄は64文字以下です");return s;}
     private static DataInputStream input(String encoded){if(encoded==null||encoded.length()>MAX_ENCODED)throw new IllegalArgumentException("フォーム容量の上限です");return new DataInputStream(new ByteArrayInputStream(Base64.getDecoder().decode(encoded)));}
     private static void end(DataInputStream in)throws IOException{if(in.available()!=0)throw new IllegalArgumentException("余分なフォームデータです");}

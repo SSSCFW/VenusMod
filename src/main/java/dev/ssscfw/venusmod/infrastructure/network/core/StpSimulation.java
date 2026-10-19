@@ -39,12 +39,12 @@ final class StpSimulation implements StpEngine.Transport {
             var p=e.getValue();if(!classic(p)||p.failed)continue;
             try{p.spanning.validate(p);}catch(IllegalArgumentException invalid){issues.put(e.getKey()+"/0",invalid.getMessage());continue;}
             for(int vlan:vlans){
-                if(Arrays.stream(p.ports).noneMatch(port->port.enabled&&(port.trunk||port.vlan==vlan)))continue;
+                if(Arrays.stream(p.ports).noneMatch(port->port.carriesVlan(vlan)))continue;
                 if(result.size()>=StpEngine.MAX_INSTANCES){configurations=Map.of();engine.stop("STP instance上限 (512)。VLAN数/機器数を減らしてください");return;}
                 List<StpEngine.PortConfig> ports=new ArrayList<>();
                 for(int n=0;n<6;n++){
                     var port=p.ports[n];var link=sim.physicalLink(e.getKey(),n);long speed=link==null?0:sim.linkCapacity(link);
-                    boolean live=port.enabled&&(port.trunk||port.vlan==vlan)&&speed>0;String connection="";
+                    boolean live=port.carriesVlan(vlan)&&speed>0;String connection="";
                     if(link!=null){String otherId=link.peer(e.getKey());int otherPort=link.peerPort(e.getKey());var other=sim.nodes().get(otherId);
                         connection=link.id()+"/"+otherId+":"+otherPort+"/"+other.ports[otherPort].vlan+"/"+other.ports[otherPort].trunk;
                         if(other.kind.bridge()&&!classic(other)){live=false;issues.put(e.getKey()+"/"+n,"相手のL2機器もstp mode classicが必要 (simple/off混在は未対応)");}

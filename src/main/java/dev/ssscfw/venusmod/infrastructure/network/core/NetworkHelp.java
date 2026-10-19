@@ -20,6 +20,7 @@ public final class NetworkHelp {
         "topology rebuild: 管理者専用の全配線再解析 (上限停止後の復旧用)。",
         "port 0 speed auto / port 0 speed 100m / port 0 enable|disable",
         "port 0 vlan 10 / port 1 mode trunk / port 0 media fiber",
+        "port 1 allowed 10,20-30 | all | none (Trunkの送受を制限。Native VLANも対象)",
         "光は10G以上の対応モジュールが必要。ONU/OLTの北P0は標準光。",
         "route add 10.0.3.0/24 via 10.0.2.2 port 1 / route clear",
         "dhcp / dhcp-server on|off / dhcp-relay 0 10.0.2.10",

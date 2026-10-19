@@ -16,7 +16,7 @@ public final class MonitorServiceCodecTest {
         ok(p.monitor.services.isEmpty()&&p.monitor.config().target("legacy").kind()==MonitorTarget.Kind.ICMP,"旧対象は自動的にICMPとして移行");
         for(var kind:MonitorTarget.Kind.values())if(kind!=MonitorTarget.Kind.ICMP){String label=kind.label();p.monitor.targets.put(label,"10.80.0.3");p.monitor.services.put(label,new MonitorTarget.Service(kind,kind.servicePort()+100));}
         p.validate();var encoded=p.encode();var saved=NetworkProfile.decode(DeviceKind.SERVER,encoded);
-        ok(ByteBuffer.wrap(Base64.getDecoder().decode(encoded)).getInt()==13,"保存v13");
+        ok(ByteBuffer.wrap(Base64.getDecoder().decode(encoded)).getInt()==14,"保存v14");
         ok(saved.monitor.config().equals(p.monitor.config())&&saved.failed,"全種類・公開ポートを保存復元");
         var copy=new MonitorSettings();copy.copyFrom(p.monitor);p.monitor.services.clear();
         ok(copy.services.size()==4&&saved.monitor.services.size()==4,"設定コピーの参照を共有しない");

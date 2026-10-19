@@ -24,7 +24,7 @@ public final class NetworkSettingsPanel {
     private Consumer<AbstractWidget> add,focusCallback;
     private Runnable close;
     private AbstractWidget focused;
-    private EditBox name,ip,prefix,gateway,dns,portIp,portPrefix,vlan;
+    private EditBox name,ip,prefix,gateway,dns,portIp,portPrefix,vlan,allowedVlans;
     private Button enabledButton,modeButton,mediaButton,speedButton,apply,reload;
     private NetworkForm.Values displayed;
     public NetworkSettingsPanel(NetworkMenu menu){this.menu=menu;}
@@ -47,6 +47,7 @@ public final class NetworkSettingsPanel {
         speedButton=button("",84,110,140,()->toggle("speed"),"クリックでAuto/固定速度を切り替えます。固定速度は両端が対応する値を指定してください。");portWidgets.add(speedButton);
         portIp=edit(84,138,174,15,"ポートIPv4","ルーター/L3SW用のIP。空欄にするとこのポートの実IPを未設定に戻します。",portWidgets);
         portPrefix=edit(272,138,36,2,"ポートプレフィックス","0〜32。端末IPは基本設定側で変更します。",portWidgets);
+        allowedVlans=edit(84,160,224,VlanAllowance.MAX_TEXT,"許可VLAN","Trunkで通すVLAN。all / none / 10,20-30。Native VLANも許可が必要です。Accessでは保存したリストを使いません。",portWidgets);
         apply=button("適用",8,216,94,this::submit,"このページの変更を一括検証・保存します。不正な入力や同時編集の競合では部分反映しません。");
         reload=button("再読込",113,216,94,()->{draft.reload(scope);load();},"このページの未保存入力を破棄し、最後にサーバーから届いた現在値を読み直します。");
         button("戻る",218,216,94,close,"設定は自動保存しません。未保存入力はこの画面を開いている間だけ保持します。");
@@ -71,13 +72,13 @@ public final class NetworkSettingsPanel {
     private void load(){
         var v=draft.values(scope);if(v==null){visibility();return;}loading=true;
         if(scope==-1){name.setValue(v.name());ip.setValue(v.address());prefix.setValue(v.prefix());gateway.setValue(v.gateway());dns.setValue(v.dns());}
-        else{portIp.setValue(v.address());portPrefix.setValue(v.prefix());vlan.setValue(v.vlan());}
+        else{portIp.setValue(v.address());portPrefix.setValue(v.prefix());vlan.setValue(v.vlan());allowedVlans.setValue(v.allowedVlans());}
         displayed=v;loading=false;visibility();
     }
     private void save(){
         var v=draft.values(scope);if(loading||v==null||draft.pending())return;
-        draft.edit(scope==-1?new NetworkForm.Values(scope,name.getValue(),ip.getValue(),prefix.getValue(),gateway.getValue(),dns.getValue(),v.enabled(),v.trunk(),v.optical(),v.vlan(),v.speed())
-            :new NetworkForm.Values(scope,v.name(),portIp.getValue(),portPrefix.getValue(),v.gateway(),v.dns(),v.enabled(),v.trunk(),v.optical(),vlan.getValue(),v.speed()));
+        draft.edit(scope==-1?new NetworkForm.Values(scope,name.getValue(),ip.getValue(),prefix.getValue(),gateway.getValue(),dns.getValue(),v.enabled(),v.trunk(),v.optical(),v.vlan(),v.speed(),v.allowedVlans())
+            :new NetworkForm.Values(scope,v.name(),portIp.getValue(),portPrefix.getValue(),v.gateway(),v.dns(),v.enabled(),v.trunk(),v.optical(),vlan.getValue(),v.speed(),allowedVlans.getValue()));
         displayed=draft.values(scope);
     }
     private void toggle(String field){
@@ -90,7 +91,7 @@ public final class NetworkSettingsPanel {
             case "speed"->{var rates=NetworkForm.SPEEDS.stream().filter(n->n<=view.maximumBps()).map(Object::toString).toList();int i=rates.indexOf(speed);speed=rates.get((i+1)%rates.size());}
             default->throw new IllegalArgumentException("不明な入力項目");
         }
-        draft.edit(new NetworkForm.Values(scope,v.name(),v.address(),v.prefix(),v.gateway(),v.dns(),enabled,trunk,optical,v.vlan(),speed));displayed=draft.values(scope);visibility();
+        draft.edit(new NetworkForm.Values(scope,v.name(),v.address(),v.prefix(),v.gateway(),v.dns(),enabled,trunk,optical,v.vlan(),speed,v.allowedVlans()));displayed=draft.values(scope);visibility();
     }
     private void submit(){
         save();var request=draft.submit(scope);if(request==null)return;
@@ -106,7 +107,7 @@ public final class NetworkSettingsPanel {
             portIp.active=portPrefix.active=writable&&scope>=0&&routing;
             if(v!=null&&scope>=0){enabledButton.setMessage(Component.literal(v.enabled()?"ON":"OFF"));modeButton.setMessage(Component.literal(v.trunk()?"Trunk":"Access"));mediaButton.setMessage(Component.literal(v.optical()?"光":"銅線"));
                 speedButton.setMessage(Component.literal(v.speed().equals("0")?"Auto":CableGrade.speed(Long.parseLong(v.speed()))));
-                mediaButton.active=writable&&(v.optical()||view.opticalAvailable());}
+                mediaButton.active=writable&&(v.optical()||view.opticalAvailable());allowedVlans.active=writable&&v.trunk();}
         }
         for(int i=0;i<tabs.size();i++){tabs.get(i).active=opened&&!draft.pending()&&i!=scope+1;}
         apply.active=writable;reload.active=writable;apply.setMessage(Component.literal(draft.pending()?"適用中…":"適用"));
@@ -118,13 +119,13 @@ public final class NetworkSettingsPanel {
         var view=draft.view(scope);
         if(scope==-1){label(g,"機器名",10,58);label(g,"IPv4",10,86);label(g,"/",260,86);label(g,"ゲートウェイ",10,114);label(g,"DNS",10,142);
             if(view!=null)g.drawWordWrap(font,Component.literal(view.kind().routing()?"L3機器のIPはポート側で設定。経路設定はCLIを使用します。":"IPv4/GW/DNSは空欄で未設定。変更は「適用」で一括保存します。"),left+10,top+161,298,0xffd5dfdf);
-        }else{label(g,"管理状態",10,58);label(g,"媒体",174,58);label(g,"モード",10,86);label(g,"VLAN",212,86);label(g,"速度",10,114);label(g,"IPv4",10,142);label(g,"/",260,142);
+        }else{label(g,"管理状態",10,58);label(g,"媒体",174,58);label(g,"モード",10,86);label(g,"VLAN",212,86);label(g,"速度",10,114);label(g,"IPv4",10,142);label(g,"/",260,142);label(g,"許可VLAN",10,164);
             if(view!=null){g.drawString(font,"最大"+speedLabel(view.maximumBps()),left+232,top+114,0xffcfd9df,false);
                 String status=scope<menu.formPorts().size()?menu.formPorts().get(scope):"状態取得中";
-                g.enableScissor(left+8,top+159,left+312,top+179);g.drawWordWrap(font,Component.literal(status),left+10,top+160,298,0xffcbd7dd);g.disableScissor();}
+                g.enableScissor(left+8,top+180,left+312,top+190);g.drawWordWrap(font,Component.literal(status),left+10,top+180,298,0xffcbd7dd);g.disableScissor();}
         }
         String message=draft.stale(scope)&&draft.dirty(scope)&&!draft.pending()?"同じ項目が更新されています。入力を確認し「再読込」してください。":draft.message();
-        g.enableScissor(left+8,top+182,left+312,top+212);g.drawWordWrap(font,Component.literal(message),left+10,top+183,298,0xffe0c789);g.disableScissor();
+        g.enableScissor(left+8,top+194,left+312,top+212);g.drawWordWrap(font,Component.literal(message),left+10,top+194,298,0xffe0c789);g.disableScissor();
         for(var widget:widgets)if(widget.visible)widget.render(g,x,y,tick);
     }
     private static String speedLabel(long bps){return bps>=1_000_000_000?bps/1_000_000_000+"G":bps/1_000_000+"M";}

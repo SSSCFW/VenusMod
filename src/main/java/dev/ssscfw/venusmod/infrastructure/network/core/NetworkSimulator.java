@@ -227,9 +227,11 @@ public final class NetworkSimulator {
     }
     public String portStatus(String node,int port){Link link=ports.getOrDefault(node,new Link[6])[port];if(link==null)return "未接続";long bps=linkCapacity(link);return bps==0?"Link Down (媒体/距離/固定速度/故障/無効)":CableGrade.speed(bps)+" → "+nodes.get(link.peer(node)).name;}
     static int receivedVlan(NetworkProfile.Port out,int vlan,NetworkProfile.Port in){
+        if(!out.carriesVlan(vlan))return -1;
         int wire=out.trunk&&vlan!=out.vlan?vlan:0;
         if(wire!=0&&!in.trunk)return -1;
-        return wire==0?in.vlan:wire;
+        int received=wire==0?in.vlan:wire;
+        return in.carriesVlan(received)?received:-1;
     }
     private static String domain(String id,int vlan){return id+"@"+vlan;}
     private static String treeKey(Link link,int av,int bv){return link.id+"@"+av+":"+bv;}
@@ -274,7 +276,7 @@ public final class NetworkSimulator {
             for(int p=0;p<6;p++){
                 budget.spend();
                 if(current.ingress<0&&p!=port||p==current.ingress)continue;
-                var output=node.ports[p];if(!output.enabled||!output.trunk&&output.vlan!=current.vlan)continue;
+                var output=node.ports[p];if(!output.carriesVlan(current.vlan))continue;
                 Link link=ports.get(current.id)[p];if(link==null)continue;long speed=linkCapacity(link);if(speed==0)continue;
                 String peerId=link.peer(current.id);int peerPort=link.peerPort(current.id);var peer=nodes.get(peerId);
                 int nextVlan=receivedVlan(output,current.vlan,peer.ports[peerPort]);if(nextVlan<0||blocked(link,current.id,current.vlan,nextVlan))continue;

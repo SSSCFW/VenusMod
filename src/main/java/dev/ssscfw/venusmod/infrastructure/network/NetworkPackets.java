@@ -19,7 +19,7 @@ import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 public final class NetworkPackets {
     private NetworkPackets(){}
     public static void register(IEventBus bus){bus.addListener(NetworkPackets::payloads);}
-    private static void payloads(RegisterPayloadHandlersEvent event){var registry=event.registrar("network-2");
+    private static void payloads(RegisterPayloadHandlersEvent event){var registry=event.registrar("network-3");
         registry.playToServer(Command.TYPE,Command.CODEC,(packet,context)->context.enqueueWork(()->{if(context.player() instanceof ServerPlayer player&&player.containerMenu instanceof NetworkMenu menu&&menu.containerId==packet.menu)menu.command(player,packet.text);}));
         registry.playToServer(FormEdit.TYPE,FormEdit.CODEC,(packet,context)->context.enqueueWork(()->{
             if(context.player() instanceof ServerPlayer player&&player.containerMenu instanceof NetworkMenu menu&&menu.containerId==packet.menu)

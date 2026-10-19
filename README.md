@@ -150,3 +150,7 @@ ICMPとWeb/TCP80・DNS/UDP53・仮想転送・制御端末の応答を分けて�
 ### NTPによる機器時計の同期
 
 仮想UDP123の往復で表示時計を合わせ、Syslogに発生/受信時計を記録します。通信・制御の期限用tickは補正しません。操作と制限は [仮想NTP](docs/NETWORK_NTP.md)、検証は [NTP検証記録](docs/NETWORK_NTP_VERIFICATION.md) を参照してください。
+
+## トランク許可VLAN
+
+ポートごとの許可VLANリストをGUI/CLIから設定できます。使い方とNative VLANの注意点は [トランク許可VLAN](docs/NETWORK_TRUNK_VLANS.md) を参照してください。サーバーとクライアントは同じ新版が必要です。
