@@ -10,6 +10,7 @@ public final class NetworkCli {
         if(input==null||input.length()>512||input.codePoints().anyMatch(Character::isISOControl))return reply(false,"コマンドは改行なし512文字以内です");
         var original=sim.nodes().get(id);if(original==null)return reply(false,"機器が読み込まれていません");
         String[] t=input.trim().split("\\s+");
+        if(TransferCommands.handles(t))return TransferCommands.run(sim,id,t);
         if(MonitorCommands.handles(t)){var reply=MonitorCommands.run(sim,id,t);return new Reply(reply.changed(),reply.lines());}
         if(SyslogCommands.handles(t)){var reply=SyslogCommands.run(sim,id,t);return new Reply(reply.changed(),reply.lines());}
         if(DnsCommands.handles(t)){var reply=DnsCommands.run(sim,id,t);return new Reply(reply.changed(),reply.lines());}
@@ -37,10 +38,8 @@ public final class NetworkCli {
                 case "arp" -> {return new Reply(false,sim.arpTable(id).entrySet().stream().map(e->e.getKey()+" → "+e.getValue()).toList());}
                 case "log" -> {return new Reply(false,sim.logs(id));}
                 case "routes" -> {return new Reply(false,p.routes.stream().map(r->r.network()+"/"+r.prefix()+" via "+r.gateway()+" P"+r.port()).toList());}
-                case "flows" -> {return new Reply(false,sim.flows().stream().filter(f->f.source.equals(id)).map(f->"#"+f.id+" "+String.format(Locale.ROOT,"%.1f%%",f.progress()*100)+" / "+f.totalBytes+" bytes").toList());}
                 case "ping","trace" -> {need(t,2);var result=sim.ping(id,t[1]);List<String> lines=new ArrayList<>();lines.add(result.message());if(result.success()){lines.add("上限 "+CableGrade.speed(result.bps()));if(t[0].equals("trace"))for(String node:result.nodes())lines.add("→ "+sim.nodes().get(node).name);}return new Reply(false,lines);}
                 case "dhcp" -> {need(t,1);var r=sim.dhcp(id);return reply(r.success(),r.message());}
-                case "transfer" -> {need(t,3);long bytes=Math.multiplyExact(Long.parseLong(t[2]),1_000_000L);return reply(false,sim.startTransfer(id,t[1],bytes).message());}
                 case "name" -> {if(t.length<2)throw new IllegalArgumentException("name 機器名");p.name=input.substring(input.indexOf(' ')+1).trim();}
                 case "ip" -> {need(t,2);var cidr=cidr(t[1]);if(p.kind.routing()){p.ports[0].address=cidr[0];p.ports[0].prefix=Integer.parseInt(cidr[1]);}else{p.address=cidr[0];p.prefix=Integer.parseInt(cidr[1]);}}
                 case "gateway" -> {need(t,2);p.gateway=t[1].equals("none")?"":Ipv4.normalize(t[1]);}

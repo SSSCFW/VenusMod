@@ -7,7 +7,7 @@ public final class PortDegradationGuideTest {
             if(!text.contains(word))throw new AssertionError("missing degradation guide: "+word);checks++;
         }
         if(!NetworkHelp.lines().toString().contains("port 0 degrade"))throw new AssertionError("missing CLI help");checks++;
-        if(NetworkGuide.pages().size()!=22||NetworkGuide.recipes().size()!=93)throw new AssertionError("unrelated guide topics preserved");checks++;
+        if(NetworkGuide.pages().stream().filter(q->!q.id().equals("transfer_qos")).count()!=22||NetworkGuide.recipes().stream().filter(q->!q.page().id().equals("transfer_qos")).count()!=93)throw new AssertionError("unrelated guide topics preserved");checks++;
         System.out.println("PortDegradationGuideTest: "+checks+" checks passed");
     }
 }

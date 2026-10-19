@@ -45,7 +45,22 @@ public final class NetworkSimulator {
         public final long capacity;
         public final List<Long> natBindings;
         public double remaining,delayTicks;
-        Flow(long id,long bytes,String source,Result path){this.id=id;this.totalBytes=bytes;this.source=source;this.destination=path.destination;
+        double allocatedBps;
+        private TransferPriority priority;
+        private BandwidthAllocator.Demand allocationDemand;
+        public TransferPriority priority(){return priority;}
+        public double allocatedBps(){return allocatedBps;}
+        void priority(TransferPriority value){priority=value;allocationDemand=null;}
+        BandwidthAllocator.Demand demand(){
+            if(allocationDemand==null){
+                List<String> resources=new ArrayList<>();
+                for(String link:new LinkedHashSet<>(links))resources.add("link:"+link);
+                for(String node:new LinkedHashSet<>(nodes))resources.add("node:"+node);
+                allocationDemand=new BandwidthAllocator.Demand(id,capacity,priority.weight(),resources);
+            }
+            return allocationDemand;
+        }
+        Flow(long id,long bytes,String source,Result path,TransferPriority priority){this.priority=priority;this.id=id;this.totalBytes=bytes;this.source=source;this.destination=path.destination;
             this.links=path.links;this.nodes=path.nodes;this.capacity=path.bps;this.natBindings=path.natBindings;remaining=bytes;delayTicks=path.milliseconds/50;}
         public double progress(){return Math.clamp(1-remaining/totalBytes,0.0,1.0);}
     }
@@ -57,6 +72,8 @@ public final class NetworkSimulator {
     private final Map<String,Map<String,String>> arp=new HashMap<>();
     private final Map<String,ArrayDeque<String>> logs=new HashMap<>();
     private final List<Flow> flows=new ArrayList<>();
+    private final TransferScheduler transferScheduler=new TransferScheduler();
+    public long transferAllocationCount(){return transferScheduler.calculations();}
     private Set<String> blocked=Set.of();
     private boolean forestDirty=true;
     private String forestLimit="";
@@ -660,11 +677,42 @@ public final class NetworkSimulator {
     }
 
     public Result startTransfer(String source,String destination,long bytes){
+        return startTransfer(source,destination,bytes,TransferPriority.NORMAL);
+    }
+    public Result startTransfer(String source,String destination,long bytes,TransferPriority priority){
+        if(priority==null)return Result.fail("優先度はlow/normal/highです");
         if(bytes<=0||bytes>1_000_000_000_000L)return Result.fail("転送量は1〜1TBです");if(flows.size()>=MAX_FLOWS)return Result.fail("同時転送の上限です");
         var sender=nodes.get(source);if(sender==null)return Result.fail("送信元なし");
         if(flows.stream().filter(f->f.source.equals(source)).count()>=4+Math.clamp(sender.buffer,0,6)*4)return Result.fail("送信バッファ満杯: バッファモジュールで同時転送枠を増設できます");
         final ServiceAddress endpoint;try{endpoint=resolveEndpoint(source,destination,TRANSFER_PORT);}catch(IllegalArgumentException e){return Result.fail(e.getMessage());}
-        Result path=requestService(source,endpoint.address(),"tcp",endpoint.port(),TRANSFER_PORT);if(!path.success)return path;var flow=new Flow(nextFlow++,bytes,source,path);flows.add(flow);log(source,"仮想転送 #"+flow.id+": "+bytes+" bytes");return new Result(true,"転送 #"+flow.id+" 開始 (実ファイルは生成しません)",path.bps,path.milliseconds,path.nodes,path.links,path.destination);
+        Result path=requestService(source,endpoint.address(),"tcp",endpoint.port(),TRANSFER_PORT);if(!path.success)return path;var flow=new Flow(nextFlow++,bytes,source,path,priority);flows.add(flow);log(source,"仮想転送 #"+flow.id+": "+bytes+" bytes");return new Result(true,"転送 #"+flow.id+" 開始 (実ファイルは生成しません)",path.bps,path.milliseconds,path.nodes,path.links,path.destination);
+    }
+    /** 相手のIDを知っていても、現在の操作機器から他送信元の転送は変更しない。 */
+    public Result setTransferPriority(String source,long flowId,TransferPriority priority){
+        if(priority==null||flowId<=0)return Result.fail("転送ID/優先度が不正です");
+        for(var f:flows)if(f.id==flowId&&f.source.equals(source)){
+            if(f.priority()==priority)return Result.fail("優先度の変更はありません");
+            f.priority(priority);log(source,"転送 #"+flowId+": 優先度を"+priority.label()+"へ変更");
+            return new Result(true,"転送 #"+flowId+"の優先度を変更しました: "+priority.label(),0,0,List.of(),List.of(),source);
+        }
+        return Result.fail("自機の転送が見つかりません");
+    }
+    public Result cancelTransfer(String source,long flowId){
+        if(flowId<=0)return Result.fail("転送IDが不正です");
+        for(var it=flows.iterator();it.hasNext();){var f=it.next();if(f.id==flowId&&f.source.equals(source)){
+            it.remove();f.allocatedBps=0;log(source,"転送 #"+flowId+": 操作で停止");
+            return new Result(true,"転送 #"+flowId+"を停止しました",0,0,List.of(),List.of(),source);
+        }}
+        return Result.fail("自機の転送が見つかりません");
+    }
+    private void advanceTransfers(long ticks){
+        Map<String,Long> capacities=new LinkedHashMap<>();
+        for(var it=flows.iterator();it.hasNext();){var f=it.next();boolean live=f.natBindings.stream().allMatch(natTable::alive);
+            for(String id:f.links){Link link=links.get(id);long capacity=link==null?0:linkCapacity(link);capacities.put("link:"+id,capacity);if(capacity<=0)live=false;}
+            for(String id:f.nodes){var p=nodes.get(id);long capacity=p==null||p.failed?0:p.capacity();capacities.put("node:"+id,capacity);if(capacity<=0)live=false;}
+            if(!live){it.remove();f.allocatedBps=0;log(f.source,"転送 #"+f.id+": リンク断で中断");}
+        }
+        transferScheduler.advance(ticks,flows,capacities,this::log);
     }
     /** OSPFのローカルリンク帯域。経路探索やチャンク読み込みはしない。 */
     long portSpeed(String id,int port){var row=ports.get(id);if(row==null||row[port]==null)return 0;return linkCapacity(row[port]);}
@@ -726,13 +774,7 @@ public final class NetworkSimulator {
         if(!bgpChanges.isEmpty())invalidateData(bgpChanges,"BGP経路変更で中断。再送できます");
         Set<Long> activeNat=new HashSet<>();for(var flow:flows)activeNat.addAll(flow.natBindings);
         natTable.advance(ticks,activeNat);
-        Map<String,Integer> use=new HashMap<>();for(var f:flows){for(String link:new HashSet<>(f.links))use.merge("l"+link,1,Integer::sum);for(String node:new HashSet<>(f.nodes))use.merge("n"+node,1,Integer::sum);}
-        for(var it=flows.iterator();it.hasNext();){var f=it.next();double time=Math.max(0,ticks-f.delayTicks);f.delayTicks=Math.max(0,f.delayTicks-ticks);double rate=f.capacity;boolean live=f.natBindings.stream().allMatch(natTable::alive);
-            for(String id:f.links){Link link=links.get(id);if(link==null||linkCapacity(link)==0){live=false;break;}rate=Math.min(rate,(double)linkCapacity(link)/use.get("l"+id));}
-            for(String id:f.nodes){var p=nodes.get(id);if(p==null||p.failed){live=false;break;}rate=Math.min(rate,(double)p.capacity()/use.get("n"+id));}
-            if(!live){log(f.source,"転送 #"+f.id+": リンク断で中断");it.remove();continue;}
-            f.remaining-=rate/8.0*time/20.0;if(f.remaining<=0){log(f.source,"転送 #"+f.id+": 完了");it.remove();}
-        }
+        advanceTransfers(ticks);
         ntpRuntime.dispatch();
         monitorRuntime.advance(ticks);
         syslogRuntime.dispatch();

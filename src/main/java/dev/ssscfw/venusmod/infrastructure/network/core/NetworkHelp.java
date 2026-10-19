@@ -46,6 +46,7 @@ public final class NetworkHelp {
         "nat forward add 1 tcp 8080 192.168.10.20 80",
         "nat sessions / nat clear / nat help (動的変換表は保存しません)",
         "redstone 名前/IP[:PORT] 15 / transfer 名前/IP[:PORT] 100 (仮想100MB) / flows",
+        "transfer help / transfer IP MB [low|normal|high] / transfer priority ID high / transfer cancel ID",
         "端末: control-safety hold / stop 5 / value 7 5 / control-status",
         "制御元: redstone maintain 名前/IP[:PORT] 15 / redstone stop / redstone links",
         "trust プレイヤー名 / untrust プレイヤー名 / public on|off",

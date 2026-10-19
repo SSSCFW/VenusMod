@@ -8,7 +8,7 @@ public final class MonitorServiceGuideTest {
         for(String term:List.of("monitor add site web","monitor add resolver dns","monitor add files transfer","monitor add signal control","8080","80","UDP53","ping","出力","NAT","ICMP","HTTP")){
             if(!added.contains(term))throw new AssertionError("ガイド語句: "+term);checks++;
         }
-        if(NetworkGuide.pages().stream().filter(p->!p.id().equals("control-safety")&&!Set.of("backup","ntp").contains(p.id())).count()!=19||NetworkGuide.recipes().stream().filter(r->!r.page().id().equals("control-safety")&&!Set.of("backup","ntp").contains(r.page().id())).count()!=79)throw new AssertionError("既存ページを維持して3手順追加");checks++;
+        if(NetworkGuide.pages().stream().filter(q->!q.id().equals("transfer_qos")).filter(p->!p.id().equals("control-safety")&&!Set.of("backup","ntp").contains(p.id())).count()!=19||NetworkGuide.recipes().stream().filter(q->!q.page().id().equals("transfer_qos")).filter(r->!r.page().id().equals("control-safety")&&!Set.of("backup","ntp").contains(r.page().id())).count()!=79)throw new AssertionError("既存ページを維持して3手順追加");checks++;
         if(MonitorCommands.help().stream().noneMatch(x->x.contains("monitor add site web")))throw new AssertionError("CLIヘルプ");checks++;
         System.out.println("MonitorServiceGuideTest: "+checks+" checks passed");
     }

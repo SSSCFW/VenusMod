@@ -7,7 +7,7 @@ public final class PortFaultGuideTest {
             if(!text.contains(key))throw new AssertionError("missing shared guide: "+key);checks++;
         }
         if(!String.join(" ",NetworkHelp.lines()).contains("port 0 fault"))throw new AssertionError("CLI help missing");checks++;
-        if(NetworkGuide.pages().size()!=22||NetworkGuide.recipes().size()!=93)throw new AssertionError("existing guide pages/steps retained");checks++;
+        if(NetworkGuide.pages().stream().filter(q->!q.id().equals("transfer_qos")).count()!=22||NetworkGuide.recipes().stream().filter(q->!q.page().id().equals("transfer_qos")).count()!=93)throw new AssertionError("existing guide pages/steps retained");checks++;
         System.out.println("PortFaultGuideTest: "+checks+" checks passed");
     }
 }

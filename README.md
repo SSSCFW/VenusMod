@@ -162,3 +162,7 @@ ICMPとWeb/TCP80・DNS/UDP53・仮想転送・制御端末の応答を分けて�
 ## ポートの帯域劣化
 
 Link Upのまま転送上限が低下する物理劣化と修理を追加しました。操作・ゲーム値・保存の説明は [ポート帯域劣化](docs/NETWORK_PORT_DEGRADATION.md)、確認結果は [検証記録](docs/NETWORK_PORT_DEGRADATION_VERIFICATION.md) を参照してください。
+
+## 仮想転送の帯域配分・優先度
+
+競合する仮想転送の余り帯域を再配分し、low/normal/highの相対優先度と自機の転送停止に対応します。操作とモデル上の制限は [転送QoS](docs/NETWORK_TRANSFER_QOS.md)、検査結果は [検証記録](docs/NETWORK_TRANSFER_QOS_VERIFICATION.md) を参照してください。
