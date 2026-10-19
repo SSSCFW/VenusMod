@@ -248,6 +248,7 @@
   "gui.venusmod.yamato.target": "目的地側",
   "key.venusmod.yamato_travel": "閻魔刀：次元移動",
   "tooltip.venusmod.yamato_travel": "%s → 次元移動",
+  "tooltip.venusmod.yamato_void_slash": "S → W → 右クリック：時空裂閃（閻魔刀のみ）",
   "message.venusmod.yamato.invalid_request": "操作できませんでした。名前・フォルダー・設定値、保存数（最大2048件）を確認してください。",
   "message.venusmod.yamato.missing_destination": "保存地点が見つかりません。",
   "message.venusmod.yamato.too_many_rifts": "開いている隙間が多すぎます（最大64組）。一覧から閉じてください。",
