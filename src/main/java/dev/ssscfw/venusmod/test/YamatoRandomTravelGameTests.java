@@ -134,6 +134,66 @@ public final class YamatoRandomTravelGameTests {
         h.succeed();
     }
 
+    @GameTest(template = "test/wide_empty")
+    public static void unsafeSampleSearchesNearbyDryBlocksAcrossColumns(GameTestHelper h) {
+        var level = h.getLevel();
+        BlockPos waterFeet = aboveTerrain(h, new BlockPos(5, 3, 5));
+        level.setBlock(waterFeet.below(), Blocks.WATER.defaultBlockState(), 3);
+        // 安全な地表候補を周辺列に必ず用意する。中心列は水面なので選ばれない。
+        BlockPos dryFeet = waterFeet.east();
+        level.setBlock(dryFeet.below(), Blocks.GRASS_BLOCK.defaultBlockState(), 3);
+        level.setBlock(dryFeet, Blocks.SHORT_GRASS.defaultBlockState(), 3);
+        level.setBlock(dryFeet.above(), Blocks.AIR.defaultBlockState(), 3);
+        Vec3 origin = Vec3.atBottomCenterOf(waterFeet);
+        BlockPos result = YamatoRandomDestinations.findNearby(level, origin, 10, 0,
+                RandomSource.create(13), waterFeet);
+        h.assertTrue(result != null, "Neighbor search did not find any dry solid-supported landing");
+        h.assertTrue(result.getX() != waterFeet.getX() || result.getZ() != waterFeet.getZ(),
+                "Unsafe water column was selected instead of a neighbor");
+        double dx = result.getX() + .5 - origin.x, dz = result.getZ() + .5 - origin.z;
+        h.assertTrue(dx * dx + dz * dz <= 100,
+                "Nearby fallback escaped the configured 10-block horizontal radius");
+        h.assertTrue(YamatoRandomDestinations.safeLanding(level, result),
+                "Nearby search returned liquid or a solid obstruction");
+        h.succeed();
+    }
+
+    @GameTest(template = "test/wide_empty", timeoutTicks = 300)
+    public static void remoteChunkIsLoadedAndEntityTickingBeforeFirstArrival(GameTestHelper h) {
+        var level = h.getLevel();
+        var server = level.getServer();
+        Vec3 source = Vec3.atBottomCenterOf(h.absolutePos(new BlockPos(2, 3, 2)));
+        BlockPos distant = h.absolutePos(new BlockPos(2, 3, 2)).offset(96, 0, 48);
+        // 近くのGameTest構造物から離れたチャンクの生成とEntity-ticking昇格を確認する。
+        BlockPos safe = YamatoRandomDestinations.findNearby(level, source, 1_000_000, 0,
+                RandomSource.create(20261019L), distant);
+        h.assertTrue(safe != null && YamatoRandomDestinations.safeLanding(level, safe),
+                "Could not find a dry solid block near the remote chunk");
+        int cx = distant.getX() >> 4, cz = distant.getZ() >> 4;
+        h.assertTrue(level.getChunkSource().getChunkNow(cx, cz) != null,
+                "Remote candidate chunk was not explicitly loaded before opening");
+        Vec3 destination = Vec3.atBottomCenterOf(safe);
+        var rifts = new YamatoRifts();
+        var pair = rifts.openPair(UUID.randomUUID(), "remote safe", YamatoRifts.Endpoint.at(level, source, 0),
+                YamatoRifts.Endpoint.at(level, destination, 0), 3, 2, 1, server);
+        h.assertTrue(pair != null, "Unable to open a portal to the remote generated chunk");
+        Pig pig = h.spawn(EntityType.PIG, new BlockPos(2, 3, 2));
+        pig.setNoAi(true);
+        pig.setNoGravity(true);
+        pig.moveTo(source.x, source.y, source.z, 0, 0);
+        h.startSequence().thenWaitUntil(() -> {
+            rifts.tick(server, level.getGameTime());
+            h.assertTrue(level.isPositionEntityTicking(safe),
+                    "Destination chunk has not been promoted to entity-ticking");
+            h.assertTrue(pig.position().distanceToSqr(destination) < .01,
+                    "Pig was not transferred after the remote chunk became entity-ticking");
+        }).thenExecute(() -> {
+            h.assertTrue(level.noCollision(pig, pig.getBoundingBox()),
+                    "Remote transfer arrived inside blocks");
+            rifts.releaseTickets(server);
+        }).thenSucceed();
+    }
+
     @GameTest(template = "test/empty")
     public static void randomRangeAndModePersistWithStrictValidation(GameTestHelper h) {
         var level = h.getLevel();

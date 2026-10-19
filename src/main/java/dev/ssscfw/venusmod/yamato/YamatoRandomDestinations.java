@@ -2,6 +2,9 @@ package dev.ssscfw.venusmod.yamato;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.level.ChunkPos;
+import java.util.HashSet;
+import java.util.Set;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
@@ -15,6 +18,9 @@ import net.minecraft.world.phys.Vec3;
 public final class YamatoRandomDestinations {
     private static final double HALF_PLAYER_WIDTH = .31;
     private static final double PLAYER_HEIGHT = 1.85;
+    // 1地点が水中や崖でも、隣接チャンクを含む最大8ブロック先まで乾いた足場を探す。
+    private static final int NEARBY_RADIUS = 8;
+    private static final int MAX_CAVE_COLUMNS_PER_AREA = 12;
     private YamatoRandomDestinations() {}
 
     /**
@@ -34,18 +40,56 @@ public final class YamatoRandomDestinations {
         return new BlockPos(x, Mth.floor(origin.y), z);
     }
 
-    /** 最大1候補列のみ探索する。呼び出し側はチャンク生成の負荷を抑えてtickごとに繰り返す。 */
+    /** 1回につきランダムな1地点を選び、周囲のFULLチャンクを必要に応じて読み込んで安全な床を探す。 */
     public static BlockPos sample(ServerLevel level, Vec3 origin, int range, int mode, RandomSource random) {
         if (level == null || !YamatoTravelRules.validRandomSettings(range, mode)) return null;
         BlockPos column = sampleHorizontal(origin, range, random);
-        if (column == null || !level.getWorldBorder().isWithinBounds(column)) return null;
-        int x = column.getX(), z = column.getZ();
-        int surfaceY = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
-        if (mode == YamatoTravelRules.RANDOM_SURFACE_AND_CAVES && random.nextBoolean()) {
-            BlockPos cave = underground(level, x, z, surfaceY, random);
-            if (cave != null) return cave;
+        return findNearby(level, origin, range, mode, random, column);
+    }
+
+    /**
+     * 未読込のチャンクを地形生成済み(FULL)まで準備してから、その列と近傍を探す。
+     * 探索候補ごとに必要なチャンクだけを読み、辺に接する隣のチャンクも対象にする。
+     * 48回の世界規模探索が一度に走らないよう、呼び出し側で1tickに1エリアに制限する。
+     */
+    public static BlockPos findNearby(ServerLevel level, Vec3 origin, int range, int mode,
+                                      RandomSource random, BlockPos center) {
+        if (level == null || origin == null || random == null || center == null
+                || !YamatoTravelRules.validRandomSettings(range, mode)
+                || !withinRange(origin, range, center.getX(), center.getZ())) return null;
+        Set<Long> loaded = new HashSet<>(4);
+        int cavesChecked = 0;
+        // 中心から近い順に調べ、候補が見つかったら残りのチャンクは読み込まない。
+        for (int ring = 0; ring <= NEARBY_RADIUS; ring++) {
+            for (int dx = -ring; dx <= ring; dx++) for (int dz = -ring; dz <= ring; dz++) {
+                if (Math.max(Math.abs(dx), Math.abs(dz)) != ring) continue;
+                int x = center.getX() + dx, z = center.getZ() + dz;
+                if (!withinRange(origin, range, x, z)) continue;
+                BlockPos column = new BlockPos(x, center.getY(), z);
+                if (!level.getWorldBorder().isWithinBounds(column)) continue;
+                int cx = x >> 4, cz = z >> 4;
+                if (loaded.add(ChunkPos.asLong(cx, cz))) {
+                    // getHeight()だけに依存しない。未生成の遠隔チャンクもFULLまで読み込む。
+                    level.getChunk(cx, cz);
+                }
+                int surfaceY = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+                BlockPos ground = surface(level, x, z, surfaceY);
+                if (mode == YamatoTravelRules.RANDOM_SURFACE_AND_CAVES
+                        && cavesChecked < MAX_CAVE_COLUMNS_PER_AREA
+                        && (ground == null || random.nextBoolean())) {
+                    cavesChecked++;
+                    BlockPos cave = underground(level, x, z, surfaceY, random);
+                    if (cave != null) return cave;
+                }
+                if (ground != null) return ground;
+            }
         }
-        return surface(level, x, z, surfaceY);
+        return null;
+    }
+
+    private static boolean withinRange(Vec3 origin, int range, int x, int z) {
+        double dx = x + .5 - origin.x, dz = z + .5 - origin.z;
+        return dx * dx + dz * dz <= (double)range * range;
     }
 
     /** 地上：最も高い障害物の真上。水面やマグマ面に立つことは認めない。 */

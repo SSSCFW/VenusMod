@@ -346,6 +346,9 @@ public final class YamatoRifts extends SavedData {
     private void processEndpoint(MinecraftServer server, Pair pair, Endpoint from, Endpoint to, Set<UUID> transferred, long now) {
         ServerLevel source = level(server, from), target = level(server, to);
         if (source == null || target == null) return;
+        // 遠隔チャンクはFULLブロック読込後もEntity-tickingになるまで数tickかかる。
+        // 両端に保持したリージョンチケットが昇格させるのを待ち、先走った次元移動を防ぐ。
+        if (!target.isPositionEntityTicking(BlockPos.containing(to.feet))) return;
         double scale = YamatoRiftGeometry.scale(now, pair.openedAt, pair.closesAt());
         if (scale <= 0) return;
         // 速度が大きい対象は1tickで薄い面を跨ぐ。法線方向へ広げて候補を集め、移動軌跡を細かく判定する。

@@ -29,6 +29,12 @@ public final class YamatoRandomSettingsChecks {
         check(network.contains("case \"random_travel\""),"Server has no random travel handler");
         check(network.contains("applyTravelSettings(player, request)"),"Travel loses close conditions");
         check(rifts.contains("MAX_RANDOM_ATTEMPTS = 48"),"Unbounded random search");
+        String random=Files.readString(Path.of(root+"yamato/YamatoRandomDestinations.java"));
+        check(random.contains("level.getChunk(cx, cz)"),"Distant candidate chunks are not explicitly loaded");
+        check(random.contains("findNearby(ServerLevel level"),"Nearby dry landing search not available");
+        check(random.contains("withinRange(origin, range, x, z)"),"Nearby fallback can exceed selected radius");
+        check(rifts.contains("target.isPositionEntityTicking(BlockPos.containing(to.feet))"),
+                "Far rift attempts entity teleport before destination is ticking");
         check(rifts.contains("YamatoRandomDestinations.safeLanding(target"),"No destination recheck");
         check(data.contains("result.put(\"randomSettings\", randomSettings(owner))"),"Options not persisted");
         System.out.println("YamatoRandomSettingsChecks: "+checks+" passed");
