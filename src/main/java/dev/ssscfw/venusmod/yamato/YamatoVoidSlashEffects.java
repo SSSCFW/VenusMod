@@ -36,6 +36,8 @@ public final class YamatoVoidSlashEffects {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final float INITIAL_DAMAGE = 0.5F;
     private static final int EXPECTED_NATIVE_LIFETIME = 36;
+    // 標準Void Slashの回転キーフレーム16〜21tickが初撃。全36tickを初撃として扱わない。
+    private static final int FIRST_SWING_HIT_TICKS = 6;
     private static final int MAX_SPAWN_DELAY = 30;
     private static final int RELEASE_GRACE = 5;
 
@@ -142,6 +144,8 @@ public final class YamatoVoidSlashEffects {
             finish(entity.getUUID());
             return;
         }
+        // 後から範囲へ入った敵は標準の納刀攻撃の対象にはなるが、初撃と拘束は与えない。
+        if (entity.tickCount > FIRST_SWING_HIT_TICKS) return;
         try {
             Object rawHits = nativeHits.invoke(entity);
             if (!(rawHits instanceof List<?> hits)) return;
