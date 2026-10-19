@@ -29,7 +29,8 @@ public final class YamatoRiftsClient {
             if (payload.kind() == 0) YamatoTravelClient.receive(payload.data(), payload.open());
             else if (payload.kind() == 1) receive(payload.data());
         }, payload -> YamatoCutAnimation.start(payload.entityId(),
-                payload.hand() == 1 ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND, payload.stage())));
+                payload.hand() == 1 ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND, payload.stage()),
+                payload -> YamatoVoidSlashClient.receive(payload.entityId(), payload.frozen())));
     }
 
     public static List<PortalView> portals() { return views; }
