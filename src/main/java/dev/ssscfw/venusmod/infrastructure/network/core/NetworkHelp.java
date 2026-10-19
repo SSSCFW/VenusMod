@@ -49,7 +49,7 @@ public final class NetworkHelp {
         "端末: control-safety hold / stop 5 / value 7 5 / control-status",
         "制御元: redstone maintain 名前/IP[:PORT] 15 / redstone stop / redstone links",
         "trust プレイヤー名 / untrust プレイヤー名 / public on|off",
-        "fault=本体停止、port 0 fault=ポート単独の故障試験。portsで箇所を確認。",
+        "fault=本体停止、port 0 fault=ポート停止、port 0 degrade=帯域劣化試験。portsで確認。",
         "完全安定化で本体/ポートのランダム故障0%。通常キットは全修理、Shift+面で個別修理。",
         "通常採掘で設定・アップグレード・故障・権限を保持します。",
         "backup save NAME / backup list / backup restore NAME (確認後に復元)",

@@ -118,9 +118,10 @@ public final class NetworkDeviceEntity extends BlockEntity implements MenuProvid
     void failureCheck(ServerLevel server){
         applyModules();
         var event=PortFaults.sample(profile,NetworkContent.FAILURE_PER_DAY.get(),1200,
-                NetworkContent.PORT_FAILURE_SHARE.get(),server.random::nextDouble,server.random::nextInt);
+                NetworkContent.PORT_FAILURE_SHARE.get(),NetworkContent.PORT_DEGRADATION_SHARE.get(),server.random::nextDouble,server.random::nextInt);
         if(event.kind()!=PortFaults.Kind.NONE){
-            refreshState();String message=event.kind()==PortFaults.Kind.PORT?
+            refreshState();String message=event.kind()==PortFaults.Kind.DEGRADED?
+                "PORT DEGRADED P"+event.port()+": 帯域劣化 / 修理キットで復旧できます":event.kind()==PortFaults.Kind.PORT?
                 "PORT FAULT P"+event.port()+": 内部故障 / 修理キットで復旧できます":"DEVICE FAULT: 本体の内部故障 / 修理キットで復旧できます";
             NetworkWorld.get(server).simulator().log(id(),3,message);
         }

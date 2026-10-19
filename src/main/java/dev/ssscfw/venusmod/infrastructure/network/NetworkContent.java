@@ -39,6 +39,7 @@ public final class NetworkContent {
     public static final ModConfigSpec.DoubleValue FAILURE_PER_DAY;
     public static final ModConfigSpec.IntValue TOPOLOGY_BUDGET;
     public static final ModConfigSpec.DoubleValue PORT_FAILURE_SHARE;
+    public static final ModConfigSpec.DoubleValue PORT_DEGRADATION_SHARE;
     static {
         for(CableGrade grade:CableGrade.values()){
             var block=BLOCKS.register(grade.id(),()->new NetworkCableBlock(grade,BlockBehaviour.Properties.of().strength(0.5F).noOcclusion().sound(SoundType.METAL)));
@@ -65,6 +66,7 @@ public final class NetworkContent {
         var config=new ModConfigSpec.Builder();config.push("network");
         FAILURE_PER_DAY=config.comment("内部ランダム故障の確率/稼働24000tick。0で無効。完全安定化は常に0。").defineInRange("failureProbabilityPerDay",0.0005,0.0,0.1);
         PORT_FAILURE_SHARE=config.comment("故障が発生した際のポート故障の割合。0で従来の本体停止のみ。総故障確率は増やしません。").defineInRange("portFailureShare",0.75,0.0,1.0);
+        PORT_DEGRADATION_SHARE=config.comment("ポート故障を選んだ後に帯域劣化を選ぶ割合。0で完全停止のみ。総故障確率は変えません。暫定ゲーム値。").defineInRange("portDegradationShare",0.5,0.0,1.0);
         TOPOLOGY_BUDGET=config.comment("1ディメンション1tickの配線探索上限。チャンクを強制ロードしません。").defineInRange("topologyWorkPerTick",512,32,4096);
         config.pop();CONFIG=config.build();
     }

@@ -57,4 +57,4 @@ GUIの許可編集フィールドやPayload形式は変更せず、network-3を�
 
 ## 範囲
 
-速度低下・散発的なパケットロス・モジュールそのものの故障、個々のケーブルブロックの劣化は今回含みません。現実のネットワークやOSは操作しません。検証結果は[NETWORK_PORT_FAULTS_VERIFICATION.md](NETWORK_PORT_FAULTS_VERIFICATION.md)を参照してください。
+帯域の低下は後続の [ポート帯域劣化](NETWORK_PORT_DEGRADATION.md) で対応しました。散発的なパケットロス・モジュールそのものの故障、個々のケーブルブロックの劣化は含みません。現実のネットワークやOSは操作しません。検証結果は[NETWORK_PORT_FAULTS_VERIFICATION.md](NETWORK_PORT_FAULTS_VERIFICATION.md)を参照してください。

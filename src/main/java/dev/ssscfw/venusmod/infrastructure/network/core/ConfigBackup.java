@@ -19,7 +19,7 @@ public record ConfigBackup(DeviceKind kind,String sourceId,long savedTick,String
     public static ConfigBackup capture(String id,NetworkProfile current,long tick){
         current.validate();var copy=NetworkProfile.decode(current.kind,current.encode());
         // 機器の物理故障、公開権限と過去のDHCP割当は設定巻戻しの対象外。
-        copy.failed=false;for(var port:copy.ports)port.failed=false;copy.publicService=false;copy.services.clearBindings();
+        copy.failed=false;for(var port:copy.ports){port.failed=false;port.degraded=false;}copy.publicService=false;copy.services.clearBindings();
         String encoded=copy.encode();return new ConfigBackup(copy.kind,id,tick,encoded,digest(copy.kind.name()+"\n"+id+"\n"+tick+"\n"+encoded));
     }
     /** コピーを作って検証するだけ。呼出元が現在の認可・確認状態を検査してから一括反映する。 */
@@ -29,7 +29,7 @@ public record ConfigBackup(DeviceKind kind,String sourceId,long savedTick,String
         result.failed=current.failed;result.publicService=current.publicService;
         result.stability=current.stability;result.processor=current.processor;result.buffer=current.buffer;result.wanTier=current.wanTier;
         for(int i=0;i<NetworkProfile.PORT_COUNT;i++){
-            var old=current.ports[i];var next=result.ports[i];next.moduleTier=old.moduleTier;next.failed=old.failed;
+            var old=current.ports[i];var next=result.ports[i];next.moduleTier=old.moduleTier;next.failed=old.failed;next.degraded=old.degraded;
             long maximum=NetworkProfile.SPEEDS[Math.clamp(old.moduleTier,0,4)];
             if(next.speedLimitBps!=old.speedLimitBps&&next.speedLimitBps>maximum)
                 throw new IllegalArgumentException("P"+i+"の固定速度には対応モジュールが必要です");

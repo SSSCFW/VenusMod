@@ -32,7 +32,7 @@ public final class NetworkCli {
                     text.add("経路 "+p.routes.size()+"件 / 仮想転送 "+sim.flows().size()+"件");
                     text.add("STP: "+(p.spanning.classic?"classic (BPDU/タイマー)":"simple (即時の簡略木方式)")+" / stp status で確認");return new Reply(false,text);
                 }
-                case "ports" -> {List<String> text=new ArrayList<>();for(int i=0;i<6;i++){var port=p.ports[i];text.add("P"+i+" "+portName(i)+" "+(port.enabled?"ON":"OFF")+" "+(port.trunk?"Trunk":"Access")+" VLAN "+port.vlan+" / "+(port.failed?"ポート故障":"正常")+" / 許可 "+port.allowedVlans+(port.trunk?"":" (Trunk時のみ)"));text.add("  "+CableGrade.speed(port.capacity())+" "+(port.optical?"光":"銅線")+" "+port.address+"/"+port.prefix);}return new Reply(false,text);}
+                case "ports" -> {List<String> text=new ArrayList<>();for(int i=0;i<6;i++){var port=p.ports[i];text.add("P"+i+" "+portName(i)+" "+(port.enabled?"ON":"OFF")+" "+(port.trunk?"Trunk":"Access")+" VLAN "+port.vlan+" / "+(port.failed?"ポート故障":port.degraded?"帯域劣化(実効10%)":"正常")+" / 許可 "+port.allowedVlans+(port.trunk?"":" (Trunk時のみ)"));text.add("  "+CableGrade.speed(port.capacity())+" "+(port.optical?"光":"銅線")+" "+port.address+"/"+port.prefix);}return new Reply(false,text);}
                 case "mac" -> {return new Reply(false,sim.macTable(id).entrySet().stream().map(e->e.getKey()+" → P"+e.getValue()).toList());}
                 case "arp" -> {return new Reply(false,sim.arpTable(id).entrySet().stream().map(e->e.getKey()+" → "+e.getValue()).toList());}
                 case "log" -> {return new Reply(false,sim.logs(id));}
@@ -46,9 +46,10 @@ public final class NetworkCli {
                 case "gateway" -> {need(t,2);p.gateway=t[1].equals("none")?"":Ipv4.normalize(t[1]);}
                 case "dns" -> {need(t,2);p.dns=t[1].equals("none")?"":Ipv4.normalize(t[1]);}
                 case "port" -> {
-                    if(t.length<3||t.length>4)throw new IllegalArgumentException("port 番号 vlan|allowed|ip|speed|media|mode 値 / enable|disable");
+                    if(t.length<3||t.length>4)throw new IllegalArgumentException("port 番号 vlan|allowed|ip|speed|media|mode 値 / enable|disable|fault|degrade");
                     int n=Integer.parseInt(t[1]);if(n<0||n>=6)throw new IllegalArgumentException("ポート番号は0〜5です");var port=p.ports[n];
                     switch(t[2]){
+                        case "degrade" -> {need(t,3);if(!PortFaults.degradePort(p,n))return reply(false,"P"+n+"は既に劣化または完全故障しています");}
                         case "fault" -> {need(t,3);if(!PortFaults.failPort(p,n))return reply(false,"P"+n+"は既に故障しています");}
                         case "enable" -> {need(t,3);port.enabled=true;}
                         case "disable" -> {need(t,3);port.enabled=false;}
@@ -69,7 +70,7 @@ public final class NetworkCli {
                 case "ospf","ipv6","nat","ipsec","lacp" -> {return reply(false,"この版では未実装です。成功した通信として扱いません。");}
                 default -> {return reply(false,"不明なコマンドです。help で一覧を表示します");}
             }
-            p.validate();String encoded=p.encode();if(editing&&t[0].equalsIgnoreCase("port")&&t.length==4&&t[2].equals("allowed")&&encoded.equals(original.encode()))return reply(false,"変更はありません");sim.put(id,p);if(t[0].equalsIgnoreCase("port")&&t.length==3&&t[2].equals("fault"))sim.log(id,3,"PORT FAULT P"+t[1]+": 手動故障試験 / 修理キットで復旧");return reply(true,"設定を保存しました: "+input);
+            p.validate();String encoded=p.encode();if(editing&&t[0].equalsIgnoreCase("port")&&t.length==4&&t[2].equals("allowed")&&encoded.equals(original.encode()))return reply(false,"変更はありません");sim.put(id,p);if(t[0].equalsIgnoreCase("port")&&t.length==3&&t[2].equals("fault"))sim.log(id,3,"PORT FAULT P"+t[1]+": 手動故障試験 / 修理キットで復旧");if(t[0].equalsIgnoreCase("port")&&t.length==3&&t[2].equals("degrade"))sim.log(id,3,"PORT DEGRADED P"+t[1]+": 帯域劣化試験 / 修理キットで復旧");return reply(true,"設定を保存しました: "+input);
         }catch(IllegalArgumentException|ArithmeticException e){
             return reply(false,"設定を変更しませんでした: "+e.getMessage());
         }

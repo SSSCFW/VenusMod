@@ -158,3 +158,7 @@ ICMPとWeb/TCP80・DNS/UDP53・仮想転送・制御端末の応答を分けて�
 ## ポート単位の故障・修理
 
 機器全体の停止と各ポートの故障を区別します。既存キットの通常使用は全修理、Shift+機器の面を右クリックするとそのポートだけ修理します。操作・故障確率・保存範囲は[ポート故障](docs/NETWORK_PORT_FAULTS.md)、検査結果は[検証記録](docs/NETWORK_PORT_FAULTS_VERIFICATION.md)を参照してください。
+
+## ポートの帯域劣化
+
+Link Upのまま転送上限が低下する物理劣化と修理を追加しました。操作・ゲーム値・保存の説明は [ポート帯域劣化](docs/NETWORK_PORT_DEGRADATION.md)、確認結果は [検証記録](docs/NETWORK_PORT_DEGRADATION_VERIFICATION.md) を参照してください。

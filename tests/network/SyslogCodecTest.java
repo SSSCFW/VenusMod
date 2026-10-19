@@ -10,7 +10,7 @@ public final class SyslogCodecTest {
         var old=NetworkProfile.decode(DeviceKind.SERVER,V8);ok(!old.syslog.enabled&&!old.syslog.server&&old.syslog.target.isEmpty(),"旧v8はSyslog無効で移行");
         ok(old.name.equals("legacy-syslog")&&old.failed&&old.web&&old.dnsRecords.get("base.local").equals("10.0.0.20"),"旧設定を維持");
         old.syslog.enabled=true;old.syslog.server=true;old.syslog.target="10.0.0.2";old.syslog.port=5514;old.syslog.level=4;old.syslog.allow="10.0.0.0/24";
-        String encoded=old.encode();ok(ByteBuffer.wrap(Base64.getDecoder().decode(encoded)).getInt()==15,"保存v15");
+        String encoded=old.encode();ok(ByteBuffer.wrap(Base64.getDecoder().decode(encoded)).getInt()==16,"保存v16");
         var decoded=NetworkProfile.decode(DeviceKind.SERVER,encoded);ok(decoded.encode().equals(encoded),"設定全体の往復");
         ok(decoded.syslog.enabled&&decoded.syslog.server&&decoded.syslog.port==5514&&decoded.syslog.level==4&&decoded.syslog.allow.equals("10.0.0.0/24"),"Syslogフィールド往復");
         // v10/v11の監視節より前にあるSyslog severityを狙い、種類件数と混同しない。
@@ -18,7 +18,7 @@ public final class SyslogCodecTest {
         var safety=new java.io.DataOutputStream(tail);safety.writeUTF(old.controlSafety.config().mode().name());safety.writeInt(old.controlSafety.config().seconds());safety.writeInt(old.controlSafety.config().value());
         old.ntp.write(new java.io.DataOutputStream(tail));
         for(var port:old.ports)new java.io.DataOutputStream(tail).writeUTF(port.allowedVlans.toString());
-        byte[] bytes=Base64.getDecoder().decode(encoded);int severityOffset=bytes.length-tail.size()-1-4;
+        byte[] bytes=Base64.getDecoder().decode(encoded);int severityOffset=bytes.length-tail.size()-2-4;
         ok(ByteBuffer.wrap(bytes).getInt(severityOffset)==4,"破損対象はSyslog severityフィールド");ByteBuffer.wrap(bytes).putInt(severityOffset,8);boolean rejected=false;try{NetworkProfile.decode(DeviceKind.SERVER,Base64.getEncoder().encodeToString(bytes));}catch(IllegalArgumentException e){rejected=true;}ok(rejected,"不正保存severityを拒否");
         var sim=new NetworkSimulator();var a=new NetworkProfile(DeviceKind.PC);a.address="10.0.0.1";var b=new NetworkProfile(DeviceKind.PC);b.address="10.0.0.2";sim.put("a",a);sim.put("b",b);sim.link(new NetworkSimulator.Link("ab","a",0,"b",0,CableGrade.CAT5E,1,false));
         ok(sim.startTransfer("a","10.0.0.2",1_000_000_000).success(),"転送開始");

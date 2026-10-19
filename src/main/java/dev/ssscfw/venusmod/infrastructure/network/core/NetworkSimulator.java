@@ -222,6 +222,8 @@ public final class NetworkSimulator {
         if(ap.speedLimitBps>physical || bp.speedLimitBps>physical
                 || ap.speedLimitBps>0&&bp.speedLimitBps>0&&ap.speedLimitBps!=bp.speedLimitBps)return 0;
         long limit=ap.speedLimitBps>0?ap.speedLimitBps:bp.speedLimitBps>0?bp.speedLimitBps:physical;
+        // 劣化は交渉後の実効上限。両端の係数は重ねず、WANより先に適用する。
+        limit=PortFaults.degradedBandwidth(ap,bp,limit);
         if(l.wan)limit=Math.min(limit,Math.min(NetworkProfile.WAN_SPEEDS[Math.clamp(a.wanTier,0,5)],NetworkProfile.WAN_SPEEDS[Math.clamp(b.wanTier,0,5)]));
         return limit;
     }
