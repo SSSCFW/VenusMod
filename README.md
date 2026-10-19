@@ -146,3 +146,7 @@ ICMPとWeb/TCP80・DNS/UDP53・仮想転送・制御端末の応答を分けて�
 ### 機器設定のバックアップ
 
 `backup save`で変更前の設定を控え、確認付きで復元できます。管理権限のあるサーバーへの保管・取得も可能です。故障・装着品・所有権は巻き戻しません。[操作と制限](docs/NETWORK_CONFIG_BACKUP.md)、[検証記録](docs/NETWORK_CONFIG_BACKUP_VERIFICATION.md)を参照してください。
+
+### NTPによる機器時計の同期
+
+仮想UDP123の往復で表示時計を合わせ、Syslogに発生/受信時計を記録します。通信・制御の期限用tickは補正しません。操作と制限は [仮想NTP](docs/NETWORK_NTP.md)、検証は [NTP検証記録](docs/NETWORK_NTP_VERIFICATION.md) を参照してください。

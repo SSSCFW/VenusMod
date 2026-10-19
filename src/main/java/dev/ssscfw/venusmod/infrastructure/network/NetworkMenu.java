@@ -109,7 +109,7 @@ public final class NetworkMenu extends AbstractContainerMenu {
             }
             var service=NetworkServiceCommands.run(simulator,target.id(),text);
             if(service.handled()){
-                target.adoptProfile(simulator.nodes().get(target.id()));output=String.join("\n",service.lines());if(service.changed()){if(DnsCommands.handles(t)||SyslogCommands.handles(t)||MonitorCommands.handles(t)||ControlSafetyCommands.handles(t))target.setChanged();else target.refreshState();}
+                target.adoptProfile(simulator.nodes().get(target.id()));output=String.join("\n",service.lines());if(service.changed()){if(NtpCommands.handles(t)||DnsCommands.handles(t)||SyslogCommands.handles(t)||MonitorCommands.handles(t)||ControlSafetyCommands.handles(t))target.setChanged();else target.refreshState();}
             }else if(t[0].equals("topology")){
                 if(t.length==1)output=world.diagnostic()+"\n今回tickの局所解析作業: "+world.topologyLastSteps()+" / 累計: "+world.topologySteps();
                 else if(t.length==2&&t[1].equals("rebuild")){

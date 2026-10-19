@@ -9,7 +9,7 @@ public final class BackupGuideTest {
             if(!text.contains(key))throw new AssertionError("説明なし: "+key);checks++;
         }
         for(var node:page.nodes()){if(!Set.of("network_router","network_l2_switch","network_server").contains(node.item()))throw new AssertionError("未登録アイコン");checks++;}
-        if(NetworkGuide.pages().stream().filter(p->!p.id().equals("backup")).count()!=20||NetworkGuide.recipes().stream().filter(r->!r.page().id().equals("backup")).count()!=84)throw new AssertionError("既存20トピック84手順を保持");checks++;
+        if(NetworkGuide.pages().stream().filter(p->!Set.of("backup","ntp").contains(p.id())).count()!=20||NetworkGuide.recipes().stream().filter(r->!Set.of("backup","ntp").contains(r.page().id())).count()!=84)throw new AssertionError("既存20トピック84手順を保持");checks++;
         if(!String.join(" ",NetworkHelp.lines()).contains("backup save"))throw new AssertionError("ヘルプ未接続");checks++;
         System.out.println("BackupGuideTest: "+checks+" checks passed");
     }

@@ -14,6 +14,7 @@ public final class NetworkHelp {
         "ping 名前/IP / trace 名前/IP / nslookup base.local [DNS-IP]",
         "show / ports / mac / arp / routes / log / flows",
         "監視Server: monitor add base 192.168.1.20 → monitor on / monitor status / monitor help",
+        "ntp server on / ntp target IP [PORT] / ntp on / ntp status / ntp help",
         "syslog target IP [PORT] / syslog on / syslog server on / syslog logs / syslog help",
         "topology: 局所配線の解析状態・作業数。変更していない別物理網の通信は維持。",
         "topology rebuild: 管理者専用の全配線再解析 (上限停止後の復旧用)。",

@@ -10,11 +10,11 @@ public final class SyslogRuntime {
     public static final int MAX_PENDING=1024, PER_SENDER=32, PER_SECOND=16, WORK_PER_TICK=2;
     public static final int PER_COLLECTOR=256, MAX_RECEIVED=4096, MAX_MESSAGE=200, MAX_AGE=200;
     public record Entry(long number,long emittedTick,long receivedTick,String origin,String hostname,
-                        String sourceAddress,int severity,String message){}
+                        String sourceAddress,int severity,String message,double emittedClockMillis,double receivedClockMillis){}
     record Delivery(boolean success,String receiver,String sourceAddress,String reason){
         static Delivery fail(String reason){return new Delivery(false,"","",reason);}
     }
-    private record Pending(long tick,String origin,String hostname,String target,int port,int severity,String message){}
+    private record Pending(long tick,double clockMillis,String origin,String hostname,String target,int port,int severity,String message){}
     private static final class Sender {
         final ArrayDeque<Pending> queue=new ArrayDeque<>();
         long window=-1,delivered,dropped,filtered;
@@ -54,7 +54,7 @@ public final class SyslogRuntime {
         if(profile.failed){drop(sender,"送信元停止: 自機からは送れません");return;}
         long window=now/20;if(sender.window!=window){sender.window=window;sender.accepted=0;}
         if(sender.accepted>=PER_SECOND||sender.queue.size()>=PER_SENDER||pending>=MAX_PENDING){drop(sender,"配送待ち/送信レート上限");return;}
-        sender.accepted++;sender.queue.addLast(new Pending(now,id,text(profile.name,48),profile.syslog.target,profile.syslog.port,severity,text(message,MAX_MESSAGE)));
+        sender.accepted++;sender.queue.addLast(new Pending(now,simulator.ntp().clockMillis(id),id,text(profile.name,48),profile.syslog.target,profile.syslog.port,severity,text(message,MAX_MESSAGE)));
         pending++;ready.add(id);sender.last="配送待ち";
     }
     private static void drop(Sender sender,String reason){sender.dropped++;sender.last=text(reason,160);}
@@ -72,7 +72,7 @@ public final class SyslogRuntime {
             if(now-event.tick>=MAX_AGE){drop(sender,"配送待ち期限切れ");continue;}
             Delivery delivery=simulator.deliverSyslog(id,event.target,event.port);
             if(!delivery.success){drop(sender,delivery.reason);continue;}
-            retain(delivery.receiver,new Entry(nextNumber++,event.tick,now,event.origin,event.hostname,delivery.sourceAddress,event.severity,event.message));
+            retain(delivery.receiver,new Entry(nextNumber++,event.tick,now,event.origin,event.hostname,delivery.sourceAddress,event.severity,event.message,event.clockMillis,simulator.ntp().clockMillis(delivery.receiver)));
             sender.delivered++;sender.last="シミュレーション上で到着 (UDP応答ではありません)";
         }
         lastWork=Math.min(lastWork,WORK_PER_TICK);
@@ -99,7 +99,7 @@ public final class SyslogRuntime {
     public List<String> describe(String collector,int limit){
         if(limit<1||limit>20)throw new IllegalArgumentException("表示件数は1〜20です");
         var entries=entries(collector);var lines=new ArrayList<String>();lines.add("Syslog受信履歴 "+entries.size()+"件 (新しい順、表示最大"+limit+")");
-        for(int i=entries.size()-1;i>=Math.max(0,entries.size()-limit);i--){var e=entries.get(i);lines.add("#"+e.number+" tick="+e.emittedTick+"→"+e.receivedTick+" sev="+e.severity+" "+e.hostname+" ["+e.sourceAddress+"] "+e.message);}
+        for(int i=entries.size()-1;i>=Math.max(0,entries.size()-limit);i--){var e=entries.get(i);lines.add("#"+e.number+" tick="+e.emittedTick+"→"+e.receivedTick+" clockMs="+String.format(Locale.ROOT,"%.3f→%.3f",e.emittedClockMillis,e.receivedClockMillis)+" sev="+e.severity+" "+e.hostname+" ["+e.sourceAddress+"] "+e.message);}
         return List.copyOf(lines);
     }
 }

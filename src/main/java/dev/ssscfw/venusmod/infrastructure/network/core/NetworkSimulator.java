@@ -67,6 +67,8 @@ public final class NetworkSimulator {
     private final NatTable natTable=new NatTable();
     private final DnsResolver dnsResolver=new DnsResolver(this);
     private final SyslogRuntime syslogRuntime=new SyslogRuntime(this);
+    private final NtpRuntime ntpRuntime=new NtpRuntime(this);
+    public NtpRuntime ntp(){return ntpRuntime;}
     private int suppressSyslog,suppressProbeLogs;
     private final MonitorRuntime monitorRuntime=new MonitorRuntime(this);
     public MonitorRuntime monitor(){return monitorRuntime;}
@@ -92,7 +94,7 @@ public final class NetworkSimulator {
         Objects.requireNonNull(id);Objects.requireNonNull(profile);
         if(!nodes.containsKey(id)&&nodes.size()>=MAX_NODES)throw new IllegalStateException("機器数上限");
         nodes.put(id,profile);dnsResolver.synchronizeClient(id,profile);macAddresses.computeIfAbsent(id,NetworkSimulator::macAddress);
-        ports.computeIfAbsent(id,k->new Link[6]);monitorRuntime.synchronize(id);invalidate(id);
+        ports.computeIfAbsent(id,k->new Link[6]);monitorRuntime.synchronize(id);ntpRuntime.synchronize(id);invalidate(id);
     }
     /** 権威DNSの編集は経路変更ではない。既存接続と遠隔キャッシュを維持する。 */
     void applyDnsSettings(String id,NetworkProfile validated){
@@ -103,6 +105,11 @@ public final class NetworkSimulator {
     void applySyslogSettings(String id,NetworkProfile validated){
         var current=nodes.get(id);if(current==null)throw new IllegalArgumentException("機器が未登録です");
         current.syslog.copyFrom(validated.syslog);syslogRuntime.configurationChanged(id);changedProfiles.add(id);
+    }
+    /** 表示時計の設定は通信グラフを失効させない。 */
+    void applyNtpSettings(String id,NetworkProfile validated){
+        var current=nodes.get(id);if(current==null)throw new IllegalArgumentException("機器が未登録です");
+        current.ntp.copyFrom(validated.ntp);ntpRuntime.synchronize(id);changedProfiles.add(id);
     }
     void applyMonitorSettings(String id,NetworkProfile validated){
         var current=nodes.get(id);if(current==null)throw new IllegalArgumentException("機器が未登録です");
@@ -130,7 +137,7 @@ public final class NetworkSimulator {
         // 分割前の成分を確保。切断の反対側も再確立させるが、別物理網は保護する。
         Set<String> affected=component(Set.of(id));
         for(Link link:new ArrayList<>(links.values()))if(link.a.equals(id)||link.b.equals(id))detach(link);
-        nodes.remove(id);ports.remove(id);macAddresses.remove(id);mac.remove(id);arp.remove(id);logs.remove(id);changedProfiles.remove(id);dnsResolver.removeDevice(id);syslogRuntime.remove(id);monitorRuntime.remove(id);
+        nodes.remove(id);ports.remove(id);macAddresses.remove(id);mac.remove(id);arp.remove(id);logs.remove(id);changedProfiles.remove(id);dnsResolver.removeDevice(id);syslogRuntime.remove(id);monitorRuntime.remove(id);ntpRuntime.remove(id);
         invalidateComponents(affected,"機器の削除で再確立");
     }
     public void link(Link link){
@@ -513,6 +520,19 @@ public final class NetworkSimulator {
         }catch(SearchLimit|IllegalArgumentException invalid){return Result.fail(invalid.getMessage());}
         finally{suppressProbeLogs--;}
     }
+    /** NTPはUDP123の往復を確認し、サービスと4時刻の検査後だけNAT表を確定。 */
+    NtpRuntime.Exchange ntpRequest(String source,ServiceAddress endpoint){
+        NtpSample[] sample=new NtpSample[1];suppressProbeLogs++;
+        try{
+            var result=exchange(source,replyAddress(source,endpoint.address()),endpoint.address(),"udp",49153,endpoint.port(),new SearchBudget(),NtpSettings.PORT,
+                    (id,p)->p!=null&&p.kind==DeviceKind.SERVER&&p.ntp.server&&!p.ntp.enabled?"":"NTP基準サービスが停止または非対応です",
+                    (id,f,r)->sample[0]=ntpRuntime.measure(source,id,f,r));
+            return new NtpRuntime.Exchange(result,result.success()?sample[0]:null,false);
+        }catch(SearchLimit limit){return new NtpRuntime.Exchange(Result.fail(limit.getMessage()),null,true);}
+        catch(IllegalArgumentException invalid){return new NtpRuntime.Exchange(Result.fail(invalid.getMessage()),null,false);}
+        finally{suppressProbeLogs--;}
+    }
+    @FunctionalInterface private interface ExchangeObserver {void measured(String destination,double forwardMillis,double reverseMillis);}
     private Result exchange(String source,String local,String target,String protocol,int sourcePort,int destinationPort,SearchBudget budget){
         return exchange(source,local,target,protocol,sourcePort,destinationPort,budget,-1);
     }
@@ -526,6 +546,10 @@ public final class NetworkSimulator {
     }
     private Result exchange(String source,String local,String target,String protocol,int sourcePort,int destinationPort,SearchBudget budget,int expectedServicePort,
                             java.util.function.BiFunction<String,NetworkProfile,String> availability){
+        return exchange(source,local,target,protocol,sourcePort,destinationPort,budget,expectedServicePort,availability,(id,f,r)->{});
+    }
+    private Result exchange(String source,String local,String target,String protocol,int sourcePort,int destinationPort,SearchBudget budget,int expectedServicePort,
+                            java.util.function.BiFunction<String,NetworkProfile,String> availability,ExchangeObserver observer){
         if(local.isBlank()||!owns(source,local))return Result.fail("送信元IPが未設定または機器に属していません");
         var packet=NetworkPolicy.Packet.of(protocol,local,target,sourcePort,destinationPort);
         try(var transaction=natTable.begin()){
@@ -541,8 +565,9 @@ public final class NetworkSimulator {
             if(!reverse.result.success)return Result.fail("応答経路なし: "+reverse.result.message);
             if(!reverse.result.destination.equals(source)||!reverse.packet.equals(packet.reverse()))
                 return Result.fail("応答先IP/ポートが競合またはNAT状態と一致しません");
-            var bindings=transaction.commit();
             var a=forward.result;var b=reverse.result;
+            observer.measured(a.destination,a.milliseconds,b.milliseconds);
+            var bindings=transaction.commit();
             var result=new Result(true,"Reply from "+target+" ["+protocol.toUpperCase(Locale.ROOT)+"] RTT="+String.format(Locale.ROOT,"%.2f ms",a.milliseconds+b.milliseconds),
                     Math.min(a.bps,b.bps),a.milliseconds+b.milliseconds,a.nodes,a.links,a.destination,forward.packet.destinationPort(),bindings);
             log(source,result.message+" / "+CableGrade.speed(result.bps)+(bindings.isEmpty()?"":" / NAT "+bindings.size()+"段"));return result;
@@ -672,6 +697,7 @@ public final class NetworkSimulator {
     }
     public void advance(long ticks){
         if(ticks<=0)return;
+        ntpRuntime.elapse(ticks);
         syslogRuntime.elapse(ticks);
         dnsResolver.advance(ticks);
         stpRuntime.advance(ticks);
@@ -703,6 +729,7 @@ public final class NetworkSimulator {
             if(!live){log(f.source,"転送 #"+f.id+": リンク断で中断");it.remove();continue;}
             f.remaining-=rate/8.0*time/20.0;if(f.remaining<=0){log(f.source,"転送 #"+f.id+": 完了");it.remove();}
         }
+        ntpRuntime.dispatch();
         monitorRuntime.advance(ticks);
         syslogRuntime.dispatch();
     }
