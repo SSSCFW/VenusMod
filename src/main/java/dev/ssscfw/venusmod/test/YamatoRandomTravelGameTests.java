@@ -19,6 +19,7 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -36,10 +37,19 @@ public final class YamatoRandomTravelGameTests {
         return nbt;
     }
 
+    /** GameTest構造物は地下にあるため、実際のワールド地表より上へテスト足場を作る。 */
+    private static BlockPos aboveTerrain(GameTestHelper helper, BlockPos relative) {
+        var level = helper.getLevel();
+        BlockPos column = helper.absolutePos(relative);
+        int surfaceY = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                column.getX(), column.getZ());
+        return new BlockPos(column.getX(), surfaceY + 3, column.getZ());
+    }
+
     @GameTest(template = "test/wide_empty")
     public static void solidSurfaceAllowsFlowersAndGrass(GameTestHelper h) {
         var level = h.getLevel();
-        BlockPos feet = h.absolutePos(new BlockPos(5, 3, 5));
+        BlockPos feet = aboveTerrain(h, new BlockPos(5, 3, 5));
         level.setBlock(feet.below(), Blocks.GRASS_BLOCK.defaultBlockState(), 3);
         level.setBlock(feet, Blocks.DANDELION.defaultBlockState(), 3);
         h.assertTrue(YamatoRandomDestinations.safeLanding(level, feet),
@@ -55,7 +65,7 @@ public final class YamatoRandomTravelGameTests {
     @GameTest(template = "test/wide_empty")
     public static void liquidGroundOrBodyAndUnsupportedAirAreNeverDestinations(GameTestHelper h) {
         var level = h.getLevel();
-        BlockPos feet = h.absolutePos(new BlockPos(5, 3, 5));
+        BlockPos feet = aboveTerrain(h, new BlockPos(5, 3, 5));
         level.setBlock(feet.below(), Blocks.STONE.defaultBlockState(), 3);
         h.assertTrue(YamatoRandomDestinations.safeLanding(level, feet), "Dry stone floor must be valid");
         level.setBlock(feet, Blocks.WATER.defaultBlockState(), 3);
@@ -81,7 +91,7 @@ public final class YamatoRandomTravelGameTests {
     @GameTest(template = "test/wide_empty")
     public static void caveModeFindsCoveredDryFloorsInsteadOfOnlySurface(GameTestHelper h) {
         var level = h.getLevel();
-        BlockPos cave = h.absolutePos(new BlockPos(7, 3, 7));
+        BlockPos cave = aboveTerrain(h, new BlockPos(7, 3, 7));
         level.setBlock(cave.below(), Blocks.STONE.defaultBlockState(), 3);
         level.setBlock(cave, Blocks.AIR.defaultBlockState(), 3);
         level.setBlock(cave.above(), Blocks.AIR.defaultBlockState(), 3);
