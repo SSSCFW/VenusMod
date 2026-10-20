@@ -41,6 +41,16 @@ jobs:
           set -euo pipefail
           gradle runGameTestServer -PvenusTestCreate=true --stacktrace 2>&1 | tee gametest-server.log
 
+      - name: JEI client smoke test
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          if ! command -v xvfb-run >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y xvfb xauth
+          fi
+          bash tools/verification/jei-client-smoke.sh
+
       - name: Upload GameTest diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -55,6 +65,9 @@ jobs:
             run/gameTestServer/*.xml
             build/reports/
             build/test-results/
+            run/jeiSmokeClient/logs/
+            run/jeiSmokeClient/crash-reports/
+            run/jeiSmokeClient/jei-smoke/
 
       - name: Dedicated server smoke test
         if: ${{ inputs.server_smoke_test }}

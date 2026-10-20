@@ -20,7 +20,7 @@ def snapshotNetworkTestInputs = tasks.register('snapshotNetworkTestInputs', Zip)
     preserveFileTimestamps = false
     reproducibleFileOrder = true
     from(layout.projectDirectory) {
-        include 'src/main/**', 'src/generated/**', 'tests/**', 'tools/java/**', 'gradle/**'
+        include 'src/main/**', 'src/generated/**', 'tests/**', 'tools/java/**', 'tools/verification/**', 'gradle/**'
         include 'docs/**', 'AGENTS.md', 'README.md', 'build.gradle', 'settings.gradle', 'gradle.properties'
         exclude '**/.cache/**'
     }
@@ -49,7 +49,7 @@ def verifyNetworkAssets = tasks.register('verifyNetworkAssets', JavaExec) {
 }
 tasks.named('check') { dependsOn verifyNetworkCore, verifyNetworkAssets }
 
-['BandwidthAllocatorTest', 'TransferQosContractTest', 'TransferQosTest', 'TransferQosBoundaryTest', 'TransferQosGuideTest', 'PortDegradationContractTest', 'PortDegradationModelTest', 'PortDegradationNetworkTest', 'PortDegradationCodecTest', 'PortDegradationGuideTest', 'PortFaultContractTest', 'PortFaultModelTest', 'PortFaultNetworkTest', 'PortFaultCodecTest', 'PortFaultGuideTest', 'TrunkContractTest', 'TrunkAllowanceTest', 'TrunkNetworkTest', 'TrunkFormTest', 'TrunkCodecTest', 'TrunkGuideTest', 'NtpContractTest', 'NtpRuntimeTest', 'NtpNetworkTest', 'NtpLimitsTest', 'NtpCodecTest', 'NtpSyslogTest', 'NtpGuideTest', 'ConfigBackupTest', 'BackupRestoreTest', 'BackupTransportTest', 'BackupGuideTest', 'ControlSafetyContractTest', 'ControlLeaseTest', 'ControlExchangeTest', 'ControlSafetySettingsTest', 'ControlSafetyGuideTest', 'MonitorServiceTest', 'MonitorServiceNetworkTest', 'MonitorServiceLimitsTest', 'MonitorServiceCodecTest', 'MonitorServiceGuideTest', 'MonitorContractTest', 'MonitorBehaviorTest', 'MonitorLimitsTest', 'MonitorCodecTest', 'MonitorGuideTest', 'SyslogContractTest', 'SyslogNetworkTest', 'SyslogLimitsTest', 'SyslogCodecTest', 'SyslogGuideTest', 'NetworkFormTest', 'NetworkFormDraftTest', 'NetworkFormSafetyTest', 'NetworkFormGuideTest', 'NetworkContinuationTest', 'NetworkRequestBudgetTest', 'NetworkServicesTest', 'NetworkGuideTest',
+['NetworkJeiCatalogTest', 'GuidePaginationTest', 'BandwidthAllocatorTest', 'TransferQosContractTest', 'TransferQosTest', 'TransferQosBoundaryTest', 'TransferQosGuideTest', 'PortDegradationContractTest', 'PortDegradationModelTest', 'PortDegradationNetworkTest', 'PortDegradationCodecTest', 'PortDegradationGuideTest', 'PortFaultContractTest', 'PortFaultModelTest', 'PortFaultNetworkTest', 'PortFaultCodecTest', 'PortFaultGuideTest', 'TrunkContractTest', 'TrunkAllowanceTest', 'TrunkNetworkTest', 'TrunkFormTest', 'TrunkCodecTest', 'TrunkGuideTest', 'NtpContractTest', 'NtpRuntimeTest', 'NtpNetworkTest', 'NtpLimitsTest', 'NtpCodecTest', 'NtpSyslogTest', 'NtpGuideTest', 'ConfigBackupTest', 'BackupRestoreTest', 'BackupTransportTest', 'BackupGuideTest', 'ControlSafetyContractTest', 'ControlLeaseTest', 'ControlExchangeTest', 'ControlSafetySettingsTest', 'ControlSafetyGuideTest', 'MonitorServiceTest', 'MonitorServiceNetworkTest', 'MonitorServiceLimitsTest', 'MonitorServiceCodecTest', 'MonitorServiceGuideTest', 'MonitorContractTest', 'MonitorBehaviorTest', 'MonitorLimitsTest', 'MonitorCodecTest', 'MonitorGuideTest', 'SyslogContractTest', 'SyslogNetworkTest', 'SyslogLimitsTest', 'SyslogCodecTest', 'SyslogGuideTest', 'NetworkFormTest', 'NetworkFormDraftTest', 'NetworkFormSafetyTest', 'NetworkFormGuideTest', 'NetworkContinuationTest', 'NetworkRequestBudgetTest', 'NetworkServicesTest', 'NetworkGuideTest',
  'OspfCommandTest', 'OspfEngineTest', 'OspfIntegrationTest', 'OspfPresenceTest', 'NatIntegrationTest', 'NatTableTest', 'NatServiceTest', 'NatRoutingTest', 'NatLimitsTest', 'VrrpEngineTest', 'VrrpIntegrationTest', 'VrrpBoundaryTest', 'VrrpCodecTest', 'StpContractTest', 'StpEngineTest', 'StpIntegrationTest', 'StpBoundaryTest', 'TopologyIsolationTest', 'NetworkGogglesReadoutTest', 'CableTopologyTest', 'CableTopologyFuzzTest', 'CableTopologyScaleTest', 'BgpContractTest', 'BgpIntegrationTest', 'BgpEngineTest', 'BgpBoundaryTest', 'BgpCodecTest', 'BgpLimitsTest', 'BgpCompatibilityTest', 'DnsContractTest', 'DnsBehaviorTest', 'DnsNetworkTest', 'DnsLimitsTest', 'DnsCodecTest', 'DnsGuideTest'].each { checkClassName ->
     def verification = tasks.register('verify' + checkClassName.replace('Test', ''), JavaExec) {
         dependsOn compileNetworkTests
@@ -62,3 +62,20 @@ tasks.named('check') { dependsOn verifyNetworkCore, verifyNetworkAssets }
 
 repositories { maven { url = 'https://maven.blamejared.com' } }
 dependencies { compileOnly 'mezz.jei:jei-1.21.1-common-api:19.21.0.247' }
+
+// 本番でJEIを必須にしない。開発/専用のクライアント検証だけ実体を追加。
+def withJei = providers.gradleProperty('venusTestJei').orElse('false').get().toBoolean()
+if (withJei) {
+    dependencies { localRuntime 'mezz.jei:jei-1.21.1-neoforge:19.21.0.247' }
+}
+if (providers.gradleProperty('venusJeiSmoke').orElse('false').get().toBoolean()) {
+    if (!withJei) throw new GradleException('venusJeiSmoke requires -PvenusTestJei=true')
+    runs {
+        client {
+            workingDirectory project.layout.projectDirectory.dir('run/jeiSmokeClient')
+            systemProperty 'venusmod.jeiSmokeTest', 'true'
+            arguments.addAll '--quickPlaySingleplayer', 'jei-smoke-world', '--width', '1280', '--height', '800'
+        }
+        server { workingDirectory project.layout.projectDirectory.dir('run/jeiSmokeServer') }
+    }
+}

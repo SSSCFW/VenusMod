@@ -21,7 +21,7 @@ public final class NetworkScreen extends AbstractContainerScreen<NetworkMenu> {
     private String lastText="";
     private Button portButton;
     private final List<AbstractWidget> normalWidgets=new ArrayList<>(),guideWidgets=new ArrayList<>();
-    public NetworkScreen(NetworkMenu menu,Inventory inventory,Component title){super(menu,inventory,title);imageWidth=320;imageHeight=240;inventoryLabelY=148;settings=new NetworkSettingsPanel(menu);}
+    public NetworkScreen(NetworkMenu menu,Inventory inventory,Component title){super(menu,inventory,title);imageWidth=320;imageHeight=252;inventoryLabelY=148;settings=new NetworkSettingsPanel(menu);}
     @Override protected void init(){
         super.init();normalWidgets.clear();guideWidgets.clear();
         button("状態",8,22,36,()->send("show"));button("ポート",46,22,44,()->openSettings(selectedPort));
@@ -75,6 +75,7 @@ public final class NetworkScreen extends AbstractContainerScreen<NetworkMenu> {
         if(guide){renderGuide(g);for(var widget:guideWidgets)widget.render(g,x,y,tick);return;}
         super.render(g,x,y,tick);renderTooltip(g,x,y);
     }
+    public boolean isJeiShortcutVisible(){return !guide&&!configuring&&net.neoforged.fml.ModList.get().isLoaded("jei");}
     private void panel(GuiGraphics g){int l=leftPos,t=topPos;g.fill(l,t,l+imageWidth,t+imageHeight,0xff17212b);g.fill(l+2,t+2,l+imageWidth-2,t+imageHeight-2,0xff3b4650);}
     private void renderGuide(GuiGraphics g){
         panel(g);int l=leftPos,t=topPos;var page=NetworkGuide.pages().get(guidePage);
@@ -93,6 +94,7 @@ public final class NetworkScreen extends AbstractContainerScreen<NetworkMenu> {
     @Override protected void renderBg(GuiGraphics g,float tick,int mouseX,int mouseY){
         panel(g);int l=leftPos,t=topPos;g.fill(l+5,t+5,l+imageWidth-5,t+19,0xff17212b);g.fill(l+7,t+118,l+313,t+148,0xff263440);g.fill(l+74,t+155,l+242,t+235,0xff263440);
         for(var slot:menu.slots){g.fill(l+slot.x-1,t+slot.y-1,l+slot.x+17,t+slot.y+17,0xffb9974c);g.fill(l+slot.x,t+slot.y,l+slot.x+16,t+slot.y+16,0xff15202b);}drawText(g,46,94,5);
+        if(isJeiShortcutVisible()){g.fill(l+270,t+237,l+312,t+249,0xff17212b);g.drawString(font,"JEI",l+282,t+239,0xfff0cf78,false);}
     }
     @Override protected void renderLabels(GuiGraphics g,int x,int y){g.drawString(font,title,9,8,0xfff0cf78,false);g.drawString(font,"ポート強化 P0〜P5",12,120,0xffe0c789,false);g.drawString(font,"本体強化 6枠",146,120,0xffe0c789,false);g.drawString(font,"WAN",288,120,0xffe0c789,false);g.drawString(font,"スクロールで説明を読む / 外部通信なし",8,149,0xffb9c6ce,false);}
 }
