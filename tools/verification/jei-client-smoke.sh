@@ -22,12 +22,13 @@ max-players=2
 motd=VenusMod isolated JEI verification
 PROPS
 # 初回のAccessibility画面がQuick Playの継続を止めないよう、検証専用optionsへ明記する。
-printf 'onboardAccessibility:false\nnarrator:0\nlang:ja_jp\nguiScale:2\nmaxFps:30\nrenderDistance:2\nsimulationDistance:2\npauseOnLostFocus:false\nshowTutorial:false\n' > run/jeiSmokeClient/options.txt
+printf 'onboardAccessibility:false\nnarrator:0\nlang:ja_jp\nguiScale:2\nmaxFps:30\nrenderDistance:2\nsimulationDistance:5\npauseOnLostFocus:false\nshowTutorial:false\n' > run/jeiSmokeClient/options.txt
 rm -f run/jeiSmokeClient/jei-smoke/PASS.txt run/jeiSmokeClient/jei-smoke/FAIL.txt
 setsid "$gradle_bin" runServer -PvenusTestJei=true -PvenusJeiSmoke=true --no-daemon --console=plain > build/reports/jei/server.log 2>&1 &
 server_pid=$!
 cleanup(){
   kill -- -"$server_pid" 2>/dev/null || true
+  if [[ -f run/jeiSmokeClient/options.txt ]]; then cp run/jeiSmokeClient/options.txt build/reports/jei/client-options.txt; fi
   if [[ -d run/jeiSmokeClient/jei-smoke ]]; then cp -a run/jeiSmokeClient/jei-smoke/. build/reports/jei/; fi
 }
 trap cleanup EXIT
