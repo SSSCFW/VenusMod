@@ -21,7 +21,8 @@ simulation-distance=2
 max-players=2
 motd=VenusMod isolated JEI verification
 PROPS
-printf 'lang:ja_jp\nguiScale:2\nmaxFps:30\nrenderDistance:2\nsimulationDistance:2\npauseOnLostFocus:false\nshowTutorial:false\n' > run/jeiSmokeClient/options.txt
+# 初回のAccessibility画面がQuick Playの継続を止めないよう、検証専用optionsへ明記する。
+printf 'onboardAccessibility:false\nnarrator:0\nlang:ja_jp\nguiScale:2\nmaxFps:30\nrenderDistance:2\nsimulationDistance:2\npauseOnLostFocus:false\nshowTutorial:false\n' > run/jeiSmokeClient/options.txt
 rm -f run/jeiSmokeClient/jei-smoke/PASS.txt run/jeiSmokeClient/jei-smoke/FAIL.txt
 setsid "$gradle_bin" runServer -PvenusTestJei=true -PvenusJeiSmoke=true --no-daemon --console=plain > build/reports/jei/server.log 2>&1 &
 server_pid=$!
@@ -53,7 +54,7 @@ target=pathlib.Path('run/jeiSmokeClient/saves/jei-smoke-world')
 shutil.copytree(source,target,dirs_exist_ok=True)
 (target/'session.lock').unlink(missing_ok=True)
 PYCODE
-LIBGL_ALWAYS_SOFTWARE=1 timeout 360 xvfb-run -a -s '-screen 0 1280x800x24' "$gradle_bin" runClient -PvenusTestJei=true -PvenusJeiSmoke=true --no-daemon --console=plain > build/reports/jei/client.log 2>&1
+ALSOFT_DRIVERS=null LIBGL_ALWAYS_SOFTWARE=1 timeout 360 xvfb-run -a -s '-screen 0 1280x800x24' "$gradle_bin" runClient -PvenusTestJei=true -PvenusJeiSmoke=true --no-daemon --console=plain > build/reports/jei/client.log 2>&1
 if [[ -f run/jeiSmokeClient/jei-smoke/FAIL.txt ]]; then cat run/jeiSmokeClient/jei-smoke/FAIL.txt; exit 1; fi
 test -s run/jeiSmokeClient/jei-smoke/PASS.txt
 for screenshot in 01-cable-spec 02-connection-guide 03-continued-instructions 04-upgrade-spec; do test -s "run/jeiSmokeClient/jei-smoke/$screenshot.png"; done
