@@ -20,6 +20,7 @@ final class NetworkJeiSmokeTest {
     private int stage,ticks,checks;
     private List<NetworkJeiCards.GuideCard> guides;
     private List<NetworkJeiCards.SpecCard> specs;
+    private NetworkJeiCards.GuideCard continuationSample;
     private NetworkJeiSmokeTest(IJeiRuntime runtime){this.runtime=runtime;output=Minecraft.getInstance().gameDirectory.toPath().resolve("jei-smoke");}
     static void start(IJeiRuntime runtime){
         if(started||FMLLoader.isProduction())return;
@@ -37,7 +38,7 @@ final class NetworkJeiSmokeTest {
                 case 1 -> {capture("01-cable-spec.png");showGuide(false);}
                 case 2 -> {capture("02-connection-guide.png");showGuide(true);}
                 case 3 -> {capture("03-continued-instructions.png");showSpec("network_stability_perfect");}
-                case 4 -> {capture("04-upgrade-spec.png");Files.writeString(output.resolve("PASS.txt"),"JEI runtime verified\nchecks="+checks+"\nguideCards="+guides.size()+"\nspecCards="+specs.size()+"\nlanguage="+minecraft.options.languageCode+"\n");stage=-1;minecraft.stop();}
+                case 4 -> {capture("04-upgrade-spec.png");Files.writeString(output.resolve("PASS.txt"),"JEI runtime verified\nchecks="+checks+"\nguideCards="+guides.size()+"\nspecCards="+specs.size()+"\nlanguage="+minecraft.options.languageCode+"\ncontinuedGuide="+continuationSample.recipe().page().id()+"/"+continuationSample.recipe().step()+"\n");stage=-1;minecraft.stop();}
                 default -> throw new IllegalStateException("Unexpected test phase");
             }
         }catch(Throwable failure){
@@ -54,6 +55,9 @@ final class NetworkJeiSmokeTest {
         require(specs.size()==NetworkJeiCards.specifications().size(),"Spec registration count");
         require(guides.size()>=NetworkGuide.recipes().size(),"No lost guide steps");
         require(guides.stream().anyMatch(c->c.parts()>1),"Long text must produce continuation cards");
+        // 折返し数は実フォントで変わる。特定トピックが必ず複数カードになるとは仮定しない。
+        continuationSample=guides.stream().filter(c->c.parts()>1&&c.part()==0)
+                .max(Comparator.comparingInt(NetworkJeiCards.GuideCard::parts)).orElseThrow();
         for(var catalog:NetworkJeiCatalog.specs())for(var item:NetworkJeiCards.items(catalog.items())){
             var focus=runtime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.INPUT,VanillaTypes.ITEM_STACK,item);
             var found=manager.createRecipeLookup(NetworkSpecCategory.TYPE).limitFocus(List.of(focus)).get().toList();
@@ -79,7 +83,8 @@ final class NetworkJeiSmokeTest {
         runtime.getRecipesGui().showRecipes(runtime.getRecipeManager().getRecipeCategory(NetworkSpecCategory.TYPE),cards,List.of(focus));
     }
     private void showGuide(boolean continuation){
-        var card=guides.stream().filter(c->c.recipe().page().id().equals("dhcp_relay")&&c.parts()>1&&(continuation?c.part()==c.parts()-1:c.part()==0)).findFirst().orElseThrow();
+        var card=guides.stream().filter(c->c.recipe().equals(continuationSample.recipe())
+                && c.part()==(continuation?continuationSample.parts()-1:0)).findFirst().orElseThrow();
         runtime.getRecipesGui().showRecipes(runtime.getRecipeManager().getRecipeCategory(NetworkGuideCategory.TYPE),List.of(card),List.of());
     }
     private void capture(String name)throws Exception{
