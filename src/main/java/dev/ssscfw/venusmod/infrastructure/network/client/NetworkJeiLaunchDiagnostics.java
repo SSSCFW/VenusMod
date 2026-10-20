@@ -5,6 +5,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.BackupConfirmScreen;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -18,6 +21,7 @@ public final class NetworkJeiLaunchDiagnostics {
     private static int ticks;
     private static String previous="";
     private static boolean finished;
+    private static boolean confirmedFixture;
     private NetworkJeiLaunchDiagnostics() {}
 
     @SubscribeEvent public static void tick(ClientTickEvent.Post event) {
@@ -35,6 +39,25 @@ public final class NetworkJeiLaunchDiagnostics {
                 previous=state;Files.writeString(output.resolve("launch-state.txt"),state);
                 System.out.println("JEI_SMOKE_LAUNCH "+state.replace('\n',' '));
                 try(var image=Screenshot.takeScreenshot(minecraft.getMainRenderTarget())){image.writeToFile(output.resolve("launch-state.png"));}
+            }
+            // このスクリプトが生成した一時ワールドの実験的設定確認だけを実UI経由で通過する。
+            // 通常プレイ、別ワールド、ダウングレード/復旧などの確認には適用しない。
+            if(!confirmedFixture && minecraft.screen instanceof BackupConfirmScreen screenToConfirm
+                    && screenToConfirm.getTitle().getContents() instanceof TranslatableContents title
+                    && title.getKey().equals("selectWorld.backupQuestion.experimental")
+                    && minecraft.gameDirectory.toPath().toAbsolutePath().normalize().getFileName().toString().equals("jeiSmokeClient")
+                    && Files.isRegularFile(output.resolve("fixture.txt"))
+                    && Files.readString(output.resolve("fixture.txt")).trim().equals("jei-smoke-world")) {
+                for(var child:screenToConfirm.children()) {
+                    if(child instanceof Button button && button.active
+                            && button.getMessage().getContents() instanceof TranslatableContents label
+                            && label.getKey().equals("selectWorld.backupJoinConfirmButton")) {
+                        confirmedFixture=true;
+                        Files.writeString(output.resolve("fixture-confirmation.txt"),"Backed up and opened generated jei-smoke-world through BackupConfirmScreen\n");
+                        button.onPress();
+                        return;
+                    }
+                }
             }
             if(System.nanoTime()-started>180_000_000_000L){
                 Files.writeString(output.resolve("FAIL.txt"),"JEI client did not finish within the startup budget\n"+state);

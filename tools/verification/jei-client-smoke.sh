@@ -23,6 +23,8 @@ motd=VenusMod isolated JEI verification
 PROPS
 # 初回のAccessibility画面がQuick Playの継続を止めないよう、検証専用optionsへ明記する。
 printf 'onboardAccessibility:false\nnarrator:0\nlang:ja_jp\nguiScale:2\nmaxFps:30\nrenderDistance:2\nsimulationDistance:5\npauseOnLostFocus:false\nshowTutorial:false\n' > run/jeiSmokeClient/options.txt
+mkdir -p run/jeiSmokeClient/jei-smoke
+printf 'jei-smoke-world\n' > run/jeiSmokeClient/jei-smoke/fixture.txt
 rm -f run/jeiSmokeClient/jei-smoke/PASS.txt run/jeiSmokeClient/jei-smoke/FAIL.txt
 setsid "$gradle_bin" runServer -PvenusTestJei=true -PvenusJeiSmoke=true --no-daemon --console=plain > build/reports/jei/server.log 2>&1 &
 server_pid=$!
