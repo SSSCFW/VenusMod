@@ -21,6 +21,7 @@ final class NetworkJeiSmokeTest {
     private List<NetworkJeiCards.GuideCard> guides;
     private List<NetworkJeiCards.SpecCard> specs;
     private NetworkJeiCards.GuideCard continuationSample;
+    private NetworkGuideInteractionProbe interactions;
     private NetworkJeiSmokeTest(IJeiRuntime runtime){this.runtime=runtime;output=Minecraft.getInstance().gameDirectory.toPath().resolve("jei-smoke");}
     static void start(IJeiRuntime runtime){
         if(started||FMLLoader.isProduction())return;
@@ -38,7 +39,11 @@ final class NetworkJeiSmokeTest {
                 case 1 -> {capture("01-cable-spec.png");showGuide(false);}
                 case 2 -> {capture("02-connection-guide.png");showGuide(true);}
                 case 3 -> {capture("03-continued-instructions.png");showSpec("network_stability_perfect");}
-                case 4 -> {capture("04-upgrade-spec.png");Files.writeString(output.resolve("PASS.txt"),"JEI runtime verified\nchecks="+checks+"\nguideCards="+guides.size()+"\nspecCards="+specs.size()+"\nlanguage="+minecraft.options.languageCode+"\ncontinuedGuide="+continuationSample.recipe().page().id()+"/"+continuationSample.recipe().step()+"\n");stage=-1;minecraft.stop();}
+                case 4 -> {capture("04-upgrade-spec.png");interactions=new NetworkGuideInteractionProbe(output,this::require);}
+                case 5 -> {
+                    if(!interactions.tick()){stage=5;break;}
+                    Files.writeString(output.resolve("PASS.txt"),"JEI runtime and native guide input verified\nchecks="+checks+"\nguideCards="+guides.size()+"\nspecCards="+specs.size()+"\nlanguage="+minecraft.options.languageCode+"\ncontinuedGuide="+continuationSample.recipe().page().id()+"/"+continuationSample.recipe().step()+"\n");stage=-1;minecraft.stop();
+                }
                 default -> throw new IllegalStateException("Unexpected test phase");
             }
         }catch(Throwable failure){

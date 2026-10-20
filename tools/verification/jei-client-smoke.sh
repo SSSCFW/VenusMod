@@ -25,7 +25,7 @@ PROPS
 printf 'onboardAccessibility:false\nnarrator:0\nlang:ja_jp\nguiScale:2\nmaxFps:30\nrenderDistance:2\nsimulationDistance:5\npauseOnLostFocus:false\nshowTutorial:false\n' > run/jeiSmokeClient/options.txt
 mkdir -p run/jeiSmokeClient/jei-smoke
 printf 'jei-smoke-world\n' > run/jeiSmokeClient/jei-smoke/fixture.txt
-rm -f run/jeiSmokeClient/jei-smoke/PASS.txt run/jeiSmokeClient/jei-smoke/FAIL.txt
+rm -f run/jeiSmokeClient/jei-smoke/PASS.txt run/jeiSmokeClient/jei-smoke/FAIL.txt run/jeiSmokeClient/jei-smoke/interaction-PASS.txt run/jeiSmokeClient/jei-smoke/0[5-9]-*.png
 setsid "$gradle_bin" runServer -PvenusTestJei=true -PvenusJeiSmoke=true --no-daemon --console=plain > build/reports/jei/server.log 2>&1 &
 server_pid=$!
 cleanup(){
@@ -60,6 +60,7 @@ PYCODE
 ALSOFT_DRIVERS=null LIBGL_ALWAYS_SOFTWARE=1 timeout 360 xvfb-run -a -s '-screen 0 1280x800x24' "$gradle_bin" runClient -PvenusTestJei=true -PvenusJeiSmoke=true --no-daemon --console=plain > build/reports/jei/client.log 2>&1
 if [[ -f run/jeiSmokeClient/jei-smoke/FAIL.txt ]]; then cat run/jeiSmokeClient/jei-smoke/FAIL.txt; exit 1; fi
 test -s run/jeiSmokeClient/jei-smoke/PASS.txt
-for screenshot in 01-cable-spec 02-connection-guide 03-continued-instructions 04-upgrade-spec; do test -s "run/jeiSmokeClient/jei-smoke/$screenshot.png"; done
+test -s run/jeiSmokeClient/jei-smoke/interaction-PASS.txt
+for screenshot in 01-cable-spec 02-connection-guide 03-continued-instructions 04-upgrade-spec 05-guide-search 06-guide-empty 07-guide-article 08-guide-related 09-jei-from-device; do test -s "run/jeiSmokeClient/jei-smoke/$screenshot.png"; done
 cp run/jeiSmokeClient/jei-smoke/* build/reports/jei/
 cat build/reports/jei/PASS.txt
