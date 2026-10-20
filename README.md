@@ -166,3 +166,7 @@ Link Upのまま転送上限が低下する物理劣化と修理を追加しま�
 ## 仮想転送の帯域配分・優先度
 
 競合する仮想転送の余り帯域を再配分し、low/normal/highの相対優先度と自機の転送停止に対応します。操作とモデル上の制限は [転送QoS](docs/NETWORK_TRANSFER_QOS.md)、検査結果は [検証記録](docs/NETWORK_TRANSFER_QOS_VERIFICATION.md) を参照してください。
+
+## JEIのネットワーク仕様・接続ガイド
+
+ネットワーク機器・全色ケーブル・強化部品から、アイテムごとの仕様カードと関連する接続手順をJEIの用途表示（U）で確認できます。長い本文は続きのカードへ分割し、クラフト材料は通常のレシピ表示（R）と区別します。操作と任意依存の説明は [JEI連携](docs/NETWORK_JEI.md)、実クライアント検証の範囲は [JEI検証記録](docs/NETWORK_JEI_VERIFICATION.md) を参照してください。
