@@ -6,6 +6,7 @@ gradle_bin="${GRADLE_BIN:-gradle}"
 command -v xvfb-run >/dev/null || { echo 'xvfb-run is required'; exit 2; }
 mkdir -p run/jeiSmokeServer run/jeiSmokeClient build/reports/jei
 # このディレクトリは検証専用。通常run/serverや所有者のワールドは変更しない。
+# UI操作中のMobの攻撃/押出しを除き、通常のメニュー距離・生存確認はそのまま検査する。
 printf 'eula=true\n' > run/jeiSmokeServer/eula.txt
 cat > run/jeiSmokeServer/server.properties <<'PROPS'
 online-mode=false
@@ -14,6 +15,7 @@ server-ip=127.0.0.1
 server-port=25576
 level-name=jei-smoke-world
 level-type=minecraft:flat
+difficulty=peaceful
 generate-structures=false
 spawn-protection=0
 view-distance=2

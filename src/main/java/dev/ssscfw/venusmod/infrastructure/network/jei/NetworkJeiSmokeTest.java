@@ -43,6 +43,8 @@ final class NetworkJeiSmokeTest {
                 case 5 -> {
                     if(!interactions.tick()){stage=5;break;}
                     interactions.close();
+                    require(minecraft.player.isAlive() && minecraft.player.getHealth() == minecraft.player.getMaxHealth(),
+                            "Native UI fixture player must remain alive and undamaged");
                     Files.writeString(output.resolve("PASS.txt"),"JEI runtime and native guide input verified\nchecks="+checks+"\nguideCards="+guides.size()+"\nspecCards="+specs.size()+"\nlanguage="+minecraft.options.languageCode+"\ncontinuedGuide="+continuationSample.recipe().page().id()+"/"+continuationSample.recipe().step()+"\n");stage=-1;minecraft.stop();
                 }
                 default -> throw new IllegalStateException("Unexpected test phase");
@@ -69,6 +71,8 @@ final class NetworkJeiSmokeTest {
     }
     private void validate(){
         var manager=runtime.getRecipeManager();var font=Minecraft.getInstance().font;
+        require(Minecraft.getInstance().level.getDifficulty() == net.minecraft.world.Difficulty.PEACEFUL,
+                "Native UI fixture must use peaceful difficulty");
         guides=manager.createRecipeLookup(NetworkGuideCategory.TYPE).get().toList();
         specs=manager.createRecipeLookup(NetworkSpecCategory.TYPE).get().toList();
         require(guides.size()==NetworkJeiCards.guides().size(),"Connection registration count");
