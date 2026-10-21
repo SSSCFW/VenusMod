@@ -18,11 +18,19 @@
 ## Tasks
 - [x] 1. 未実装モデルのRED、変換/確認/同一機器だけの変更をGREENで検証。
 - [x] 2. 診断GUIのページ追加、既存ガイド/JEI説明、実メニューGameTestとネイティブ入力検査。
-- [ ] 3. 全純Java回帰、アセット参照、自己レビュー、変更blobの照合、通常push。
-- [ ] 4. 既存CIのBuild/GameTest/実JEI/画像/JAR公開を確認し、結果を記録。
+- [x] 3. 全純Java回帰、アセット参照、自己レビュー、変更blobの照合、通常push。
+- [x] 4. 既存CIのBuild/GameTest/実JEI/画像/JAR公開を確認し、結果を記録。
 
 ## Ledger
 - 開始head 2e543cf。成功CI8c99209の入力を独立したsnapshotへ展開。live compareで差分は検証文書2件のみと確認。変更ファイルだけを最新treeへ重ねる。
 - 診断の既存画面を狭くせず、転送操作ページへ切り替える構成。一覧は手動更新、IDは一覧から入力する。構造化一覧payloadの新設は今回行わない。
 
 - RED: TransferControlDraft未実装でコンパイル失敗。GREEN: 新規84検査、全101クラス成功。資源1,594 JSON/204 PNGは全参照解決。新GameTestと実入力は追加済み、CI結果はまだ未確認。
+
+
+## 完了記録（2026-10-21）
+- 実装dc399d9をfeature/venus-hostile-mobsへ通常更新。12ファイルのblob SHAから同じroot treeを再構成し、アップロードと検査済み入力の一致を確認。
+- CI39584541444のBuild/check、必須163 GameTests、実JEI/native入力853検査、JAR公開が成功。新しいGameTestは1件で、全体件数とは区別。
+- 転送操作3画面を開き、normal変更・未送信の停止確認・確定後の停止とリサイズ後の配置を確認。既存JEI/診断/ガイドも成功。
+- 新規84検査、全101純Javaクラス、アセット1,594 JSON/204 PNGの成功を維持。CI入力の12変更ファイルも検査済みblobと全一致。
+- 結果記録はNETWORK_TRANSFER_CONTROLS_GUI_VERIFICATION.md。人による操作、IME、全GUI倍率・シェーダー、実マルチ、大規模TPSは未実施。自己レビューで確認し、独立したレビュアーは使用していない。
