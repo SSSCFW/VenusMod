@@ -28,7 +28,7 @@ printf 'onboardAccessibility:false\nnarrator:0\nlang:ja_jp\nguiScale:2\nmaxFps:3
 mkdir -p run/jeiSmokeClient/jei-smoke
 printf 'jei-smoke-world\n' > run/jeiSmokeClient/jei-smoke/fixture.txt
 rm -f run/jeiSmokeClient/jei-smoke/failure-state.txt run/jeiSmokeClient/jei-smoke/failure-state.png
-rm -f run/jeiSmokeClient/jei-smoke/PASS.txt run/jeiSmokeClient/jei-smoke/FAIL.txt run/jeiSmokeClient/jei-smoke/interaction-PASS.txt run/jeiSmokeClient/jei-smoke/0[5-9]-*.png run/jeiSmokeClient/jei-smoke/diagnostics-PASS.txt run/jeiSmokeClient/jei-smoke/1[0-2]-*.png
+rm -f run/jeiSmokeClient/jei-smoke/PASS.txt run/jeiSmokeClient/jei-smoke/FAIL.txt run/jeiSmokeClient/jei-smoke/interaction-PASS.txt run/jeiSmokeClient/jei-smoke/0[5-9]-*.png run/jeiSmokeClient/jei-smoke/diagnostics-PASS.txt run/jeiSmokeClient/jei-smoke/1[0-5]-*.png run/jeiSmokeClient/jei-smoke/transfer-controls-PASS.txt
 setsid "$gradle_bin" runServer -PvenusTestJei=true -PvenusJeiSmoke=true --no-daemon --console=plain > build/reports/jei/server.log 2>&1 &
 server_pid=$!
 cleanup(){
@@ -74,6 +74,7 @@ if [[ -f run/jeiSmokeClient/jei-smoke/FAIL.txt ]]; then cat run/jeiSmokeClient/j
 test -s run/jeiSmokeClient/jei-smoke/PASS.txt
 test -s run/jeiSmokeClient/jei-smoke/interaction-PASS.txt
 test -s run/jeiSmokeClient/jei-smoke/diagnostics-PASS.txt
-for screenshot in 01-cable-spec 02-connection-guide 03-continued-instructions 04-upgrade-spec 05-guide-search 06-guide-empty 07-guide-article 08-guide-related 09-jei-from-device 10-diagnostics-invalid 11-diagnostics-transfer 12-diagnostics-disconnected; do test -s "run/jeiSmokeClient/jei-smoke/$screenshot.png"; done
+test -s run/jeiSmokeClient/jei-smoke/transfer-controls-PASS.txt
+for screenshot in 01-cable-spec 02-connection-guide 03-continued-instructions 04-upgrade-spec 05-guide-search 06-guide-empty 07-guide-article 08-guide-related 09-jei-from-device 10-diagnostics-invalid 11-diagnostics-transfer 12-diagnostics-disconnected 13-transfer-priority 14-transfer-confirmation 15-transfer-stopped; do test -s "run/jeiSmokeClient/jei-smoke/$screenshot.png"; done
 cp run/jeiSmokeClient/jei-smoke/* build/reports/jei/
 cat build/reports/jei/PASS.txt

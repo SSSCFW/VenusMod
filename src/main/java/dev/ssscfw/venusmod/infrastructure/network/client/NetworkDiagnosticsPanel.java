@@ -3,6 +3,7 @@ package dev.ssscfw.venusmod.infrastructure.network.client;
 import dev.ssscfw.venusmod.infrastructure.network.NetworkMenu;
 import dev.ssscfw.venusmod.infrastructure.network.core.NetworkDiagnostics;
 import dev.ssscfw.venusmod.infrastructure.network.core.TransferPriority;
+import dev.ssscfw.venusmod.infrastructure.network.core.TransferControlDraft;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -19,6 +20,10 @@ final class NetworkDiagnosticsPanel {
     private final NetworkMenu menu;
     private final List<AbstractWidget> widgets = new ArrayList<>();
     private final List<Button> requests = new ArrayList<>();
+    private final List<AbstractWidget> diagnosticWidgets = new ArrayList<>(), controlWidgets = new ArrayList<>();
+    private final TransferControlDraft controls = new TransferControlDraft();
+    private boolean managing;
+    private Button modeButton, controlPriorityButton, stopButton, dismissButton;
     private Font font;
     private int left, top, scroll, cooldown;
     private boolean visible, invalid;
@@ -40,7 +45,9 @@ final class NetworkDiagnosticsPanel {
                Consumer<AbstractWidget> focus, Consumer<String> send, Runnable close, Runnable guide) {
         this.font = font; this.left = left; this.top = top;
         this.focus = focus; this.send = send; this.close = close;
-        widgets.clear(); requests.clear(); focused = null; previousSnapshot = null;
+        dismissStop();
+        widgets.clear(); requests.clear(); diagnosticWidgets.clear(); controlWidgets.clear();
+        focused = null; previousSnapshot = null;
         target = field(add, "診断の宛先", 10, 37, 300, NetworkDiagnostics.MAX_TARGET, targetDraft,
                 value -> targetDraft = value);
         target.setHint(Component.literal("例: 192.168.1.20 / base.local"));
@@ -57,9 +64,26 @@ final class NetworkDiagnosticsPanel {
         priorityButton.setMessage(Component.literal(priority.label()));
         priorityButton.setTooltip(Tooltip.create(Component.literal("相対優先度 low:normal:high = 1:2:4。物理帯域は増えません。")));
         request(add, "転送開始", 235, 83, 75, NetworkDiagnostics.Action.TRANSFER);
-        request(add, "転送一覧", 10, 216, 90, NetworkDiagnostics.Action.FLOWS);
-        button(add, "ガイド", 106, 216, 94, guide);
-        button(add, "戻る", 206, 216, 104, close);
+        diagnosticWidgets.addAll(widgets);
+        field(add, "操作する転送ID", 10, 37, 300, TransferControlDraft.MAX_ID_TEXT, controls.idText(), value -> {
+            dismissStop(); controls.idText(value); refresh();
+        }).setHint(Component.literal("一覧のIDを入力（例: #12）"));
+        controlPriorityButton = button(add, controls.priority().label(), 10, 60, 74, () -> {
+            dismissStop();
+            controls.priority(TransferPriority.values()[(controls.priority().ordinal() + 1) % TransferPriority.values().length]);
+            controlPriorityButton.setMessage(Component.literal(controls.priority().label())); refresh();
+        });
+        requests.add(button(add, "優先度変更", 90, 60, 108, () -> manage(false)));
+        stopButton = button(add, "転送停止", 204, 60, 106, () -> manage(true));
+        requests.add(stopButton);
+        dismissButton = button(add, "確認を中止", 224, 83, 86, () -> { dismissStop(); refresh(); });
+        controlWidgets.addAll(widgets.subList(diagnosticWidgets.size(), widgets.size()));
+        request(add, "転送一覧", 10, 216, 72, NetworkDiagnostics.Action.FLOWS);
+        modeButton = button(add, "転送操作", 88, 216, 72, () -> {
+            dismissStop(); managing = !managing; select(null); refresh();
+        });
+        button(add, "ガイド", 166, 216, 68, guide);
+        button(add, "戻る", 240, 216, 70, close);
         refresh();
     }
 
@@ -81,19 +105,50 @@ final class NetworkDiagnosticsPanel {
         if (!visible || cooldown > 0) return;
         try {
             String command = NetworkDiagnostics.command(action, targetDraft, amountDraft, priority);
-            send.accept(command);
-            notice = "送信: " + command;
-            invalid = false; cooldown = 10; scroll = 0; refresh();
+            dismissStop();
+            submit(command);
         } catch (IllegalArgumentException error) {
             // 前回の結果を今回の成功と混同させず、ローカルで未送信だったことを明示する。
             notice = "未送信: " + error.getMessage(); invalid = true;
         }
     }
-    void visible(boolean value) { visible = value; refresh(); if (!visible) select(null); }
+    private void manage(boolean stop) {
+        if (!visible || !managing || cooldown > 0) return;
+        try {
+            if (!stop) { String command = controls.priorityCommand(); dismissStop(); submit(command); }
+            else if (controls.cancellationPending()) submit(controls.confirmCancellation());
+            else {
+                controls.requestCancellation();
+                notice = "未送信: 転送 " + controls.idText() + " を停止しますか？";
+                invalid = false; cooldown = 10; refresh();
+            }
+        } catch (IllegalArgumentException error) {
+            dismissStop(); notice = "未送信: " + error.getMessage(); invalid = true; refresh();
+        }
+    }
+    private void submit(String command) {
+        send.accept(command); notice = "送信: " + command;
+        invalid = false; cooldown = 10; scroll = 0; refresh();
+    }
+    private void dismissStop() {
+        if (controls.cancellationPending()) {
+            notice = "停止確認を取り消しました（未送信）"; invalid = false;
+        }
+        controls.dismissCancellation();
+    }
+    void visible(boolean value) { visible = value; if (!visible) dismissStop(); refresh(); if (!visible) select(null); }
     void tick() { if (cooldown > 0 && --cooldown == 0) refresh(); }
     private void refresh() {
         for (var widget : widgets) { widget.visible = visible; widget.active = visible; }
-        for (var button : requests) button.active = visible && cooldown == 0;
+        for (var widget : diagnosticWidgets) { widget.visible = visible && !managing; widget.active = widget.visible; }
+        for (var widget : controlWidgets) { widget.visible = visible && managing; widget.active = widget.visible; }
+        for (var button : requests) button.active = button.visible && cooldown == 0;
+        if (modeButton != null) modeButton.setMessage(Component.literal(managing ? "診断へ" : "転送操作"));
+        if (stopButton != null) stopButton.setMessage(Component.literal(controls.cancellationPending() ? "停止を確定" : "転送停止"));
+        if (dismissButton != null) {
+            dismissButton.visible = visible && managing && controls.cancellationPending();
+            dismissButton.active = dismissButton.visible;
+        }
     }
     private void select(AbstractWidget widget) {
         for (var child : widgets) child.setFocused(child == widget);
@@ -141,9 +196,10 @@ final class NetworkDiagnosticsPanel {
         updateResult();
         g.fill(left, top, left + 320, top + 252, 0xff17212b);
         g.fill(left + 2, top + 2, left + 318, top + 250, 0xff3b4650);
-        g.drawString(font, "通信診断 / ゲーム内ネットワーク", left + 10, top + 9, 0xfff0cf78, false);
-        g.drawString(font, "宛先IPv4 / 名前（:ポートは転送のみ）", left + 10, top + 24, 0xffd9e0e8, false);
-        g.drawString(font, "仮想MB", left + 10, top + 88, 0xffd9e0e8, false);
+        g.drawString(font, managing ? "転送操作 / 自機が送信元の転送のみ" : "通信診断 / ゲーム内ネットワーク", left + 10, top + 9, 0xfff0cf78, false);
+        g.drawString(font, managing ? "転送ID（下の転送一覧で確認）" : "宛先IPv4 / 名前（:ポートは転送のみ）", left + 10, top + 24, 0xffd9e0e8, false);
+        if (managing) g.drawString(font, controls.cancellationPending() ? "確定するまで停止しません。" : "一覧は手動更新。完了済みのIDは操作できません。", left + 10, top + 88, 0xffd9e0e8, false);
+        else g.drawString(font, "仮想MB", left + 10, top + 88, 0xffd9e0e8, false);
         g.drawString(font, font.plainSubstrByWidth(notice, 298), left + 10, top + 107, invalid ? 0xffffb0a0 : 0xffc3d1da, false);
         g.drawString(font, "最後のサーバー表示（CLIと共通・前回結果を含む）", left + 10, top + 118, 0xffc3d1da, false);
         g.fill(left + 7, top + 128, left + 313, top + 212, 0xff0c151b);

@@ -28,6 +28,7 @@ final class NetworkDiagnosticsInteractionProbe {
     private int phase, waiting;
     private CompletableFuture<Void> task;
     private String savedProfile, oldResult;
+    private volatile long transferId;
 
     NetworkDiagnosticsInteractionProbe(NetworkScreen screen, NetworkSmokeInput input, Path output,
                                        BiConsumer<Boolean,String> check, BlockPos source) {
@@ -106,11 +107,61 @@ final class NetworkDiagnosticsInteractionProbe {
                 check.accept(field("仮想CLI").getValue().equals("show"),"Diagnostics did not edit CLI draft");button("診断");
             }
             case 15 -> {
+                server(() -> transferId = currentFlow().id);
+            }
+            case 16 -> {if(!ready())return false;button("転送操作");}
+            case 17 -> {
+                check.accept(!screen.isJeiShortcutVisible(),"Transfer controls are modal");
+                edit("操作する転送ID","0");oldResult=screen.getMenu().snapshot();button("優先度変更");
+            }
+            case 18 -> {
+                check.accept(screen.getMenu().snapshot().equals(oldResult),"Invalid transfer ID never sent");
+                edit("操作する転送ID",Long.toString(transferId));button("優先度変更");
+            }
+            case 19 -> {
+                check.accept(screen.getMenu().snapshot().contains("normal"),"Native priority change received server response");
+                server(() -> requireNormalFlow());capture("13-transfer-priority.png");
+            }
+            case 20 -> {if(!ready())return false;button("転送停止");}
+            case 21 -> {
+                check.accept(hasButton("停止を確定"),"First stop click arms confirmation");
+                server(() -> requireNormalFlow());capture("14-transfer-confirmation.png");button("確認を中止");
+            }
+            case 22 -> {if(!ready())return false;check.accept(hasButton("転送停止"),"Dismiss did not send stop");button("転送停止");}
+            case 23 -> {edit("操作する転送ID","9223372036854775807");}
+            case 24 -> {
+                check.accept(hasButton("転送停止"),"Editing ID invalidates pending confirmation");
+                edit("操作する転送ID",Long.toString(transferId));button("転送停止");
+            }
+            case 25 -> {GLFW.glfwSetWindowSize(mc.getWindow().getWindow(),1152,768);}
+            case 26 -> {
+                check.accept(field("操作する転送ID").getValue().equals(Long.toString(transferId)) && hasButton("転送停止"),"Resize keeps ID but cancels stop confirmation");
+                button("転送停止");
+            }
+            case 27 -> {button("診断へ");}
+            case 28 -> {
+                check.accept(field("診断の宛先").getValue().equals("diag.local"),"Diagnostic draft separate from transfer controls");button("転送操作");
+            }
+            case 29 -> {
+                check.accept(hasButton("転送停止"),"Page navigation cancels pending stop");button("転送停止");
+            }
+            case 30 -> {button("停止を確定");}
+            case 31 -> {
+                check.accept(screen.getMenu().snapshot().contains("を停止しました"),"Confirmed stop returned server result");
+                capture("15-transfer-stopped.png");
+                server(() -> {
+                    var player=server.getPlayerList().getPlayer(playerId);
+                    if(NetworkWorld.get(player.serverLevel()).simulator().flows().stream().anyMatch(f->f.id==transferId))
+                        throw new IllegalStateException("Confirmed native stop left the transfer running");
+                });
+            }
+            case 32 -> {if(!ready())return false;button("診断へ");}
+            case 33 -> {
                 check.accept(field("診断の宛先").getValue().equals("diag.local"),"Diagnostics draft survived guide round trip");
                 server(() -> server.getPlayerList().getPlayer(playerId).serverLevel().destroyBlock(source.east(1),false));
             }
-            case 16 -> {if(!ready())return false;button("Ping");}
-            case 17 -> {
+            case 34 -> {if(!ready())return false;button("Ping");}
+            case 35 -> {
                 check.accept(!screen.getMenu().snapshot().contains("Reply from"),"Disconnected diagnostic no longer reported success");
                 capture("12-diagnostics-disconnected.png");
                 server(() -> {
@@ -121,15 +172,29 @@ final class NetworkDiagnosticsInteractionProbe {
                         throw new IllegalStateException("Diagnostics changed settings/modules/inventory");
                 });
             }
-            case 18 -> {
+            case 36 -> {
                 if(!ready())return false;
                 check.accept(true,"Server configuration and inventory unchanged by diagnostics");
+                Files.writeString(output.resolve("transfer-controls-PASS.txt"),"Native priority, invalid ID, confirmation, dismiss, resize and cancellation passed\n");
                 Files.writeString(output.resolve("diagnostics-PASS.txt"),"Native diagnostics inputs, real cable transport, transfer and modal checks passed\n");
                 return true;
             }
             default -> throw new IllegalStateException("Diagnostics phase " + phase);
         }
         phase++;waiting=0;return false;
+    }
+    private NetworkSimulator.Flow currentFlow() {
+        var player=server.getPlayerList().getPlayer(playerId);
+        var device=(NetworkDeviceEntity)player.serverLevel().getBlockEntity(source);
+        return NetworkWorld.get(player.serverLevel()).simulator().flows().stream().filter(f->f.source.equals(device.id())).findFirst().orElseThrow();
+    }
+    private void requireNormalFlow() {
+        var flow=currentFlow();
+        if(flow.id!=transferId || flow.priority()!=TransferPriority.NORMAL || flow.remaining>=flow.totalBytes)
+            throw new IllegalStateException("Transfer changed unexpectedly during native confirmation");
+    }
+    private boolean hasButton(String name) {
+        return screen.children().stream().anyMatch(w->w instanceof Button b && b.visible && b.active && b.getMessage().getString().equals(name));
     }
     private void checkTransfer(int count) {
         var player=server.getPlayerList().getPlayer(playerId);
