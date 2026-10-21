@@ -29,6 +29,8 @@ public final class NetworkWiringGameTests {
         var block=color==null?NetworkContent.CABLES.get(grade).get():NetworkContent.DYED_CABLES.get(grade).get(color).get();
         h.getLevel().setBlock(pos,Block.updateFromNeighbourShapes(block.defaultBlockState(),h.getLevel(),pos),3);
     }
+    // 配線解析はtick予算で分割され、同じ世界の別試験も配線を更新する。
+    // 固定tick待ちだけに頼らず、変更処理とは別のthenWaitUntilで完了を待つ。
     private static void ready(GameTestHelper h,NetworkWorld world) {
         h.assertTrue(world.ready(),"配線解析が終了している: "+world.diagnostic());
     }
@@ -44,6 +46,7 @@ public final class NetworkWiringGameTests {
         var world=NetworkWorld.get(h.getLevel());
         h.startSequence()
                 .thenIdle(10)
+                .thenWaitUntil(()->ready(h,world))
                 .thenExecute(()->{
                     ready(h,world);
                     h.assertTrue(world.simulator().nodes().containsKey(a.id()),"onLoadで機器を自動登録");
@@ -55,18 +58,21 @@ public final class NetworkWiringGameTests {
                     cable(h,CableGrade.CAT5E,new BlockPos(2,2,2));
                 })
                 .thenIdle(10)
+                .thenWaitUntil(()->ready(h,world))
                 .thenExecute(()->{
                     ready(h,world);
                     h.assertTrue(!world.simulator().ping(a.id(),b.profile().address).success(),"T字分岐は通信を成立させない");
                     h.getLevel().removeBlock(h.absolutePos(new BlockPos(2,2,2)),false);
                 })
                 .thenIdle(10)
+                .thenWaitUntil(()->ready(h,world))
                 .thenExecute(()->{
                     ready(h,world);
                     h.assertTrue(world.simulator().ping(a.id(),b.profile().address).success(),"分岐撤去後にリンクが復旧");
                     h.getLevel().removeBlock(h.absolutePos(new BlockPos(4,2,1)),false);
                 })
                 .thenIdle(10)
+                .thenWaitUntil(()->ready(h,world))
                 .thenExecute(()->{
                     ready(h,world);
                     h.assertTrue(!world.simulator().ping(a.id(),b.profile().address).success(),"ケーブル本体の切断を反映");
@@ -85,6 +91,7 @@ public final class NetworkWiringGameTests {
         var world=NetworkWorld.get(h.getLevel());
         h.startSequence()
                 .thenIdle(10)
+                .thenWaitUntil(()->ready(h,world))
                 .thenExecute(()->{
                     ready(h,world);
                     h.assertTrue(!world.simulator().ping(a.id(),b.profile().address).success(),"同規格でも色違いは通信しない");
@@ -92,6 +99,7 @@ public final class NetworkWiringGameTests {
                     cable(h,CableGrade.CAT5E,DyeColor.BLUE,new BlockPos(3,2,1));
                 })
                 .thenIdle(10)
+                .thenWaitUntil(()->ready(h,world))
                 .thenExecute(()->{
                     ready(h,world);
                     h.assertTrue(world.simulator().ping(a.id(),b.profile().address).success(),"青一色にすれば通信が復旧");
@@ -99,6 +107,7 @@ public final class NetworkWiringGameTests {
                     cable(h,CableGrade.CAT5E,new BlockPos(3,2,1));
                 })
                 .thenIdle(10)
+                .thenWaitUntil(()->ready(h,world))
                 .thenExecute(()->{
                     ready(h,world);
                     h.assertTrue(!world.simulator().ping(a.id(),b.profile().address).success(),"無染色と染色済みも不通");
@@ -115,6 +124,7 @@ public final class NetworkWiringGameTests {
         var world=NetworkWorld.get(h.getLevel());
         h.startSequence()
                 .thenIdle(10)
+                .thenWaitUntil(()->ready(h,world))
                 .thenExecute(()->{
                     ready(h,world);
                     h.assertTrue(!world.simulator().ping(a.id(),b.profile().address).success(),"銅線標準ポートと光線は非互換");
@@ -127,6 +137,7 @@ public final class NetworkWiringGameTests {
                     a.refreshState();b.refreshState();
                 })
                 .thenIdle(5)
+                .thenWaitUntil(()->ready(h,world))
                 .thenExecute(()->{
                     ready(h,world);
                     var result=world.simulator().ping(a.id(),b.profile().address);

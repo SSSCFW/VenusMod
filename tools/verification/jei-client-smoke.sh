@@ -27,6 +27,7 @@ PROPS
 printf 'onboardAccessibility:false\nnarrator:0\nlang:ja_jp\nguiScale:2\nmaxFps:30\nrenderDistance:2\nsimulationDistance:5\npauseOnLostFocus:false\nshowTutorial:false\n' > run/jeiSmokeClient/options.txt
 mkdir -p run/jeiSmokeClient/jei-smoke
 printf 'jei-smoke-world\n' > run/jeiSmokeClient/jei-smoke/fixture.txt
+rm -f run/jeiSmokeClient/jei-smoke/failure-state.txt run/jeiSmokeClient/jei-smoke/failure-state.png
 rm -f run/jeiSmokeClient/jei-smoke/PASS.txt run/jeiSmokeClient/jei-smoke/FAIL.txt run/jeiSmokeClient/jei-smoke/interaction-PASS.txt run/jeiSmokeClient/jei-smoke/0[5-9]-*.png run/jeiSmokeClient/jei-smoke/diagnostics-PASS.txt run/jeiSmokeClient/jei-smoke/1[0-2]-*.png
 setsid "$gradle_bin" runServer -PvenusTestJei=true -PvenusJeiSmoke=true --no-daemon --console=plain > build/reports/jei/server.log 2>&1 &
 server_pid=$!
