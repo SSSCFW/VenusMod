@@ -51,6 +51,19 @@ final class NetworkJeiSmokeTest {
             stage=-1;
             if(interactions!=null)interactions.close();
             try{Files.createDirectories(output);Files.writeString(output.resolve("FAIL.txt"),failure.toString()+"\n"+Arrays.toString(failure.getStackTrace()));}catch(Exception ignored){}
+            // 停止前に画面とプレイヤーを記録し、GUI不具合とfixtureの退出/死亡を区別する。
+            try {
+                String state = "screen=" + (minecraft.screen == null ? "none" : minecraft.screen.getClass().getName()) + "\n";
+                if (minecraft.player != null) {
+                    var player = minecraft.player;
+                    state += "health=" + player.getHealth() + "\nalive=" + player.isAlive()
+                            + "\nposition=" + player.position() + "\nmenu=" + player.containerMenu.getClass().getName() + "\n";
+                }
+                Files.writeString(output.resolve("failure-state.txt"), state);
+                try (var image = Screenshot.takeScreenshot(minecraft.getMainRenderTarget())) {
+                    image.writeToFile(output.resolve("failure-state.png"));
+                }
+            } catch (Exception captureFailure) { failure.addSuppressed(captureFailure); }
             failure.printStackTrace();minecraft.stop();
         }
     }
