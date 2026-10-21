@@ -18,11 +18,16 @@
 ## Tasks
 - [x] 1. 中断したtreeの11ファイルを回収。変更前に個別削除失敗と下書きAPI未実装を確認。
 - [x] 2. 純Java139検査と全103テストクラスを実行。追加/削除/正規化/認可/保存/通信を検査。
-- [ ] 3. 実配線GameTestと実JEIの経路フォーム試験を既存検証へ組み込む。全体build/check。
-- [ ] 4. 差分確認、既存ブランチへpush、既存CI・実画面・公開結果を記録。
+- [x] 3. 実配線GameTestと実JEIの経路フォーム試験を既存検証へ組み込む。全体build/check。
+- [x] 4. 差分確認、既存ブランチへpush、既存CI・実画面・公開結果を記録。
 
 ## Ledger
 - 開始live head a5b348c。独立ディレクトリ routes-resume-20261021-bf71a9。未参照tree 59ce7e1から回収。ローカルsnapshotコミットはリモート親にしない。
 - 変更前のStaticRouteCommandTestで個別削除未対応を再現し、StaticRouteDraftTestはAPI不足でコンパイル失敗。その後回収したコードを反映。
 - StaticRouteCommandTest43検査、StaticRouteDraftTest96検査、全103クラス成功。
-- 独立したレビュアーは利用せず、差分自己レビューと回帰試験を行う。
+- 独立したレビュアーは利用せず、差分自己レビューと回帰試験を行った。
+- Home Serverの全体ビルドは一時ディレクトリを修正後、接続が利用できず結果未確認。全体の成功判定には使用しない。
+- 実装d0f8de6を既存ブランチへ反映。既存CI run39599694352でbuild/check、必須164GameTest、実JEI/入力869検査、JAR公開すべて成功。
+- CI同梱入力の186ソースを再コンパイルし、全103クラスを再実行して全成功。既存アセット1,594 JSON/204 PNGの参照も再確認。
+- 新しい経路3画面とJEI続き3/3を直接開いて確認。手順数23トピック97手順を維持し、JEIは接続108カード/仕様43カード。
+- 検証記録: docs/NETWORK_STATIC_ROUTES_GUI_VERIFICATION.md。人による入力・IME・全描画環境・実マルチ・TPSの未実施範囲は同文書で区別する。
