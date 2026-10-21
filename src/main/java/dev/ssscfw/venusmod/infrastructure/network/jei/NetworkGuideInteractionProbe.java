@@ -27,6 +27,7 @@ final class NetworkGuideInteractionProbe implements AutoCloseable {
     private BlockPos position;
     private String savedProfile;
     private NetworkDiagnosticsInteractionProbe diagnostics;
+    private NetworkRouteInteractionProbe routes;
 
     NetworkGuideInteractionProbe(Path output,BiConsumer<Boolean,String> check)throws Exception{
         this.output=output;this.check=check;
@@ -125,7 +126,11 @@ final class NetworkGuideInteractionProbe implements AutoCloseable {
                 Files.writeString(output.resolve("interaction-PASS.txt"),"Native mouse/key/resize and server-menu checks passed\n");
                 diagnostics=new NetworkDiagnosticsInteractionProbe(screen,input,output,check,position);
             }
-            case 20 -> {return diagnostics.tick();}
+            case 20 -> {
+                if(!diagnostics.tick())return false;
+                routes=new NetworkRouteInteractionProbe(input,output,check,position);
+            }
+            case 21 -> {return routes.tick();}
             default -> throw new IllegalStateException("Unexpected guide test phase");
         }
         phase++;waiting=0;return false;

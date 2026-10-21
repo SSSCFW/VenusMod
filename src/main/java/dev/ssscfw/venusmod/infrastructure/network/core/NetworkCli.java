@@ -37,7 +37,7 @@ public final class NetworkCli {
                 case "mac" -> {return new Reply(false,sim.macTable(id).entrySet().stream().map(e->e.getKey()+" → P"+e.getValue()).toList());}
                 case "arp" -> {return new Reply(false,sim.arpTable(id).entrySet().stream().map(e->e.getKey()+" → "+e.getValue()).toList());}
                 case "log" -> {return new Reply(false,sim.logs(id));}
-                case "routes" -> {return new Reply(false,p.routes.stream().map(r->r.network()+"/"+r.prefix()+" via "+r.gateway()+" P"+r.port()).toList());}
+                case "routes" -> {need(t,1);return new Reply(false,StaticRoutes.describe(p));}
                 case "ping","trace" -> {need(t,2);var result=sim.ping(id,t[1]);List<String> lines=new ArrayList<>();lines.add(result.message());if(result.success()){lines.add("上限 "+CableGrade.speed(result.bps()));if(t[0].equals("trace"))for(String node:result.nodes())lines.add("→ "+sim.nodes().get(node).name);}return new Reply(false,lines);}
                 case "dhcp" -> {need(t,1);var r=sim.dhcp(id);return reply(r.success(),r.message());}
                 case "name" -> {if(t.length<2)throw new IllegalArgumentException("name 機器名");p.name=input.substring(input.indexOf(' ')+1).trim();}
@@ -64,7 +64,9 @@ public final class NetworkCli {
                 case "dhcp-server" -> {need(t,2);if(!p.kind.routing()&&p.kind!=DeviceKind.SERVER)throw new IllegalArgumentException("DHCPはルーター/サーバーのみです");p.dhcp=on(t[1]);}
                 case "web" -> {need(t,2);if(p.kind!=DeviceKind.SERVER)throw new IllegalArgumentException("Webはサーバーのみです");p.web=on(t[1]);}
                 case "public" -> {need(t,2);p.publicService=on(t[1]);}
-                case "route" -> {if(!p.kind.routing())throw new IllegalArgumentException("経路追加はL3機器で行います");if(t.length==2&&t[1].equals("clear"))p.routes.clear();else{need(t,7);if(!t[1].equals("add")||!t[3].equals("via")||!t[5].equals("port"))throw new IllegalArgumentException("route add 10.0.0.0/24 via 192.168.1.1 port 0");var c=cidr(t[2]);p.routes.add(new NetworkProfile.Route(c[0],Integer.parseInt(c[1]),t[4],Integer.parseInt(t[6])));}}
+                case "route" -> {
+                    if (!StaticRoutes.edit(p,t)) return reply(false,"変更なし: 同じ静的経路が登録済み、または削除対象がありません");
+                }
                 case "fault" -> {need(t,1);p.failed=true;}
                 case "ospf","ipv6","nat","ipsec","lacp" -> {return reply(false,"この版では未実装です。成功した通信として扱いません。");}
                 default -> {return reply(false,"不明なコマンドです。help で一覧を表示します");}

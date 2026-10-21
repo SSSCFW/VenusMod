@@ -23,7 +23,7 @@ public final class NetworkGuide {
         page("routing","ルーターでLANを接続",chain("network_pc","LAN-A","network_router","Router","network_server","LAN-B"),
             step("1. 2つのLAN側IP","Router: port 0 ip 10.0.1.1/24","Router: port 1 ip 10.0.2.1/24","初期ルーターの自動DHCPを止めるときは dhcp-server off。"),
             step("2. 両端に戻りの経路","PC: ip 10.0.1.10/24","PC: gateway 10.0.1.1","Serverは10.0.2.10/24、gateway 10.0.2.1を指定します。"),
-            step("3. 遠くのLANへの静的経路","route add 10.0.3.0/24 via 10.0.2.2 port 1","routes で一覧を確認。相手側にも戻りの経路が必要です。","OSPFとBGPの自動学習は各プロトコルのページを参照してください。")),
+            step("3. 遠くのLANへの静的経路","route add 10.0.3.0/24 via 10.0.2.2 port 1","routes で一覧を確認。相手側にも戻りの経路が必要です。","ルーター/L3SWの「経路設定」で宛先CIDR・次ホップ・出力ポートを指定して追加できます。","/0は既定経路、/32は単一ホスト。10.0.3.42/24は10.0.3.0/24として保存します。","個別削除は同じ宛先・次ホップ・ポートだけが対象。「削除を確定」まで未送信です。","route delete 10.0.3.0/24 via 10.0.2.2 port 1","同じ経路の追加/未存在の削除では変更しません。実際の経路変更では通信を再確立する場合があります。","静的経路一覧は設定だけを表示。保存成功と疎通成功は別なので、診断で往復を確認します。","OSPFとBGPの自動学習は各プロトコルのページを参照してください。")),
         page("optical","光ファイバーを接続",chain("network_l2_switch","光ポート","om3_fiber_cable","OM3","network_l2_switch","光ポート"),
             step("1. 対応モジュールを装着","通常機器の光接続には10G以上のポートモジュールが必要です。","GUI左のP0〜P5で、配線する面の専用枠に装着します。"),
             step("2. 両端を光に変更","port 0 media fiber","銅線に戻す場合: port 0 media copper","ONU/OLTのP0は標準で光対応。光Ethernet同士の接続にONUは不要です。"),
