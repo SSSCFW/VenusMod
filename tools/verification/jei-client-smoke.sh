@@ -57,6 +57,15 @@ target=pathlib.Path('run/jeiSmokeClient/saves/jei-smoke-world')
 shutil.copytree(source,target,dirs_exist_ok=True)
 (target/'session.lock').unlink(missing_ok=True)
 PYCODE
+# Minecraftのheadless AWTを変えず入力できることを、同じJDKの別プロセスで先に確認。
+mkdir -p build/classes/jeiInputTests
+javac -encoding UTF-8 -d build/classes/jeiInputTests \
+  src/main/java/dev/ssscfw/venusmod/infrastructure/network/jei/NetworkSmokeInput.java \
+  tests/verification/NetworkSmokeInputTest.java
+xvfb-run -a -s '-screen 0 1280x800x24' java -cp build/classes/jeiInputTests \
+  dev.ssscfw.venusmod.infrastructure.network.jei.NetworkSmokeInputTest \
+  "$root/tools/verification/JeiNativeInput.java" "$root/build/reports/jei/native-input-contract-worker.log" \
+  > build/reports/jei/native-input-contract.log 2>&1
 ALSOFT_DRIVERS=null LIBGL_ALWAYS_SOFTWARE=1 timeout 360 xvfb-run -a -s '-screen 0 1280x800x24' "$gradle_bin" runClient -PvenusTestJei=true -PvenusJeiSmoke=true --no-daemon --console=plain > build/reports/jei/client.log 2>&1
 if [[ -f run/jeiSmokeClient/jei-smoke/FAIL.txt ]]; then cat run/jeiSmokeClient/jei-smoke/FAIL.txt; exit 1; fi
 test -s run/jeiSmokeClient/jei-smoke/PASS.txt

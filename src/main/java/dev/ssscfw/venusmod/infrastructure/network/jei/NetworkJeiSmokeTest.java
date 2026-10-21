@@ -42,12 +42,14 @@ final class NetworkJeiSmokeTest {
                 case 4 -> {capture("04-upgrade-spec.png");interactions=new NetworkGuideInteractionProbe(output,this::require);}
                 case 5 -> {
                     if(!interactions.tick()){stage=5;break;}
+                    interactions.close();
                     Files.writeString(output.resolve("PASS.txt"),"JEI runtime and native guide input verified\nchecks="+checks+"\nguideCards="+guides.size()+"\nspecCards="+specs.size()+"\nlanguage="+minecraft.options.languageCode+"\ncontinuedGuide="+continuationSample.recipe().page().id()+"/"+continuationSample.recipe().step()+"\n");stage=-1;minecraft.stop();
                 }
                 default -> throw new IllegalStateException("Unexpected test phase");
             }
         }catch(Throwable failure){
             stage=-1;
+            if(interactions!=null)interactions.close();
             try{Files.createDirectories(output);Files.writeString(output.resolve("FAIL.txt"),failure.toString()+"\n"+Arrays.toString(failure.getStackTrace()));}catch(Exception ignored){}
             failure.printStackTrace();minecraft.stop();
         }

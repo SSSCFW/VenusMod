@@ -3,8 +3,6 @@ package dev.ssscfw.venusmod.infrastructure.network.jei;
 import dev.ssscfw.venusmod.infrastructure.network.*;
 import dev.ssscfw.venusmod.infrastructure.network.client.NetworkScreen;
 import dev.ssscfw.venusmod.infrastructure.network.core.DeviceKind;
-import java.awt.Robot;
-import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.nio.file.*;
 import java.util.concurrent.CompletableFuture;
@@ -18,11 +16,11 @@ import net.minecraft.world.item.Items;
 import org.lwjgl.glfw.GLFW;
 
 /** 専用JEIスモークからだけ呼ぶ実GUI入力検査。Robotは隔離したXvfb上のゲームウィンドウを操作する。 */
-final class NetworkGuideInteractionProbe {
+final class NetworkGuideInteractionProbe implements AutoCloseable {
     private final Minecraft minecraft=Minecraft.getInstance();
     private final Path output;
     private final BiConsumer<Boolean,String> check;
-    private final Robot robot;
+    private final NetworkSmokeInput input;
     private int phase,waiting;
     private NetworkScreen screen;
     private CompletableFuture<Void> setup,verified;
@@ -34,7 +32,7 @@ final class NetworkGuideInteractionProbe {
         if(!output.toAbsolutePath().normalize().getParent().getFileName().toString().equals("jeiSmokeClient")
                 ||!Files.readString(output.resolve("fixture.txt")).trim().equals("jei-smoke-world")
                 ||minecraft.getSingleplayerServer()==null)throw new IllegalStateException("Not an isolated guide fixture");
-        robot=new Robot();robot.setAutoDelay(40);
+        input=new NetworkSmokeInput(minecraft.gameDirectory.toPath().resolve("../../tools/verification/JeiNativeInput.java").normalize(),output.resolve("native-input.log"));
         GLFW.glfwFocusWindow(minecraft.getWindow().getWindow());
     }
     /** 呼出し間に実ゲームのイベントループが進み、ネイティブ入力を処理する。 */
@@ -143,11 +141,11 @@ final class NetworkGuideInteractionProbe {
     private void clickRelative(int x,int y){click((screen.width-320)/2+x,(screen.height-252)/2+y);}
     private void click(int guiX,int guiY){
         var window=minecraft.getWindow();int[] x={0},y={0};GLFW.glfwGetWindowPos(window.getWindow(),x,y);
-        robot.mouseMove(x[0]+(int)Math.round(guiX*window.getGuiScale()),y[0]+(int)Math.round(guiY*window.getGuiScale()));
-        robot.mousePress(InputEvent.BUTTON1_DOWN_MASK);robot.mouseRelease(InputEvent.BUTTON1_DOWN_MASK);
+        input.click(x[0]+(int)Math.round(guiX*window.getGuiScale()),y[0]+(int)Math.round(guiY*window.getGuiScale()));
     }
-    private void key(int code){robot.keyPress(code);robot.keyRelease(code);}
-    private void clear(){robot.keyPress(KeyEvent.VK_CONTROL);key(KeyEvent.VK_A);robot.keyRelease(KeyEvent.VK_CONTROL);key(KeyEvent.VK_BACK_SPACE);}
-    private void type(String text){for(char c:text.toCharArray()){if(c=='_'){robot.keyPress(KeyEvent.VK_SHIFT);key(KeyEvent.VK_MINUS);robot.keyRelease(KeyEvent.VK_SHIFT);}else key(KeyEvent.getExtendedKeyCodeForChar(c));}}
+    private void key(int code){input.key(code);}
+    private void clear(){input.clear();}
+    private void type(String text){input.type(text);}
+    @Override public void close(){input.close();}
     private void capture(String name)throws Exception{try(var image=Screenshot.takeScreenshot(minecraft.getMainRenderTarget())){image.writeToFile(output.resolve(name));}}
 }
