@@ -17,6 +17,8 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 /** 検証専用。JEIランタイム開始前の画面停滞も記録し、通常プレイでは一切動かない。 */
 @EventBusSubscriber(modid=VenusMod.MOD_ID, value=Dist.CLIENT)
 public final class NetworkJeiLaunchDiagnostics {
+    // 起動とガイド・診断・転送・経路・ACLの連続操作を含む。外側の360秒制限内で停止する。
+    private static final long SMOKE_BUDGET_NANOS=300_000_000_000L;
     private static long started;
     private static int ticks;
     private static String previous="";
@@ -59,8 +61,8 @@ public final class NetworkJeiLaunchDiagnostics {
                     }
                 }
             }
-            if(System.nanoTime()-started>180_000_000_000L){
-                Files.writeString(output.resolve("FAIL.txt"),"JEI client did not finish within the startup budget\n"+state);
+            if(System.nanoTime()-started>SMOKE_BUDGET_NANOS){
+                Files.writeString(output.resolve("FAIL.txt"),"JEI client did not finish within the 300-second smoke budget\n"+state);
                 finished=true;minecraft.stop();
             }
         } catch(Exception failure) {

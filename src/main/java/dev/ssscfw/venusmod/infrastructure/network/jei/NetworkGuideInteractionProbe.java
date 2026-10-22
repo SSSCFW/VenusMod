@@ -28,6 +28,7 @@ final class NetworkGuideInteractionProbe implements AutoCloseable {
     private String savedProfile;
     private NetworkDiagnosticsInteractionProbe diagnostics;
     private NetworkRouteInteractionProbe routes;
+    private NetworkAclInteractionProbe acl;
 
     NetworkGuideInteractionProbe(Path output,BiConsumer<Boolean,String> check)throws Exception{
         this.output=output;this.check=check;
@@ -130,7 +131,11 @@ final class NetworkGuideInteractionProbe implements AutoCloseable {
                 if(!diagnostics.tick())return false;
                 routes=new NetworkRouteInteractionProbe(input,output,check,position);
             }
-            case 21 -> {return routes.tick();}
+            case 21 -> {
+                if(!routes.tick())return false;
+                acl=new NetworkAclInteractionProbe(input,output,check,position);
+            }
+            case 22 -> {return acl.tick();}
             default -> throw new IllegalStateException("Unexpected guide test phase");
         }
         phase++;waiting=0;return false;

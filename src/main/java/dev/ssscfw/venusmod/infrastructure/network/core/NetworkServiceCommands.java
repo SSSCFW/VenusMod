@@ -33,16 +33,18 @@ public final class NetworkServiceCommands {
                     if(t.length<4)throw new IllegalArgumentException("acl add PORT in|out SEQ permit|deny PROTO SRC DST [DST-PORT]");
                     int port=port(t[2]);var direction=NetworkPolicy.Direction.valueOf(t[3].toUpperCase(Locale.ROOT));
                     switch(t[1]){
-                        case "add" -> {
+                        case "add", "delete-match" -> {
                             if(t.length!=9&&t.length!=10)throw new IllegalArgumentException("acl add 0 in 10 permit tcp 10.0.1.0/24 any 80");
                             if(!Set.of("permit","deny").contains(t[5]))throw new IllegalArgumentException("permit または deny を指定してください");
                             var protocol=NetworkPolicy.Protocol.valueOf(t[6].toUpperCase(Locale.ROOT));
-                            p.services.policy.add(new NetworkPolicy.Rule(port,direction,Integer.parseInt(t[4]),t[5].equals("permit"),protocol,NetworkPolicy.Prefix.parse(t[7]),NetworkPolicy.Prefix.parse(t[8]),t.length==9||t[9].equals("any")?-1:Integer.parseInt(t[9])));
+                            var rule=new NetworkPolicy.Rule(port,direction,Integer.parseInt(t[4]),t[5].equals("permit"),protocol,NetworkPolicy.Prefix.parse(t[7]),NetworkPolicy.Prefix.parse(t[8]),t.length==9||t[9].equals("any")?-1:Integer.parseInt(t[9]));
+                            if(t[1].equals("add"))p.services.policy.add(rule);else p.services.policy.removeMatching(rule);
                         }
                         case "delete" -> {count(t,5);p.services.policy.remove(port,direction,Integer.parseInt(t[4]));}
                         case "clear" -> {count(t,4);p.services.policy.clear(port,direction);}
-                        default -> throw new IllegalArgumentException("ACLはadd/delete/clearを指定します");
+                        default -> throw new IllegalArgumentException("ACLはadd/delete/delete-match/clearを指定します");
                     }
+                    if(p.services.policy.rules().equals(old.services.policy.rules()))return reply(true,false,"ACLの変更はありません");
                 }
                 case "dhcp-relay" -> {
                     if(t.length==1){List<String> lines=new ArrayList<>();for(int i=0;i<6;i++)lines.add("P"+i+" → "+(p.services.relay(i).isBlank()?"リレーなし":p.services.relay(i)));return new Reply(true,false,lines);}

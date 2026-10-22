@@ -30,6 +30,7 @@ printf 'jei-smoke-world\n' > run/jeiSmokeClient/jei-smoke/fixture.txt
 rm -f run/jeiSmokeClient/jei-smoke/failure-state.txt run/jeiSmokeClient/jei-smoke/failure-state.png
 rm -f run/jeiSmokeClient/jei-smoke/PASS.txt run/jeiSmokeClient/jei-smoke/FAIL.txt run/jeiSmokeClient/jei-smoke/interaction-PASS.txt run/jeiSmokeClient/jei-smoke/0[5-9]-*.png run/jeiSmokeClient/jei-smoke/diagnostics-PASS.txt run/jeiSmokeClient/jei-smoke/1[0-5]-*.png run/jeiSmokeClient/jei-smoke/transfer-controls-PASS.txt
 rm -f run/jeiSmokeClient/jei-smoke/static-routes-PASS.txt run/jeiSmokeClient/jei-smoke/1[6-8]-*.png
+rm -f run/jeiSmokeClient/jei-smoke/acl-PASS.txt run/jeiSmokeClient/jei-smoke/19-acl-added.png run/jeiSmokeClient/jei-smoke/20-acl-confirm.png run/jeiSmokeClient/jei-smoke/21-acl-deleted.png
 setsid "$gradle_bin" runServer -PvenusTestJei=true -PvenusJeiSmoke=true --no-daemon --console=plain > build/reports/jei/server.log 2>&1 &
 server_pid=$!
 cleanup(){
@@ -70,13 +71,15 @@ xvfb-run -a -s '-screen 0 1280x800x24' java -cp build/classes/jeiInputTests \
   dev.ssscfw.venusmod.infrastructure.network.jei.NetworkSmokeInputTest \
   "$root/tools/verification/JeiNativeInput.java" "$root/build/reports/jei/native-input-contract-worker.log" \
   > build/reports/jei/native-input-contract.log 2>&1
-ALSOFT_DRIVERS=null LIBGL_ALWAYS_SOFTWARE=1 timeout 360 xvfb-run -a -s '-screen 0 1280x800x24' "$gradle_bin" runClient -PvenusTestJei=true -PvenusJeiSmoke=true --no-daemon --console=plain > build/reports/jei/client.log 2>&1
+# 毎回変わるXvfbのDISPLAY/XAUTHORITYを使い、前回の実行環境をconfiguration cacheから復元しない。
+ALSOFT_DRIVERS=null LIBGL_ALWAYS_SOFTWARE=1 timeout 360 xvfb-run -a -s '-screen 0 1280x800x24' "$gradle_bin" runClient -PvenusTestJei=true -PvenusJeiSmoke=true --no-configuration-cache --no-daemon --console=plain > build/reports/jei/client.log 2>&1
 if [[ -f run/jeiSmokeClient/jei-smoke/FAIL.txt ]]; then cat run/jeiSmokeClient/jei-smoke/FAIL.txt; exit 1; fi
 test -s run/jeiSmokeClient/jei-smoke/PASS.txt
 test -s run/jeiSmokeClient/jei-smoke/interaction-PASS.txt
 test -s run/jeiSmokeClient/jei-smoke/diagnostics-PASS.txt
 test -s run/jeiSmokeClient/jei-smoke/transfer-controls-PASS.txt
 test -s run/jeiSmokeClient/jei-smoke/static-routes-PASS.txt
-for screenshot in 01-cable-spec 02-connection-guide 03-continued-instructions 04-upgrade-spec 05-guide-search 06-guide-empty 07-guide-article 08-guide-related 09-jei-from-device 10-diagnostics-invalid 11-diagnostics-transfer 12-diagnostics-disconnected 13-transfer-priority 14-transfer-confirmation 15-transfer-stopped 16-static-route-added 17-static-route-confirm 18-static-route-deleted; do test -s "run/jeiSmokeClient/jei-smoke/$screenshot.png"; done
+test -s run/jeiSmokeClient/jei-smoke/acl-PASS.txt
+for screenshot in 01-cable-spec 02-connection-guide 03-continued-instructions 04-upgrade-spec 05-guide-search 06-guide-empty 07-guide-article 08-guide-related 09-jei-from-device 10-diagnostics-invalid 11-diagnostics-transfer 12-diagnostics-disconnected 13-transfer-priority 14-transfer-confirmation 15-transfer-stopped 16-static-route-added 17-static-route-confirm 18-static-route-deleted 19-acl-added 20-acl-confirm 21-acl-deleted; do test -s "run/jeiSmokeClient/jei-smoke/$screenshot.png"; done
 cp run/jeiSmokeClient/jei-smoke/* build/reports/jei/
 cat build/reports/jei/PASS.txt

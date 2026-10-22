@@ -49,6 +49,10 @@ public final class NetworkPolicy {
         rules.add(rule);rules.sort(Comparator.comparingInt(Rule::port).thenComparing(Rule::direction).thenComparingInt(Rule::sequence));
     }
     public void remove(int port,Direction direction,int sequence){if(!rules.removeIf(r->r.port==port&&r.direction==direction&&r.sequence==sequence))throw new IllegalArgumentException("指定規則はありません");}
+    /** 確認した全内容を照合し、同じキーへ差し替えられた規則を削除しない。 */
+    public void removeMatching(Rule expected){
+        if(!rules.remove(expected))throw new IllegalArgumentException("確認したACL規則がないか内容が変わりました。一覧で現在値を確認してください");
+    }
     public void clear(int port,Direction direction){rules.removeIf(r->r.port==port&&r.direction==direction);}
     /** 規則がない方向は未適用。1件以上ある方向は最初の一致を採用、未一致を拒否。 */
     public Verdict decide(int port,Direction direction,Packet packet){

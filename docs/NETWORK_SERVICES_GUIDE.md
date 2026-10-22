@@ -1,5 +1,7 @@
 # ネットワーク: ACL・DHCPリレー・接続ガイド
 
+> ACLをフォームで操作する場合は [ACL設定GUI](NETWORK_ACL_GUI.md) を参照してください。後続実装の現行対応範囲はREADMEと各機能の文書に記載しています。
+
 2026-10-17の追加実装。対象はMinecraft 1.21.1 / NeoForge 21.1.x、作業ブランチは `feature/venus-hostile-mobs`。Create非依存、JEI任意です。全体計画は [仕様書](NETWORK_SYSTEM_SPEC.md)、初期配線・機器の基本は [使い方](NETWORK_IMPLEMENTATION.md) を参照してください。
 
 **初期版に残っていたACL・DHCPリレー・JEI独自ガイドカテゴリを今回追加しました。** 以前の文書にある「未対応」のうち、この3項目は本書の範囲で対応済みです。OSPF/BGP/IPv6等まで完成したという意味ではありません。
