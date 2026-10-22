@@ -52,7 +52,8 @@
 - [x] 全体 `gradle build --stacktrace` と `gradle runGameTestServer -PvenusTestCreate=true` を実行し、成功を確認する。
 - [x] 既存JEIクライアント試験を実行し、入力helper修正を含む結果を確認する。
 - [x] 独立レビューを行い、数字キー入力を既存helperが許可する方法へ修正する。ドラッグ実入力の未検証を軽微な残件として記録する。
-- [ ] 既存ブランチへpushし、既存CIとJAR公開の結果を確認。成功と未実施範囲を区別して記録。
+- [x] 既存ブランチへpushし、既存CIとJAR公開の結果を確認。成功と未実施範囲を区別して記録。
+- [x] 追加証拠としてCI診断artifactの画像を目視し、公開JARの実バイトのハッシュ・内容を確認する。
 
 ## Ledger
 
@@ -67,4 +68,8 @@
 - ネイティブ全体は895検査、入力helper契約は別に11検査が成功。JEIは接続111カード・仕様43カード、言語ja_jp、続きページrouting/2。`client.log` は3分29秒でBUILD SUCCESSFUL。`19-acl-added.png`、`20-acl-confirm.png`、`21-acl-deleted.png` を直接開き、可読性と配置を確認。
 - 検証専用watchdogの180秒停止を記録し、300秒へ変更。次のXvfb認証失敗には `runClient` のみ `--no-configuration-cache` を適用。追加の独立レビューで指摘なし。修正後に全体を最初から再実行して成功し、途中停止は成功扱いにしない。詳細はNETWORK_ACL_GUI_VERIFICATION.md。
 - 軽微な残件: ドラッグのモーダル入力経路はコードレビュー済みだが、Robotによるドラッグ実入力は未検証。成功扱いにしない。
-- push、既存CI、JAR公開は未確認。ローカル成功と区別して、確認後に対象コミットと結果を追記する。
+- 実装[`c600e27d9d644821fdc846e6e04cf27b7d64b602`](https://github.com/SSSCFW/VenusMod/commit/c600e27d9d644821fdc846e6e04cf27b7d64b602)を既存ブランチへpush済み。[既存CI run39762406445](https://github.com/SSSCFW/VenusMod/actions/runs/39762406445) / job119769540371が成功。Build1分14秒、AclCommand155・AclDraft101検査、`network_acl_gui:0` と必須165GameTest成功（51秒）、実JEI/GUI895検査・接続111カード/仕様43カードをログで確認。
+- CIのBuild/GameTest/JEI/診断artifact/JAR検査/公開は成功。任意Dedicated server smokeだけskippedで、実行成功とは扱わない。
+- [ci-latest](https://github.com/SSSCFW/VenusMod/releases/tag/ci-latest)のtargetと本文はc600e27を指す。JAR asset665494271を取得し、実ファイル2,455,690 bytes、SHA-256 `0c8ba57adbe084266d7216a322aea159b6e2c8808ce713a7713ea516b3964fd5` が公開メタデータと一致。AclDraft/NetworkAclPanel/NetworkAclGameTests/NetworkAclInteractionProbeのclassとNetworkServiceCommands内のdelete-matchを確認済み。
+- 診断artifact12419162045（期限2026-11-05）を取得。11,164,081 bytes、SHA-256 `61f44194966121f553ef887737bbcef260ca5b650871384988e6d247a6952ac7` がメタデータと一致。全21画面・全6PASS・FAILなし、895検査/111カード/43カード/ja_jp、helper11検査、CIクライアント3分44秒成功を確認。
+- CIの19/20/21画像も直接開き、全内容・注意文・削除後ACL未適用の可読性と欠け/重なりなしを確認。ローカル画像とは別に取得物を検査した。証拠は `build/reports/acl-ci/` と `build/reports/acl-release/`。

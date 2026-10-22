@@ -2,6 +2,8 @@
 
 開始HEAD: `1e9dfe4`（静的経路GUIの検証記録まで完了）。実装範囲は [ACL設定GUI](NETWORK_ACL_GUI.md)、計画は [実装計画](superpowers/plans/2026-10-22-network-acl-gui.md) を参照してください。
 
+実装・CI検証対象コミットは **[`c600e27d9d644821fdc846e6e04cf27b7d64b602`](https://github.com/SSSCFW/VenusMod/commit/c600e27d9d644821fdc846e6e04cf27b7d64b602)** です。既存の `feature/venus-hostile-mobs` へpush済みです。
+
 ## 失敗先行と純Java
 
 変更前に `AclCommandTest` が内容一致削除の未対応で失敗し、`AclDraftTest` が下書きAPI未実装でコンパイルできないことを確認しました。実装後は次の結果です。
@@ -26,7 +28,7 @@ Java 21.0.12.1で実行。入力境界、CIDR正規化、重複追加拒否、�
 
 内容不一致の要求ではエラー本文も確認し、レート制限で拒否されただけの状態を成功に数えません。置換後に開始した同じIDの転送が、古い確認の拒否後も通常tickで進むことを検査しています。最後は確認した規則だけを削除し、後続の規則の全内容が残ることを確認します。
 
-## 実クライアント試験（実行成功・3画面確認済み）
+## ローカル実クライアント試験（実行成功・3画面確認済み）
 
 既存JEIスモークの続きとして、隔離ワールドのルーターを通常のメニューで開き、別JVMのRobotからクリック・英数キーを送るシナリオを追加しました。誤入力拒否、追加/一覧/確認/編集/取消/リサイズ/ガイド往復/内容不一致拒否/最終削除、背後のJEI・Inventoryの保護を対象にしています。
 
@@ -44,7 +46,7 @@ Java 21.0.12.1で実行。入力境界、CIDR正規化、重複追加拒否、�
 
 895は既存シナリオ、JEIの用途・文字幅・レイアウト、画面状態の確認を含む検査数であり、895種類の独立機能やプレイヤー数を意味しません。入力helperの11検査は別に記録しています。
 
-`19-acl-added.png`、`20-acl-confirm.png`、`21-acl-deleted.png` の生成を確認し、3画面を直接開いて、追加済みの正規化表示、削除前の全内容確認、削除後の全許可表示を確認しました。日本語と入力欄・ボタン・結果欄は読み取れ、重なりはありません。画像は `run/jeiSmokeClient/jei-smoke/` にあり、`acl-PASS.txt` と既存各シナリオのPASSファイルも確認済みです。
+`19-acl-added.png`、`20-acl-confirm.png`、`21-acl-deleted.png` の生成を確認し、3画面を直接開いて、追加済みの正規化表示、削除前の全内容確認、削除後の全許可表示を確認しました。日本語と入力欄・ボタン・結果欄は読み取れ、重なりはありません。当時の画像保存先は `run/jeiSmokeClient/jei-smoke/` で、`acl-PASS.txt` と既存各シナリオのPASSファイルも確認済みです。この目視確認はローカル実行の画像に対するものです。
 
 ### 実行中に見つかった検証側の問題
 
@@ -68,13 +70,43 @@ GameTest環境ではCreate 6.0.10の読込を確認しました。SlashBlade本�
 
 ローカルの最初のGradle実行は依存取得前に失敗しました。取得したJDKが環境のプロキシCAを含まないことをJava HTTPSのPKIXエラーで特定し、作業用Gradle設定で既存OSのCAストアと指定プロキシを利用しました。リポジトリの依存設定や証明書検証は変更していません。
 
+## 既存CI・JAR公開（完了）
+
+対象コミット `c600e27d9d644821fdc846e6e04cf27b7d64b602` の [Build 1.21.1 NeoForge / run 39762406445](https://github.com/SSSCFW/VenusMod/actions/runs/39762406445)、[job 119769540371](https://github.com/SSSCFW/VenusMod/actions/runs/39762406445/job/119769540371) の完了結果とログを確認しました。
+
+| CIの検証・処理 | 結果 |
+| --- | --- |
+| MOD全体Build・check | **成功**。Buildは1分14秒 |
+| 新規ACL純Java検査 | AclCommandTest155検査、AclDraftTest101検査が成功 |
+| Create付きGameTest | **必須165件すべて成功**。`network_acl_gui:0` の実行を確認。GameTestは51秒 |
+| 実JEI・GUI入力 | **895検査成功**、接続111カード・仕様43カード。CIクライアントは3分44秒で成功 |
+| 診断artifactアップロード | 成功 |
+| JAR検査・公開ステップ | 成功 |
+| 任意のDedicated server smoke test | **skipped**。未実行であり、成功したGameTestサーバーとは別の検査 |
+
+CIの診断artifactはID **`12419162045`**、期限は **2026-11-05** です。ダウンロードしたZIPは **11,164,081 bytes**、SHA-256は **`61f44194966121f553ef887737bbcef260ca5b650871384988e6d247a6952ac7`** で、artifactのメタデータと一致しました。
+
+ZIP内の検証画面21枚、`PASS.txt`・`interaction-PASS.txt`・`diagnostics-PASS.txt`・`transfer-controls-PASS.txt`・`static-routes-PASS.txt`・`acl-PASS.txt` の全6ファイルを確認し、`FAIL.txt` はありません。PASSは895検査、接続111カード、仕様43カード、`ja_jp` を記録し、入力helperも11検査成功しています。CIの `client.log` は `BUILD SUCCESSFUL in 3m 44s` です。
+
+今回のCI生成物の `19-acl-added.png`、`20-acl-confirm.png`、`21-acl-deleted.png` も直接開き、規則の全内容、確認中の注意文、削除後の「ACL未適用」を読み取れることを確認しました。文字の欠けや重なりはありません。ローカルの3画像の目視とは別に、CIから取得した3画像を確認しています。取得ZIP・PASS・確認用画像は `build/reports/acl-ci/` に保存しました。
+
+[公開リリース `ci-latest`](https://github.com/SSSCFW/VenusMod/releases/tag/ci-latest) のtargetと本文が `c600e27` を指すことを確認しました。JAR assetの公開メタデータは次のとおりです。
+
+| 項目 | 公開メタデータ |
+| --- | --- |
+| JAR asset ID | `665494271` |
+| サイズ | 2,455,690 bytes |
+| SHA-256 digest | `0c8ba57adbe084266d7216a322aea159b6e2c8808ce713a7713ea516b3964fd5` |
+
+公開JARを `build/reports/acl-release/VenusMod-1.21.1.jar` へダウンロードし、実ファイルのサイズ2,455,690 bytesとSHA-256が上記メタデータに一致することを確認しました。JAR内に `AclDraft`、`NetworkAclPanel`、`NetworkAclGameTests`、`NetworkAclInteractionProbe` のclassが存在し、`NetworkServiceCommands.class` に `delete-match` が含まれることも確認済みです。これは公開実ファイルのハッシュ・内容検査であり、そのJARを別の通常プレイ環境で起動した検証ではありません。`ci-latest` は後続の成功ビルドで更新されるリリースです。
+
 ## 独立レビュー・残る確認
 
 実装後に独立した差分レビューを実施しました。ネイティブ試験での数字キー入力を、既存helperで対応している `input.type("1")` へ修正しました。修正後の実クライアント試験では、この入力経路を含めてInventoryとカーソル上のアイテムが保持されることを確認しました。起動監視・キャッシュ変更も追加の独立レビューを受けています。
 
 軽微な指摘として、**ドラッグ操作をRobotの実入力シナリオに含めていない**点を記録します。モーダルのドラッグ入力経路はコードレビュー済みですが、ネイティブ実入力での遮断は未検証です。今回、入力workerにドラッグ機能は追加していません。
 
-既存ブランチへのpush、既存GitHub Actions、公開JARの結果はまだ未確認です。ローカルのビルド・GameTest・ネイティブGUI成功をCIやJAR公開の成功として扱いません。完了後に対象コミット、実行先、結果を追記します。
+既存ブランチへのpush、既存CIの全必須ステップとJAR公開の成功を、上記コミット・runで確認しました。追加証拠としてCI診断ZIPのハッシュ・PASS・画像、および公開JARの実バイトのハッシュ・内容まで照合済みです。ドラッグ実入力と下記の通常プレイ環境に関する未検証範囲は残しています。
 
 ## 範囲
 
